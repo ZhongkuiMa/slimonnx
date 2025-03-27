@@ -4,7 +4,8 @@
 *.pyc
 # ignore the cache directory
 __pycache__
-
+# ignore the cache directory
+.DS_Store
 
 data
 test

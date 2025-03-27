@@ -9,9 +9,6 @@ The following packages are required to be installed:
 - `onnx`
 - `numpy`
 
-```bash
-
-
 ## Usage
 
 Use `SlimONNX` class in `slimonnx/slimonnx.py` to simplify or optimize an ONNX model.
