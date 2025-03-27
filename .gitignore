@@ -1,0 +1,11 @@
+# ignore the setting of pycharm
+.idea
+# ignore all the python cache
+*.pyc
+# ignore the cache directory
+__pycache__
+
+
+data
+test
+
