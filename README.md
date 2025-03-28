@@ -28,21 +28,21 @@ Refer to the following docstring of `slim` method in `SlimONNX` class for suppor
 
 ```python
 def slim(
-        self,
-        onnx_path: str,
-        target_parth: str | None = None,
-        fuse_matmul_add: bool = False,
-        fuse_gemm_reshape_bn: bool = False,
-        fuse_bn_reshape_gemm: bool = False,
-        fuse_bn_gemm: bool = False,
-        fuse_transpose_bn_transpose: bool = False,
-        fuse_gemm_gemm: bool = False,
-        fuse_conv_bn: bool = False,
-        fuse_bn_conv: bool = False,
-        fuse_transposedconv_bn: bool = False,
-        shape_to_initializer: bool = False,
-        simplify_node_name: bool = True,
-        reorder_by_strict_topological_order: bool = True,
+    self,
+    onnx_path: str,
+    target_parth: str | None = None,
+    fuse_matmul_add: bool = False,
+    fuse_gemm_reshape_bn: bool = False,
+    fuse_bn_reshape_gemm: bool = False,
+    fuse_bn_gemm: bool = False,
+    fuse_transpose_bn_transpose: bool = False,
+    fuse_gemm_gemm: bool = False,
+    fuse_conv_bn: bool = False,
+    fuse_bn_conv: bool = False,
+    fuse_transposedconv_bn: bool = False,
+    shape_to_initializer: bool = False,
+    simplify_node_name: bool = True,
+    reorder_by_strict_topological_order: bool = True,
 ):
     """
     Simplify the ONNX model by fusing some nodes.
@@ -71,6 +71,7 @@ def slim(
 
     :return: The simplified ONNX model.
     """
+    ...
 ```
 
 ATTENSION: The resulting model maybe not supported by the shape infering of `onnxruntime`.
