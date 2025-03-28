@@ -145,7 +145,7 @@ def _infer_shape_of_conv(
         print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
 
 
-def _infer_shape_of_conv_transpose(
+def _infer_shape_of_convtranspose(
     node: onnx.NodeProto,
     all_shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
@@ -473,7 +473,7 @@ def _infer_shape_of_reduce(
 INFER_SHAPE_FUNC_MAPPING = {
     "Gemm": _infer_shape_of_gemm,
     "Conv": _infer_shape_of_conv,
-    "ConvTranspose": _infer_shape_of_conv_transpose,
+    "ConvTranspose": _infer_shape_of_convtranspose,
     "MatMul": _infer_shape_of_matmul,
     "Add": _infer_shape_of_binary_op,
     "Sub": _infer_shape_of_binary_op,
