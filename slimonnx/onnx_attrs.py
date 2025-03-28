@@ -25,7 +25,7 @@ _EXTRACT_ATTR_MAP = {
 
 def _scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
     for attr in attrs:
-        extract = _EXTRACT_ATTR_MAP.get(attr)
+        extract = _EXTRACT_ATTR_MAP.get(attr.type)
         if extract is None:
             raise NotImplementedError(f"Invalid attribute type: {attr}")
         default_attrs[attr.name] = extract(attr)
@@ -72,15 +72,6 @@ def _get_attrs_of_averagepool(node: onnx.NodeProto) -> dict:
     if attrs["auto_pad"] != "NOTSET":
         raise ValueError(
             f"Only support auto_pad=NOTSET but auto_pad={attrs['auto_pad']}."
-        )
-    if attrs["ceil_mode"] != 0:
-        raise ValueError(
-            f"Only support ceil_mode=0 but ceil_mode={attrs['ceil_mode']}."
-        )
-    if attrs["count_include_pad"] != 0:
-        raise ValueError(
-            f"Only support count_include_pad=0 "
-            f"but count_include_pad={attrs['count_include_pad']}."
         )
     if attrs["dilations"] is None:
         attrs["dilations"] = [1] * len(attrs["kernel_shape"])
@@ -219,13 +210,8 @@ def _get_attrs_of_gather(node: onnx.NodeProto) -> dict:
 
 def _get_attrs_of_gelu(node: onnx.NodeProto) -> dict:
     # https://onnx.ai/onnx/operators/onnx__Gelu.html
-    attrs = {"approximate": None}
+    attrs = {"approximate": "none"}
     attrs = _scan_attrs(attrs, node.attribute)
-
-    if attrs["approximate"] is not None:
-        raise ValueError(
-            f"Only support approximate=None but approximate={attrs['approximate']}"
-        )
 
     return attrs
 
@@ -270,10 +256,6 @@ def _get_attrs_of_maxpool(node: onnx.NodeProto) -> dict:
     if attrs["auto_pad"] != "NOTSET":
         raise ValueError(
             f"Only support auto_pad=NOTSET but auto_pad={attrs['auto_pad']}."
-        )
-    if attrs["ceil_mode"] != 0:
-        raise ValueError(
-            f"Only support ceil_mode=0 but ceil_mode={attrs['ceil_mode']}."
         )
     if attrs["storage_order"] != 0:
         raise ValueError(
@@ -443,13 +425,17 @@ def _get_attrs_of_unsqueeze(node: onnx.NodeProto) -> dict:
 
 def _get_attrs_of_upsample(node: onnx.NodeProto) -> dict:
     # https://onnx.ai/onnx/operators/onnx__Upsample.html
-    attrs = {"mode": "nearest"}
+    attrs = {
+        "mode": "nearest",
+        # TODO: This exists in old version, new version needs shape inference.
+        "scales": None,
+    }
     attrs = _scan_attrs(attrs, node.attribute)
 
     return attrs
 
 
-GET_ATTRS_FUNC_MAPPING = {
+_EXTRACT_ATTRS_MAPPING = {
     "Add": _get_attrs_of_add,
     "ArgMax": _get_attrs_of_argmax,
     "AveragePool": _get_attrs_of_averagepool,
@@ -458,6 +444,7 @@ GET_ATTRS_FUNC_MAPPING = {
     "Concat": _get_attrs_of_concat,
     "Conv": _get_attrs_of_conv,
     "ConvTranspose": _get_attrs_of_convtranspose,
+    "Elu": _get_attrs_of_elu,
     "Flatten": _get_attrs_of_flatten,
     "Gather": _get_attrs_of_gather,
     "Gelu": _get_attrs_of_gelu,
@@ -491,7 +478,7 @@ def get_attrs_of_onnx_node(node: onnx.NodeProto):
     :return: A dictionary of attributes with key is the name of the attribute.
     """
 
-    _get_attrs = GET_ATTRS_FUNC_MAPPING.get(node.op_type)
+    _get_attrs = _EXTRACT_ATTRS_MAPPING.get(node.op_type)
     if _get_attrs is None:
         raise NotImplementedError(f"Unsupported operator: {node.op_type}")
     attrs = _get_attrs(node)
