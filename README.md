@@ -52,8 +52,6 @@ To use **SlimONNX** and turbocharge your ONNX models, simply call the `SlimONNX`
 
 There is an example about ViT model in `nets` folder ([ViT benchmark](https://github.com/ChristopherBrix/vnncomp2023_benchmarks/tree/main/benchmarks/vit/onnx) from [VNNCOMP'23](https://sites.google.com/view/vnn2023/home)).
 
-```bash
-
 ```python
 from slimonnx import SlimONNX
 import onnx
@@ -88,3 +86,4 @@ if __name__ == "__main__":
 ## Current Supported Features 🌟
 
 I have implemented most of commonly used operations in feedforward neural networks.
+Transformer-based architectures will be treated as several basic operations.
