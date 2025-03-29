@@ -44,6 +44,11 @@ Make sure these dependencies are installed ✅:
 
 Maybe other versions are accepted but do not make your onnx version too old. Currently, the code consider the ONNX version 22.0.0 as a baseline.
 
+## Current Supported Features 🌟
+
+I have implemented most of commonly used operations in feedforward neural networks.
+Transformer-based architectures will be treated as several basic operations.
+
 ## Usage 🎯
 
 To use **SlimONNX** and turbocharge your ONNX models, simply call the `SlimONNX` class from `slimonnx/slimonnx.py`. It’s that simple!
@@ -86,8 +91,9 @@ if __name__ == "__main__":
 [netron.app](netron.app) is a good way to check the computation graph of the onnx file.
 You can clearly see the difference between the original and the optimized model.
 
+### Difference! 
 
-## Current Supported Features 🌟
+You can see the difference below!
 
-I have implemented most of commonly used operations in feedforward neural networks.
-Transformer-based architectures will be treated as several basic operations.
+![example_comparison_vit](./README.assets/example_comparison_vit.png)
+
