@@ -20,6 +20,8 @@ That's where **SlimONNX** comes in. 💪 We take your model, simplify it, and op
 
 Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 
+- **`constant_to_initializer`**: Convert constant nodes to initializer nodes. This is a really a thing that everyone can think of, but ONNX just doesn't do it! Actually, I know why constant node should be initializer node because initializer node is always trainable not constant node, but it really really introduce troubles. We make sure every constant is an initializer, making your model cleaner and more efficient! 💡
+- ** shape-to-initializer**: Convert shape nodes to initializers. This is a game-changer for reducing the number of nodes in your model! 🎉 We will trace the shape node and find the final node. In most of cases, the shape node is a  constant node.
 - **`fuse_matmul_add`**: Fuse a MatMul and Add node into a single Gemm node. It's a standard operation in coding that ONNX just can't handle as an optimization, but we do! 🔥
 - **`fuse_gemm_reshape_bn`**: Fuse a Gemm, Reshape, and BatchNormalization node into a single Gemm + Reshape node. We streamline these linear operations like never before! 💥 Because they are all linear operations.
 - **`fuse_bn_reshape_gemm`**: Merge BatchNormalization, Reshape, and Gemm nodes into a unified Reshape + Gemm node. Optimization at its finest! ⚡
@@ -30,8 +32,8 @@ Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 - **`fuse_bn_conv`**: Merge BatchNormalization and Convolutional nodes into a single node. Not as common, but when needed, we’ve got it! 💥
 - **`fuse_transposedconv_bn`**: Fuse ConvTranspose and BatchNormalization nodes into a single ConvTranspose node. Optimization made easy! 🔄
 - **`shape_to_initializer`**: Convert shape nodes to initializers. Let’s get rid of unnecessary variables and treat them as initializers where possible! 🎯 This happends when the shape of a tensor is infered from another variable but the size of the variable is fixed in the model.
+- **`reorder_by_strict_topological_order`**: Reorder the nodes based on strict topological order—perfect for neural network DAGs and convenient some further operations. 🏎️‘
 - **`simplify_node_name`**: Simplify node names based on topological order, ditching the nested structure for clarity and simplicity. 🧠 Because ONNX names a node by the nested structure of the code.
-- **`reorder_by_strict_topological_order`**: Reorder the nodes based on strict topological order—perfect for neural network DAGs and convenient some further operations. 🏎️
 
 Frankly speaking, the root reason is that ONNX is just like a reader, and it read the code without most of the optimizations. We are here to make it better! 🚀
 
@@ -91,7 +93,7 @@ if __name__ == "__main__":
 [netron.app](netron.app) is a good way to check the computation graph of the onnx file.
 You can clearly see the difference between the original and the optimized model.
 
-### Difference! 
+### See the Difference! 
 
 You can see the difference below!
 The left is the original onnx model and the right is the optimized one.
