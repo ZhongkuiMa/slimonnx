@@ -1,16 +1,130 @@
 __docformat__ = "restructuredtext"
 __all__ = ["optimize_onnx"]
 
-import math
 from typing import Any
 
 import numpy as np
 import onnx
 from onnx import numpy_helper
 
-from slimonnx.get_attrs import get_onnx_node_attrs
-from slimonnx.infer_shape import infer_onnx_shape
-from slimonnx.utils import *
+from .infer_shape import infer_onnx_shape
+from .onnx_attrs import get_attrs_of_onnx_node
+from .utils import *
+
+_VERBOSE = False
+
+
+def _constant_to_initializer(
+    nodes: list[onnx.NodeProto], initializers: dict[str, onnx.TensorProto]
+) -> list[onnx.NodeProto]:
+    if _VERBOSE:
+        print("Convert constant nodes to initializers...")
+
+    new_nodes = []
+    counter = 0
+    for node in nodes:
+        if node.op_type == "Constant":
+            np_array = numpy_helper.to_array(node.attribute[0].t)
+            initializer = numpy_helper.from_array(np_array, name=node.output[0])
+            initializers[node.output[0]] = initializer
+
+            counter += 1
+            continue
+
+        new_nodes.append(node)
+    if _VERBOSE:
+        print(f"Convert {counter} constant nodes to initializers.")
+
+    return new_nodes
+
+
+def _shape_to_initializer(
+    nodes: list[onnx.NodeProto],
+    initializers: dict[str, onnx.TensorProto],
+    shapes: dict[str, list[int]],
+) -> list[onnx.NodeProto]:
+    """
+    Trace the shape node and make it as a direct constant.
+    """
+
+    """
+    Currently, there are the following cases:
+    (1) We extract the shape to construct a constant tensor. we can make such 
+        constant tensor as a freezed initializer.
+    (2) We extract the shape to reshape a tensor. We can make such shape as a freezed
+        initializer.
+    """
+    nodes_to_delete = []
+    # Iterate over value_info to print tensor names and their shapes
+    for node in nodes:
+        op_type = node.op_type
+        if op_type == "Shape":
+            # The shape node must be deleted.
+            value = np.array(shapes[node.output[0]])
+            initializer = numpy_helper.from_array(value, name=node.output[0])
+            initializers[node.output[0]] = initializer
+            nodes_to_delete.append(node.output[0])
+
+        if all(input_name not in nodes_to_delete for input_name in node.input):
+            continue
+
+        """
+        NOTE: The key ideas are
+        (1) Make all constants be initializers.
+        (2) If all inputs are initializers: 
+            (a) make itself an initializer;
+            (b) delete the input initializers.
+        """
+
+        if op_type in {"Gather", "Slice", "Unsqueeze"}:
+            # All these nodes extract or change the result from the shape node.
+            value = np.array(shapes[node.output[0]])
+
+        elif op_type == "Reshape":
+            # The reshape node uses the shape node.
+            continue
+        elif op_type == "ConstantOfShape":
+            # The node create a constant with specified shape.
+            shape = shapes[node.output[0]]
+            value = numpy_helper.to_array(node.attribute[0].t)[0]
+            value = np.full(shape, value, dtype=value.dtype)
+
+        elif op_type in {"Add", "Sub", "Mul", "Div", "Concat"}:
+            # Some operations have all constant inputs.
+            are_initializer_inputs = all(ipt in initializers for ipt in node.input)
+            if not are_initializer_inputs:
+                continue
+
+            value = None
+            if op_type in {"Add", "Sub", "Mul", "Div"}:
+                tensor1 = numpy_helper.to_array(initializers[node.input[0]])
+                tensor2 = numpy_helper.to_array(initializers[node.input[1]])
+                if op_type == "Add":
+                    value = tensor1 + tensor2
+                elif op_type == "Sub":
+                    value = tensor1 - tensor2
+                elif op_type == "Mul":
+                    value = tensor1 * tensor2
+                elif op_type == "Div":
+                    value = tensor1 / tensor2
+
+            elif op_type == "Concat":
+                value = np.array(shapes[node.output[0]])
+
+        else:
+            raise NotImplementedError(f"Not supported node type: {op_type}.")
+
+        initializer = numpy_helper.from_array(value, name=node.output[0])
+        initializers[node.output[0]] = initializer
+        nodes_to_delete.append(node.output[0])
+
+        for input_name in node.input:
+            if input_name in initializers:
+                del initializers[input_name]
+
+    new_nodes = [node for node in nodes if node.output[0] not in nodes_to_delete]
+
+    return new_nodes
 
 
 def _in_single_path(
@@ -35,7 +149,7 @@ def _get_batch_normalization_params(
     """
     Get the parameters of a BatchNormalization node.
     """
-    epsilon = get_onnx_node_attrs(node)["epsilon"]
+    epsilon = get_attrs_of_onnx_node(node)["epsilon"]
     scale = numpy_helper.to_array(initializers[node.input[1]])
     b = numpy_helper.to_array(initializers[node.input[2]])
     mean = numpy_helper.to_array(initializers[node.input[3]])
@@ -57,7 +171,7 @@ def _get_gemm_params(
     """
     Get the parameters of a Gemm node.
     """
-    attrs = get_onnx_node_attrs(node)
+    attrs = get_attrs_of_onnx_node(node)
     alpha = attrs["alpha"]
     beta = attrs["beta"]
     transA = attrs["transA"]
@@ -78,7 +192,7 @@ def _get_conv_params(
     """
     Get the parameters of a Conv or ConvTranspose node.
     """
-    attrs = get_onnx_node_attrs(node)
+    attrs = get_attrs_of_onnx_node(node)
     kernel_shape = attrs["kernel_shape"]
     pads = attrs["pads"]
     strides = attrs["strides"]
@@ -716,10 +830,11 @@ def _fuse_transpose_batchnorm_transpose(
             tp_node1, bn_node, tp_node2 = pre_pre_node, pre_node, node
             data_type = initializers[bn_node.input[2]].data_type
 
-            perm1 = get_onnx_node_attrs(tp_node1)["perm"]
-            perm2 = get_onnx_node_attrs(tp_node2)["perm"]
-            assert perm1 == [0, 2, 1]
-            assert perm2 == [0, 2, 1]
+            perm1 = get_attrs_of_onnx_node(tp_node1)["perm"]
+            perm2 = get_attrs_of_onnx_node(tp_node2)["perm"]
+            _mode = (0, 2, 1)
+            assert all(p_i == p_j for p_i, p_j in zip(perm1, _mode))
+            assert all(p_i == p_j for p_i, p_j in zip(perm2, _mode))
 
             epsilon, scale, b, mean, var = _get_batch_normalization_params(
                 bn_node, initializers
@@ -755,137 +870,6 @@ def _fuse_transpose_batchnorm_transpose(
         new_nodes.append(new_node)
         pre_pre_node = pre_node
         pre_node = node
-
-    return new_nodes
-
-
-def _shape_to_initializer(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-    shapes: dict[str, list[int]],
-) -> list[onnx.NodeProto]:
-
-    shape_nodes = {}
-    shape_trace_values = {}
-    # Iterate over value_info to print tensor names and their shapes
-    for node in nodes:
-        if node.op_type == "Shape":
-            shape = shapes[node.input[0]]
-            shape_nodes[node.output[0]] = shape
-            shape_trace_values[node.output[0]] = shape
-            # print("Get Shape node:", node.output[0], shape)
-        else:
-            for input_name in node.input:
-                if input_name in shape_trace_values:
-                    cur_data = shape_trace_values[input_name]
-                    # print(f"TRACE shape={input_name} => {node.output[0]}")
-                    # print(f"Current data: {shape_trace_values[input_name]}")
-                    # print(node.output[0])
-
-                    if node.op_type == "Gather":
-                        indices = numpy_helper.to_array(initializers[node.input[1]])
-                        new_shape = cur_data[indices]
-                        shape_trace_values[node.output[0]] = new_shape
-                        # print(f"Change data: {shape_trace_values[node.output[0]]}")
-
-                    elif node.op_type == "Slice":
-                        assert len(node.input) == 4, "Only consider 4 inputs"
-                        starts = initializers[node.input[1]].int64_data[0]
-                        ends = initializers[node.input[2]].int64_data[0]
-                        # axes must be 0
-                        shape_trace_values[node.output[0]] = cur_data[starts:ends]
-                        # print(f"Change data: {shape_trace_values[node.output[0]]}")
-
-                    elif node.op_type == "Reshape":
-                        # Create an initializer for the shape and stop the trace.
-                        ori_shape = shapes[node.input[0]]
-                        inferred_shape = math.prod(ori_shape)
-                        inferred_idx = -1
-                        for idx, shape_i in enumerate(cur_data):
-                            if shape_i == -1:
-                                inferred_idx = idx
-                                continue
-                            inferred_shape = inferred_shape // shape_i
-                        if inferred_idx != -1:
-                            cur_data[inferred_idx] = inferred_shape
-
-                        shape_name = node.input[1]
-                        shape = onnx.helper.make_tensor(
-                            name=shape_name,
-                            data_type=onnx.TensorProto.INT64,
-                            dims=[len(cur_data)],
-                            vals=cur_data,
-                        )
-                        initializers[shape_name] = shape
-                        # print(f"Finish trace {cur_data} of {shape_name}")
-
-                    elif node.op_type == "Concat":
-                        if isinstance(cur_data, list):
-                            # This is a shape
-                            new_shape = []
-                            for input_i in node.input:
-                                if input_i in shape_trace_values:
-                                    temp = shape_trace_values[input_i]
-                                    new_shape.extend(temp)
-                                else:
-                                    temp = numpy_helper.to_array(initializers[input_i])
-                                    new_shape.append(temp[0])
-                            shape_trace_values[node.output[0]] = new_shape
-                            # print(f"Change data: {shape_trace_values[node.output[0]]}")
-                        else:
-                            assert isinstance(cur_data, tuple)
-                            new_initializer = onnx.helper.make_tensor(
-                                name=input_name,
-                                data_type=cur_data[2],
-                                dims=cur_data[1],
-                                vals=cur_data[0],
-                            )
-                            initializers[input_name] = new_initializer
-                            # print(f"Finish trace {cur_data} of {input_name}")
-
-                    elif node.op_type == "Unsqueeze":
-                        new_shape = cur_data
-                        if isinstance(cur_data, int):
-                            new_shape = [cur_data]
-                        shape_trace_values[node.output[0]] = new_shape
-                        # print(f"Change data: {shape_trace_values[node.output[0]]}")
-
-                    elif node.op_type == "ConstantOfShape":
-                        shape = cur_data
-                        value = node.attribute[0]
-                        data_type = value.t.data_type
-                        value = numpy_helper.to_array(value.t)[0]
-                        constant = (
-                            np.full(shape, value, dtype=value.dtype),
-                            shape,
-                            data_type,
-                        )
-
-                        shape_trace_values[node.output[0]] = constant
-                        # print(f"Change data: {shape_trace_values[node.output[0]]}")
-
-                    elif node.op_type == "Add":
-                        cur_value = cur_data[0]
-                        another_value = numpy_helper.to_array(
-                            initializers[node.input[1]]
-                        )
-                        new_value = cur_value + another_value
-                        new_value = (new_value, *cur_data[1:])
-                        shape_trace_values[node.output[0]] = new_value
-                        # print(f"Change data: {shape_trace_values[node.output[0]]}")
-
-                    else:
-                        raise NotImplementedError(
-                            f"Unknown op_type: {node.op_type} of {node.output[0]}"
-                        )
-
-                    # print()
-
-    # Remove all shape nodes
-    new_nodes = []
-    for node in nodes:
-        if node.output[0] not in shape_trace_values.keys():
-            new_nodes.append(node)
 
     return new_nodes
 
@@ -999,6 +983,8 @@ def _reorder_by_strict_topological_order(
 
 def optimize_onnx(
     model: onnx.ModelProto,
+    constant_to_initializer: bool = False,
+    shape_to_initializer: bool = False,
     fuse_matmul_add: bool = False,
     fuse_gemm_reshape_bn: bool = False,
     fuse_bn_reshape_gemm: bool = False,
@@ -1008,14 +994,22 @@ def optimize_onnx(
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
     fuse_transposedconv_bn: bool = False,
-    shape_to_initializer: bool = False,
-    simplify_node_name: bool = True,
-    reorder_by_strict_topological_order: bool = True,
+    reorder_by_strict_topological_order: bool = False,
+    simplify_node_name: bool = False,
+    verbose: bool = False,
 ) -> onnx.ModelProto:
+
+    global _VERBOSE
+    _VERBOSE = verbose
+
+    if verbose:
+        print("Clear ONNX docstring...")
     clear_onnx_docstring(model)
 
-    graph_name = model.graph.name + "_simplified"
+    graph_name = model.graph.name + "_slimmed"
 
+    if verbose:
+        print("Set batch size to 1...")
     input_nodes = [
         onnx.helper.make_tensor_value_info(
             name=input_i.name,
@@ -1035,12 +1029,14 @@ def optimize_onnx(
     ]
 
     initializers = get_initializers(model)
-    all_shapes = infer_onnx_shape(model, verbose=False)
 
     nodes = list(model.graph.node)
 
+    if constant_to_initializer:
+        nodes = _constant_to_initializer(nodes, initializers)
     if shape_to_initializer:
-        nodes = _shape_to_initializer(nodes, initializers, all_shapes)
+        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
+        nodes = _shape_to_initializer(nodes, initializers, data_shapes)
     if fuse_matmul_add:
         nodes = _fuse_matmul_add(nodes, initializers)
     if fuse_gemm_reshape_bn:
@@ -1071,6 +1067,8 @@ def optimize_onnx(
             input_nodes, output_nodes, nodes, initializers
         )
 
+    if verbose:
+        print("Assembly new model...")
     new_model = onnx.helper.make_model(
         onnx.helper.make_graph(
             nodes,

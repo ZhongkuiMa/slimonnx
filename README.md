@@ -31,7 +31,7 @@ Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 - **`fuse_transposedconv_bn`**: Fuse ConvTranspose and BatchNormalization nodes into a single ConvTranspose node. Optimization made easy! 🔄
 - **`shape_to_initializer`**: Convert shape nodes to initializers. Let’s get rid of unnecessary variables and treat them as initializers where possible! 🎯 This happends when the shape of a tensor is infered from another variable but the size of the variable is fixed in the model.
 - **`simplify_node_name`**: Simplify node names based on topological order, ditching the nested structure for clarity and simplicity. 🧠 Because ONNX names a node by the nested structure of the code.
-- **`reorder_by_strict_topological_order`**: Reorder the nodes based on strict topological order—perfect for neural network DAGs and convenient some further operations 🏎️
+- **`reorder_by_strict_topological_order`**: Reorder the nodes based on strict topological order—perfect for neural network DAGs and convenient some further operations. 🏎️
 
 Frankly speaking, the root reason is that ONNX is just like a reader, and it read the code without most of the optimizations. We are here to make it better! 🚀
 
@@ -39,21 +39,52 @@ Frankly speaking, the root reason is that ONNX is just like a reader, and it rea
 
 Make sure these dependencies are installed:
 
-- `onnx`
-- `numpy`
+- `onnx=1.17.0`
+- `numpy=1.24.3`
+
+Maybe other versions are accepted but do not make your onnx version too old. Currently, the code consider the ONNX version 22.0.0 as a baseline.
 
 ## Usage 🎯
 
 To use **SlimONNX** and turbocharge your ONNX models, simply call the `SlimONNX` class from `slimonnx/slimonnx.py`. It’s that simple!
 
-Here’s an example:
+### Example Usage 📚
+
+There is an example about ViT model in `nets` folder ([ViT benchmark](https://github.com/ChristopherBrix/vnncomp2023_benchmarks/tree/main/benchmarks/vit/onnx) from [VNNCOMP'23](https://sites.google.com/view/vnn2023/home)).
+
+```bash
 
 ```python
-from slimonnx.slimonnx import SlimONNX
+from slimonnx import SlimONNX
+import onnx
 
-# Initialize SlimONNX
-slim = SlimONNX()
+if __name__ == "__main__":
+    slimonnx = SlimONNX()
+    onnx_path = "../nets/ibp_3_3_8.onnx"
 
-# Simplify your ONNX model
-slim.slim("model.onnx", "slim_model.onnx")
+    # Convert the model to version 22 to avoid many inconsistencies
+    model = onnx.load(onnx_path)
+    model = onnx.version_converter.convert_version(model, target_version=22)
+    onnx_path = onnx_path.replace(".onnx", "_v22.onnx")
+    onnx.save(model, onnx_path)
+
+    target_path = onnx_path.replace(".onnx", "_simplified.onnx")
+
+    slimonnx.slim(
+        onnx_path,
+        target_path,
+        constant_to_initializer=True,
+        shape_to_initializer=True,
+        fuse_matmul_add=True,
+        fuse_transpose_bn_transpose=True,
+        fuse_gemm_gemm=True,
+        fuse_bn_gemm=True,
+        reorder_by_strict_topological_order=True,
+        simplify_node_name=True,
+        verbose=True,
+    )
 ```
+
+## Current Supported Features 🌟
+
+I have implemented most of commonly used operations in feedforward neural networks.
