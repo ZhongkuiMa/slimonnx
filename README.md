@@ -94,6 +94,7 @@ You can clearly see the difference between the original and the optimized model.
 ### Difference! 
 
 You can see the difference below!
+The left is the original onnx model and the right is the optimized one.
 
 ![example_comparison_vit](./README.assets/example_comparison_vit.png)
 
