@@ -37,7 +37,7 @@ Frankly speaking, the root reason is that ONNX is just like a reader, and it rea
 
 ## Installation 💻
 
-Make sure these dependencies are installed:
+Make sure these dependencies are installed ✅:
 
 - `onnx=1.17.0`
 - `numpy=1.24.3`
@@ -82,6 +82,10 @@ if __name__ == "__main__":
         verbose=True,
     )
 ```
+
+[netron.app](netron.app) is a good way to check the computation graph of the onnx file.
+You can clearly see the difference between the original and the optimized model.
+
 
 ## Current Supported Features 🌟
 
