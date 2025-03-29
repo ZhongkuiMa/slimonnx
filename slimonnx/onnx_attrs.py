@@ -5,27 +5,13 @@ import warnings
 from typing import Any
 
 import onnx
-from onnx import numpy_helper
 
-_EXTRACT_ATTR_MAP = {
-    0: lambda x: None,  # UNDEFINED
-    1: lambda x: x.f,  # FLOAT
-    2: lambda x: x.i,  # INT
-    3: lambda x: x.s.decode("utf-8"),  # STRING
-    4: lambda x: numpy_helper.to_array(x.t),  # TENSOR
-    5: lambda x: x.g,  # GRAPH
-    6: lambda x: tuple(x.floats),  # FLOATS
-    7: lambda x: tuple(x.ints),  # INTS
-    8: lambda x: None,  # STRINGS
-    9: lambda x: None,  # TENSORS
-    10: lambda x: None,  # GRAPHS
-    11: lambda x: None,  # SPARSE_TENSOR
-}
+from .utils import EXTRACT_ATTR_MAP
 
 
 def _scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
     for attr in attrs:
-        extract = _EXTRACT_ATTR_MAP.get(attr.type)
+        extract = EXTRACT_ATTR_MAP.get(attr.type)
         if extract is None:
             raise NotImplementedError(f"Invalid attribute type: {attr}")
         default_attrs[attr.name] = extract(attr)
@@ -92,7 +78,7 @@ def _get_attrs_of_batchnormalization(node: onnx.NodeProto) -> dict:
     }
     attrs = _scan_attrs(attrs, node.attribute)
 
-    if attrs["momentum"] != 0.9:
+    if abs(attrs["momentum"] - 0.9) > 1e-5:
         raise ValueError(f"Only support momentum=0.9 but momentum={attrs['momentum']}")
     if attrs["training_mode"] != 0:
         raise ValueError(
@@ -286,7 +272,6 @@ def _get_attrs_of_pad(node: onnx.NodeProto) -> dict:
 def _get_attrs_of_reducemean(node: onnx.NodeProto) -> dict:
     # https://onnx.ai/onnx/operators/onnx__ReduceMean.html
     attrs = {
-        "axes": None,  # TODO: This attr only exists in old version, try to remove.
         "keepdims": 1,
         "noop_with_empty_axes": 0,
     }
@@ -309,7 +294,6 @@ def _get_attrs_of_relu(node: onnx.NodeProto) -> dict:
 def _get_attrs_of_reducesum(node: onnx.NodeProto) -> dict:
     # https://onnx.ai/onnx/operators/onnx__ReduceSum.html
     attrs = {
-        "axes": None,  # TODO: This attr only exists in old version, try to remove.
         "keepdims": 1,
         "noop_with_empty_axes": 0,
     }

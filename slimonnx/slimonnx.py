@@ -1,6 +1,8 @@
 __docformat__ = "restructuredtext"
 __all__ = ["SlimONNX"]
 
+import time
+
 import onnx
 
 from .optimize_onnx import optimize_onnx
@@ -14,6 +16,8 @@ class SlimONNX:
         self,
         onnx_path: str,
         target_parth: str | None = None,
+        constant_to_initializer: bool = False,
+        shape_to_initializer: bool = False,
         fuse_matmul_add: bool = False,
         fuse_gemm_reshape_bn: bool = False,
         fuse_bn_reshape_gemm: bool = False,
@@ -23,9 +27,9 @@ class SlimONNX:
         fuse_conv_bn: bool = False,
         fuse_bn_conv: bool = False,
         fuse_transposedconv_bn: bool = False,
-        shape_to_initializer: bool = False,
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
+        verbose: bool = False,
     ):
         """
         Simplify the ONNX model by fusing some nodes.
@@ -54,9 +58,15 @@ class SlimONNX:
 
         :return: The simplified ONNX model.
         """
+        if verbose:
+            print(f"Slim ONNX model {onnx_path}...")
+            t = time.perf_counter()
         model = onnx.load(onnx_path)
-        optimize_onnx(
+
+        new_model = optimize_onnx(
             model,
+            constant_to_initializer=constant_to_initializer,
+            shape_to_initializer=shape_to_initializer,
             fuse_matmul_add=fuse_matmul_add,
             fuse_gemm_reshape_bn=fuse_gemm_reshape_bn,
             fuse_bn_reshape_gemm=fuse_bn_reshape_gemm,
@@ -66,11 +76,14 @@ class SlimONNX:
             fuse_conv_bn=fuse_conv_bn,
             fuse_bn_conv=fuse_bn_conv,
             fuse_transposedconv_bn=fuse_transposedconv_bn,
-            shape_to_initializer=shape_to_initializer,
-            simplify_node_name=simplify_node_name,
             reorder_by_strict_topological_order=reorder_by_strict_topological_order,
+            simplify_node_name=simplify_node_name,
+            verbose=verbose,
         )
 
         if target_parth is None:
             target_parth = onnx_path.replace(".onnx", "_simplified.onnx")
-        onnx.save(model, target_parth)
+        onnx.save(new_model, target_parth)
+        if verbose:
+            t = time.perf_counter() - t
+            print(f"Slimmed ONNX model saved to {target_parth} ({t:.4f}s)")

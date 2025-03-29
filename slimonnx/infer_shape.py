@@ -2,98 +2,86 @@ __docformat__ = "restructuredtext"
 __all__ = ["infer_onnx_shape"]
 
 import math
+import warnings
 from math import ceil, floor
 from typing import Any
 
+import numpy
 import numpy as np
 import onnx
+from onnx import numpy_helper
 
-from slimonnx.get_attrs import get_onnx_node_attrs
-from slimonnx.utils import *
+from slimonnx.onnx_attrs import get_attrs_of_onnx_node
 
 _VERBOSE = False
 
 
-def _get_input_shape(model: onnx.ModelProto, all_shapes: dict[str, list[int]]):
-    for input_node in model.graph.input:
+def _get_input_shape(
+    input_nodes: list[onnx.ValueInfoProto], shapes: dict[str, list[int]]
+):
+    for input_node in input_nodes:
         shape = [x.dim_value for x in input_node.type.tensor_type.shape.dim[1:]]
         shape = [1] + shape
         shape = [int(x) for x in shape]
-        all_shapes[input_node.name] = shape
+        shapes[input_node.name] = shape
         if _VERBOSE:
             print(f"Input {input_node.name:<50} Shape={shape}")
 
 
-def _get_output_shape(model: onnx.ModelProto, all_shapes: dict[str, list[int]]):
-    for output_node in model.graph.output:
+def _get_output_shape(
+    output_nodes: list[onnx.ValueInfoProto], shapes: dict[str, list[int]]
+):
+    for output_node in output_nodes:
         shape = [x.dim_value for x in output_node.type.tensor_type.shape.dim[1:]]
         shape = [1] + shape
         shape = [int(x) for x in shape]
-        all_shapes[output_node.name] = shape
+        shapes[output_node.name] = shape
         if _VERBOSE:
             print(f"Output {output_node.name:<50} Shape={shape}")
 
 
-def _get_initializer_shape(model: onnx.ModelProto, all_shapes: dict[str, list[int]]):
-    for initializer in model.graph.initializer:
+def _get_initializer_shape(
+    initializers: dict[str, onnx.TensorProto], shapes: dict[str, list[int]]
+):
+    for initializer in initializers.values():
         shape = [int(x) for x in initializer.dims]
-        all_shapes[initializer.name] = shape
+        shapes[initializer.name] = shape
         if _VERBOSE:
             print(f"Initializer {initializer.name:<50} Shape={shape}")
 
 
-def _infer_shape_of_gemm(
+def _infer_shape_of_act(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    attrs = get_onnx_node_attrs(node)
-    transA = attrs["transA"]
-    transB = attrs["transB"]
-    shape1 = all_shapes[node.input[0]]
-    shape2 = all_shapes[node.input[1]]
-
-    if transA:
-        shape1 = shape1[:-2] + [shape1[-1], shape1[-2]]
-    if transB:
-        shape2 = shape2[:-2] + [shape2[-1], shape2[-2]]
-
-    shape = shape1[:-1] + shape2[-1:]
-
-    all_shapes[node.output[0]] = shape
+    shape = shapes[node.input[0]]
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
-def _infer_shape_of_matmul(
+def _infer_shape_of_batch_norm(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    shape1 = all_shapes[node.input[0]]
-    shape2 = all_shapes[node.input[1]]
-
-    if not (len(shape1) >= 2 and len(shape2) >= 2 and shape1[-1] == shape2[-2]):
-        raise NotImplementedError(
-            f"Not supported {node.op_type:<20} with shape {shape1} and {shape2}"
-        )
-
-    shape = [*shape1[:-1], shape2[-1]]
-    all_shapes[node.output[0]] = shape
+    shape = shapes[node.input[0]]
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 def _infer_shape_of_binary_op(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    shape1 = all_shapes[node.input[0]]
-    shape2 = all_shapes[node.input[1]]
+    shape1 = shapes[node.input[0]]
+    shape2 = shapes[node.input[1]]
 
     # Use a broadcast mechanism to calculate the output shape
     if len(shape1) < len(shape2):
@@ -108,25 +96,100 @@ def _infer_shape_of_binary_op(
         ), "Shape mismatch"
         shape.append(max(shape1[i], shape2[i]))
 
-    all_shapes[node.output[0]] = shape
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+
+
+def _infer_shape_of_concat(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    attrs = get_attrs_of_onnx_node(node)
+    axis = attrs["axis"]
+
+    """
+    There are two cases:
+    1. Concatenate several shapes, e.g., shape1=[1, 48], shape2=[-1], then [1, 48, -1]
+    2. Concatenate several tensor values.
+    """
+    is_value = any(name in explicit_shapes for name in node.input)
+    input_shapes = []
+
+    if is_value:
+        # We will calculate the explicit shapes with initializers.
+        # This is to concatenate several 1d lists of int by order
+        # and the axis must be 0.
+        for name in node.input:
+            if name in initializers:
+                value = numpy_helper.to_array(initializers[name])
+            elif name in explicit_shapes:
+                value = numpy.asarray(explicit_shapes[name])
+            else:
+                raise RuntimeError("Should not reach here.")
+            input_shapes.append(value)
+        value = np.concatenate(input_shapes, axis=axis).tolist()
+        explicit_shapes[node.output[0]] = value
+        if _VERBOSE:
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+        return
+
+    # We will calculate the shapes of tensors
+    # This is to calculate the size sum of the specified axis.
+    for name in node.input:
+        if name in shapes:
+            value = shapes[name]
+        elif name in initializers:
+            value = numpy_helper.to_array(initializers[name]).tolist()
+        else:
+            raise RuntimeError("Should not reach here.")
+        input_shapes.append(value)
+
+    shape = input_shapes[0]
+    for i in range(1, len(input_shapes)):
+        shape[axis] += input_shapes[i][axis]
+    shapes[node.output[0]] = shape
+    if _VERBOSE:
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+
+
+def _infer_shape_of_constant_of_shape(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    shape = explicit_shapes[node.input[0]]
+    shapes[node.output[0]] = shape
+    if _VERBOSE:
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 def _infer_shape_of_conv(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    weight = initializers[node.input[1]]
-    weight_shape = list(weight.dims)
-    attrs = get_onnx_node_attrs(node)
+
+    attrs = get_attrs_of_onnx_node(node)
     kernel_shape = attrs["kernel_shape"]
     dilations = attrs["dilations"]
     pads = attrs["pads"]
     strides = attrs["strides"]
-    input_shape = all_shapes[node.input[0]]
+    if (
+        not len(kernel_shape) == 2
+        and len(dilations) == 2
+        and len(pads) == 4
+        and len(strides) == 2
+    ):
+        raise NotImplementedError
+
+    input_shape = shapes[node.input[0]]
+    weight_shape = list(initializers[node.input[1]].dims)
+
     # Calculate the output size
     temp1 = [pads[0] + pads[1], pads[2] + pads[3]]
     temp2 = [dilations[0] * (kernel_shape[0] - 1), dilations[1] * (kernel_shape[1] - 1)]
@@ -140,27 +203,27 @@ def _infer_shape_of_conv(
     for i in range(2):
         shape.append(output_hw[i])
 
-    all_shapes[node.output[0]] = shape
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 def _infer_shape_of_convtranspose(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
     weight = initializers[node.input[1]]
     weight_shape = list(weight.dims)
-    attrs = get_onnx_node_attrs(node)
+    attrs = get_attrs_of_onnx_node(node)
 
     kernel_shape = attrs["kernel_shape"]
     dilations = attrs["dilations"]
     output_padding = attrs["output_padding"]
     pads = attrs["pads"]
     strides = attrs["strides"]
-    input_shape = all_shapes[node.input[0]]
+    input_shape = shapes[node.input[0]]
     # Calculate the output size
     temp1 = [pads[0] + pads[1], pads[2] + pads[3]]
     temp2 = [dilations[0] * (kernel_shape[0] - 1), dilations[1] * (kernel_shape[1] - 1)]
@@ -180,294 +243,303 @@ def _infer_shape_of_convtranspose(
     for i in range(2):
         shape.append(output_hw[i])
 
-    all_shapes[node.output[0]] = shape
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 def _infer_shape_of_flatten(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    shape = all_shapes[node.input[0]]
-    axis = get_onnx_node_attrs(node)["axis"]
+    shape = shapes[node.input[0]]
+    axis = get_attrs_of_onnx_node(node)["axis"]
     shape = shape[:axis] + [-1]
-    all_shapes[node.output[0]] = shape
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
-
-
-def _infer_shape_of_act(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    shape = all_shapes[node.input[0]]
-    all_shapes[node.output[0]] = shape
-    if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
-
-
-def _infer_shape_of_shape(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    value = all_shapes[node.input[0]]
-    temp_values[node.output[0]] = value
-    if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 def _infer_shape_of_gather(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    attrs = get_onnx_node_attrs(node)
-    axis = attrs["axis"]
+    axis = get_attrs_of_onnx_node(node)["axis"]
     indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
-    value = temp_values[node.input[0]]
-    if type(value[axis]) == int:
-        value = value[indices]
-        shape = None
-    else:
-        raise NotImplementedError
-
-    temp_values[node.output[0]] = value
-    all_shapes[node.output[0]] = shape
+    indices = np.expand_dims(indices, 0) if indices.ndim == 0 else indices
+    value = explicit_shapes[node.input[0]]
+    value = np.asarray(value)
+    value = np.take_along_axis(value, indices, axis=axis).tolist()
+    if len(value) == 1:
+        value = value[0]
+    explicit_shapes[node.output[0]] = value
     if _VERBOSE:
-        print(
-            f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}, value={value}"
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+
+
+def _infer_shape_of_gemm(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    attrs = get_attrs_of_onnx_node(node)
+    transA = attrs["transA"]
+    transB = attrs["transB"]
+    shape1 = shapes[node.input[0]]
+    shape2 = shapes[node.input[1]]
+
+    if transA:
+        shape1 = shape1[:-2] + [shape1[-1], shape1[-2]]
+    if transB:
+        shape2 = shape2[:-2] + [shape2[-1], shape2[-2]]
+
+    shape = shape1[:-1] + shape2[-1:]
+
+    shapes[node.output[0]] = shape
+    if _VERBOSE:
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+
+
+def _infer_shape_of_matmul(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    shape1 = shapes[node.input[0]]
+    shape2 = shapes[node.input[1]]
+
+    if not (len(shape1) >= 2 and len(shape2) >= 2 and shape1[-1] == shape2[-2]):
+        raise NotImplementedError(
+            f"Not supported {node.op_type:<20} with shape {shape1} and {shape2}"
         )
 
-
-def _infer_shape_of_slice(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    starts = initializers[node.input[1]]
-    ends = initializers[node.input[2]]
-    axes = initializers[node.input[3]]
-    starts = onnx.numpy_helper.to_array(starts).astype(int).tolist()
-    ends = onnx.numpy_helper.to_array(ends).astype(int).tolist()
-    axes = onnx.numpy_helper.to_array(axes).astype(int).tolist()
-    if len(node.input) == 5:
-        steps = initializers[node.input[4]]
-        steps = onnx.numpy_helper.to_array(steps)
-        steps = [int(x) for x in steps]
-    else:
-        steps = [1] * len(axes)
-
-    is_value = False
-    value = all_shapes.get(node.input[0], None)
-    if value is None:
-        value = temp_values[node.input[0]]
-
-    if type(value[0]) == int:
-        value = value[starts[0] : ends[0] : steps[0]]
-        shape = None
-    else:
-        value = None
-        raise NotImplementedError
-
-    temp_values[node.output[0]] = value
-    all_shapes[node.output[0]] = shape
+    shape = [*shape1[:-1], shape2[-1]]
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(
-            f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}, value={value}"
-        )
-
-
-def _infer_shape_of_concat(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    attrs = get_onnx_node_attrs(node)
-    axis = attrs["axis"]
-
-    is_value = False
-    shapes = []
-    for input_i in node.input:
-        shapes.append(temp_values.get(input_i, None))
-
-    if any([shape is not None for shape in shapes]):
-        is_value = True
-
-    for i, (input_i, shape_i) in enumerate(zip(node.input, shapes)):
-        if shape_i is None:
-            initializer = initializers.get(input_i, None)
-            if initializer is not None:
-                data = onnx.numpy_helper.to_array(initializer)
-                if np.issubdtype(data.dtype, np.integer):
-                    shapes[i] = data.tolist()
-                else:
-                    shapes[i] = list(data.shape)
-            else:
-                shapes[i] = all_shapes.get(input_i, None)
-
-    if is_value:
-        if axis == 0:
-            shape = []
-            for shape_i in shapes:
-                shape.extend(shape_i)
-
-        else:
-            raise NotImplementedError
-    else:
-        shape = shapes[0].copy()
-        shape[axis] = 0
-        for shape_i in shapes:
-            shape[axis] += shape_i[axis]
-
-    value = None
-    shape, value = (value, shape) if is_value else (shape, value)
-    temp_values[node.output[0]] = value
-    all_shapes[node.output[0]] = shape
-    if _VERBOSE:
-        print(
-            f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}, value={value}"
-        )
-
-
-def _infer_shape_of_reshape(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    data_shape = all_shapes[node.input[0]]
-    shape = initializers.get(node.input[1], None)
-    if shape is not None:
-        shape = onnx.numpy_helper.to_array(shape).astype(int).tolist()
-    else:
-        shape = temp_values[node.input[1]]
-
-    inferred_shape = math.prod(data_shape)
-    inferred_idx = -1
-    for idx, data_shape_i in enumerate(shape):
-        if data_shape_i == -1:
-            inferred_idx = idx
-            continue
-        inferred_shape = inferred_shape / data_shape_i
-    if inferred_idx != -1:
-        shape[inferred_idx] = int(inferred_shape)
-
-    all_shapes[node.output[0]] = shape
-    if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
-
-
-def _infer_shape_of_transpose(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    attrs = get_onnx_node_attrs(node)
-    perm = attrs["perm"]
-
-    is_value = False
-    shape = all_shapes.get(node.input[0], None)
-    if shape is None:
-        is_value = True
-        shape = initializers[node.input[0]]
-
-    value = None
-    shape = [shape[i] for i in perm]
-    shape, value = (value, shape) if is_value else (shape, value)
-    temp_values[node.output[0]] = value
-    all_shapes[node.output[0]] = shape
-    if _VERBOSE:
-        print(
-            f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}, value={value}"
-        )
-
-
-def _infer_shape_of_unsqueeze(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    is_value = False
-    shape = all_shapes.get(node.input[0], None)
-    if shape is None:
-        is_value = True
-        shape = temp_values[node.input[0]]
-
-    if len(node.input) == 2:
-        # New version of ONNX
-        axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
-    else:
-        axes = get_onnx_node_attrs(node)["axes"]
-
-    for axis in axes:
-        if type(shape) == int:
-            shape = [shape]
-        else:
-            shape.insert(axis, 1)
-
-    value = None
-    shape, value = (value, shape) if is_value else (shape, value)
-    temp_values[node.output[0]] = value
-    all_shapes[node.output[0]] = shape
-    if _VERBOSE:
-        print(
-            f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}, value={value}"
-        )
-
-
-def _infer_shape_of_constant_of_shape(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    shape = temp_values[node.input[0]]
-    all_shapes[node.output[0]] = shape
-    if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
-
-
-def _infer_shape_of_batch_norm(
-    node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
-    initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
-):
-    all_shapes[node.output[0]] = all_shapes[node.input[0]]
-    if _VERBOSE:
-        print(
-            f"Node {node.op_type:<20} {node.output[0]:<40}shape={all_shapes[node.output[0]]}, value=None"
-        )
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 def _infer_shape_of_reduce(
     node: onnx.NodeProto,
-    all_shapes: dict[str, list[int] | None],
+    shapes: dict[str, list[int] | None],
     initializers: dict[str, onnx.TensorProto],
-    temp_values: dict[str, Any],
+    explicit_shapes: dict[str, Any],
 ):
-    shape = all_shapes[node.input[0]].copy()
-    axes = get_onnx_node_attrs(node)["axes"]
-    keepdims = get_onnx_node_attrs(node)["keepdims"]
+    shape = shapes[node.input[0]].copy()
+    keepdims = get_attrs_of_onnx_node(node)["keepdims"]
+    axes = numpy_helper.to_array(initializers[node.input[1]]).tolist()
     for axis in axes:
         shape[axis] = 1 if keepdims else 0
     # Remove all 0 in shape
     shape = [x for x in shape if x != 0]
-    all_shapes[node.output[0]] = shape
+    shapes[node.output[0]] = shape
     if _VERBOSE:
-        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape} value=None")
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+
+
+def _infer_shape_of_reshape(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    data_shape = shapes[node.input[0]]
+
+    if node.input[1] in explicit_shapes:
+        shape = explicit_shapes[node.input[1]]
+    else:
+        shape = numpy_helper.to_array(initializers[node.input[1]]).tolist()
+
+    def _infer_reshape_shape(ori_shape: list[int], new_shape: list[int]) -> list[int]:
+        """
+        Infers the shape of an array after reshaping, without performing actual
+        computation.
+
+        :param ori_shape: Original shape of the array
+        :param new_shape: New shape of the array
+        :return: The reshaped array
+        """
+        inferred_shape = math.prod(ori_shape)
+        inferred_idx = -1
+        for idx, new_shape_i in enumerate(new_shape):
+            if new_shape_i == -1:
+                inferred_idx = idx
+                continue
+            inferred_shape = inferred_shape / new_shape_i
+        if inferred_idx != -1:
+            new_shape[inferred_idx] = int(inferred_shape)
+        return new_shape
+
+    shape = _infer_reshape_shape(data_shape, shape)
+    shapes[node.output[0]] = shape
+    if _VERBOSE:
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+
+
+def _infer_shape_of_shape(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    # The shape node extract the shape of one node.
+    value = shapes[node.input[0]]
+    explicit_shapes[node.output[0]] = value
+    if _VERBOSE:
+        print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+
+
+def _infer_shape_of_slice(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    starts = initializers[node.input[1]]
+    ends = initializers[node.input[2]]
+    starts = onnx.numpy_helper.to_array(starts).tolist()
+    ends = onnx.numpy_helper.to_array(ends).tolist()
+
+    n_inputs = len(node.input)
+    if n_inputs > 3:
+        axes = initializers[node.input[3]]
+        axes = onnx.numpy_helper.to_array(axes).tolist()
+    else:
+        axes = list(range(len(starts)))
+    if n_inputs > 4:
+        steps = initializers[node.input[4]]
+        steps = onnx.numpy_helper.to_array(steps).tolist()
+    else:
+        steps = [1] * len(axes)
+
+    # There are two cases:
+    # (1) slice a shape, e.g., shape=[1, 2, 3, 4], shape[0:2:1]=[1, 2]
+    # (2) slice a tensor value
+
+    def _infer_sliced_shape(
+        shape: list[int],
+        axes: list[int],
+        starts: list[int],
+        ends: list[int],
+        steps: list[int],
+    ) -> list[int]:
+        new_shape = list(shape)
+
+        for axis, start, end, step in zip(axes, starts, ends, steps):
+            size = shape[axis]
+
+            # Handle negative indices
+            start = min(max(start + size if start < 0 else start, 0), size)
+            end = min(max(end + size if end < 0 else end, 0), size)
+
+            if step < 0:
+                warnings.warn(f"Negative step ({step}) is not tested.")
+
+            # Compute the new dimension size
+            new_shape[axis] = max(
+                0, (end - start + (step - (1 if step > 0 else -1))) // step
+            )
+
+        return new_shape
+
+    # slice a tensor and we need its new shape
+    shape = shapes.get(node.input[0])
+    if shape is not None:
+        shapes[node.output[0]] = _infer_sliced_shape(shape, axes, starts, ends, steps)
+        if _VERBOSE:
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+        return
+
+    # slice a shape (extracted by shape node) and we need the sliced shape
+    value = explicit_shapes.get(node.input[0])
+    if value is not None:
+        # Commonly, the shape is a 1d list of int.
+        # In such case, the node aims to extract a dimension on the specified axis.
+        # e.g. I want to know the shape of the first dimension of the input tensor
+        assert len(axes) == 1
+        value = value[starts[0] : ends[0] : steps[0]]
+        explicit_shapes[node.output[0]] = value
+        if _VERBOSE:
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+        return
+
+    raise RuntimeError("Should not reach here.")
+
+
+def _infer_shape_of_transpose(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    attrs = get_attrs_of_onnx_node(node)
+    perm = attrs["perm"]
+
+    # There are two cases:
+    # (1) Transpose an initializer
+    # (2) Transpose a tensor value
+
+    if node.input[0] in shapes:
+        shape = [shapes[node.input[0]][i] for i in perm]
+        shapes[node.output[0]] = shape
+        if _VERBOSE:
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
+    elif node.input[0] in initializers:
+        value = [explicit_shapes[node.input[0]][i] for i in perm]
+        explicit_shapes[node.output[0]] = value
+        if _VERBOSE:
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+    else:
+        raise RuntimeError("Should not reach here.")
+
+
+def _infer_shape_of_unsqueeze(
+    node: onnx.NodeProto,
+    shapes: dict[str, list[int] | None],
+    initializers: dict[str, onnx.TensorProto],
+    explicit_shapes: dict[str, Any],
+):
+    is_value = False
+    if node.input[0] in shapes:
+        data_shape = shapes[node.input[0]]
+    elif node.input[0] in explicit_shapes:
+        is_value = True
+        data_shape = explicit_shapes[node.input[0]]
+    else:
+        raise RuntimeError("Should not reach here.")
+
+    axes = numpy_helper.to_array(initializers[node.input[1]]).tolist()
+
+    # If the data_shape is a single int, it means that the input is a scalar and we
+    # want to expand it to a shape of [1]. This happends after a gather node.
+    if type(data_shape) == int:
+        assert axes == [0]
+        value = [data_shape]
+        explicit_shapes[node.output[0]] = value
+        if _VERBOSE:
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} value={value}")
+        return
+
+    def _infer_unsqueeze_shape(ori_shape: list[int], axes: list[int]) -> list[int]:
+        new_shape = list(ori_shape)
+        for axis in sorted(axes, reverse=True):
+            new_shape.insert(axis, 1)
+        return new_shape
+
+    shape = _infer_unsqueeze_shape(data_shape, axes)
+    if _VERBOSE:
+        if is_value:
+            explicit_shapes[node.output[0]] = shape
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} value={shape}")
+        else:
+            shapes[node.output[0]] = shape
+            print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
 
 INFER_SHAPE_FUNC_MAPPING = {
@@ -498,58 +570,49 @@ INFER_SHAPE_FUNC_MAPPING = {
 
 
 def infer_onnx_shape(
-    model: onnx.ModelProto,
+    input_nodes: list[onnx.ValueInfoProto],
+    output_nodes: list[onnx.ValueInfoProto],
+    nodes: list[onnx.NodeProto],
+    initializers: dict[str, onnx.TensorProto],
     verbose: bool = False,
 ) -> dict[str, list[int]]:
-    """
-    Infer the shape of all nodes in the model.
-
-    :param model: The ONNX model.
-    :param verbose: Whether to print the shape of each node.
-
-    :return: A dictionary with the shape of each node.
-    """
     global _VERBOSE
     _VERBOSE = verbose
 
-    if verbose:
-        print(
-            "Inferring shape for model...",
-            "Model info:",
-            f"model_version={model.model_version}",
-            f"ir_version={model.ir_version}",
-            f"opset_import={model.opset_import}",
-            f"producer_name={model.producer_name}",
-            f"producer_version={model.producer_version}",
-            f"doc_string={model.doc_string}",
-            f"DESCRIPTOR={model.DESCRIPTOR}",
-            sep="\n",
-        )
+    """
+    Two kinds of shapes in the model:
+    1. Explicit shape: The shape is extracted by some nodes (e.g. Shape). The shape 
+        itself is the data of the node.
+    2. Shapes: The shape is inferred from the node and the node does not show 
+       the shape. The shape is not the data of the node. 
+    """
+    data_shapes = {}
+    explicit_shapes = {}
 
-    all_shapes = {}
     if verbose:
         print("Inferring shape of input(s)...")
-    _get_input_shape(model, all_shapes)
+    _get_input_shape(input_nodes, data_shapes)
 
     if verbose:
         print("Inferring shape of output(s)...")
-    _get_output_shape(model, all_shapes)
+    _get_output_shape(output_nodes, data_shapes)
 
     if verbose:
         print("Inferring shape of initializer(s)...")
-    _get_initializer_shape(model, all_shapes)
-
-    if verbose:
-        print("Getting initializer(s)...")
-    initializers = get_initializers(model)
-
-    temp_values = {}
+    _get_initializer_shape(initializers, data_shapes)
 
     if verbose:
         print("Inferring shape of node(s)...")
-    for node in model.graph.node:
+    for node in nodes:
         op_type = node.op_type
+        if op_type == "Constant":
+            raise RuntimeError(
+                "There are constant nodes in the model, and you should convert them to "
+                "initializers first by argument constant_to_initializer=True."
+            )
         _infer_shape = INFER_SHAPE_FUNC_MAPPING[op_type]
-        _infer_shape(node, all_shapes, initializers, temp_values)
+        _infer_shape(node, data_shapes, initializers, explicit_shapes)
 
-    return all_shapes
+    data_shapes.update(explicit_shapes)
+
+    return data_shapes
