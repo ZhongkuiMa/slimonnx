@@ -1,5 +1,6 @@
-from slimonnx import SlimONNX
 import onnx
+
+from slimonnx import SlimONNX
 
 if __name__ == "__main__":
     slimonnx = SlimONNX()
