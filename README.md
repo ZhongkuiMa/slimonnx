@@ -1,4 +1,4 @@
-# **SlimONNX: Slim Your ONNX Models! ⚡**
+# **SlimONNX: Slim Your ONNX Models**
 
 `slimonnx` is not just a tool—it's the tool to **simplify** and **optimize** your ONNX models like never before! 🔥
 
@@ -21,7 +21,7 @@ That's where **SlimONNX** comes in. 💪 We take your model, simplify it, and op
 Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 
 - **`constant_to_initializer`**: Convert constant nodes to initializer nodes. This is a really a thing that everyone can think of, but ONNX just doesn't do it! Actually, I know why constant node should be initializer node because initializer node is always trainable not constant node, but it really really introduce troubles. We make sure every constant is an initializer, making your model cleaner and more efficient! 💡
-- **`shape-to-initializer`**: Convert shape nodes to initializers. This is a game-changer for reducing the number of nodes in your model! 🎉 We will trace the shape node and find the final node. In most of cases, the shape node is a  constant node.
+- **`shape_to_initializer`**: Convert shape nodes to initializers. This is a game-changer for reducing the number of nodes in your model! 🎉 We will trace the shape node and find the final node. In most of cases, the shape node is a  constant node.
 - **`fuse_matmul_add`**: Fuse a MatMul and Add node into a single Gemm node. It's a standard operation in coding that ONNX just can't handle as an optimization, but we do! 🔥
 - **`fuse_gemm_reshape_bn`**: Fuse a Gemm, Reshape, and BatchNormalization node into a single Gemm + Reshape node. We streamline these linear operations like never before! 💥 Because they are all linear operations.
 - **`fuse_bn_reshape_gemm`**: Merge BatchNormalization, Reshape, and Gemm nodes into a unified Reshape + Gemm node. Optimization at its finest! ⚡
@@ -39,7 +39,7 @@ Frankly speaking, the root reason is that ONNX is just like a reader, and it rea
 
 ## Installation 💻
 
-Make sure these dependencies are installed ✅:
+You need Python>=3.10 and make sure these dependencies are installed ✅:
 
 - `onnx=1.17.0`
 - `numpy=1.24.3`
