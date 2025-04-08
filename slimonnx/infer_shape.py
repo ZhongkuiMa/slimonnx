@@ -11,7 +11,7 @@ import numpy as np
 import onnx
 from onnx import numpy_helper
 
-from slimonnx.onnx_attrs import get_attrs_of_onnx_node
+from .onnx_attrs import get_attrs_of_onnx_node
 
 _VERBOSE = False
 
