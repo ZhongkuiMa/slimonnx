@@ -993,7 +993,7 @@ def optimize_onnx(
     fuse_gemm_gemm: bool = False,
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
-    fuse_transposedconv_bn: bool = False,
+    fuse_convtransposed_bn: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
     verbose: bool = False,
@@ -1053,7 +1053,7 @@ def optimize_onnx(
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=True)
     if fuse_bn_conv:
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
-    if fuse_transposedconv_bn:
+    if fuse_convtransposed_bn:
         nodes = _fuse_convtranspose_bn(nodes, initializers)
     if reorder_by_strict_topological_order:
         # There maybe repeated named nodes, so we need to simplify the names first
