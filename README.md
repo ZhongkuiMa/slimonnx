@@ -49,10 +49,10 @@ To use **SlimONNX** and turbocharge your ONNX models, simply call the `SlimONNX`
 
 ### Installation 💻
 
-You need Python>=3.10 and make sure these dependencies are installed ✅:
+You need Python>=3.10 (We are using Python 3.12) and make sure these dependencies are installed ✅:
 
 - `onnx=1.17.0`
-- `numpy=1.24.3`
+- `numpy=2.2.4`
 
 Maybe other versions are accepted but do not make your onnx version too old. Currently, the code consider the ONNX version 22.0.0 as a baseline.
 
