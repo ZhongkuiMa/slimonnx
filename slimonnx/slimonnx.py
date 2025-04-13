@@ -15,7 +15,7 @@ class SlimONNX:
     def slim(
         self,
         onnx_path: str,
-        target_parth: str | None = None,
+        target_path: str | None = None,
         constant_to_initializer: bool = False,
         shape_to_initializer: bool = False,
         fuse_matmul_add: bool = False,
@@ -26,7 +26,7 @@ class SlimONNX:
         fuse_gemm_gemm: bool = False,
         fuse_conv_bn: bool = False,
         fuse_bn_conv: bool = False,
-        fuse_transposedconv_bn: bool = False,
+        fuse_convtransposed_bn: bool = False,
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
         verbose: bool = False,
@@ -36,8 +36,9 @@ class SlimONNX:
 
         By default, all the node docstring will be removed from the ONNX model.
 
-        :param model: The ONNX model to simplify.
-        :param target_parth: The path to save the simplified ONNX model.
+        :param onnx_path: The path to the ONNX model.
+        :param target_path: The path to save the simplified ONNX model.
+        :param constant_to_initializer: Convert the constant nodes to initializers.
         :param fuse_matmul_add: Fuse a MatMul and an Add node into a single Gemm node.
         :param fuse_gemm_reshape_bn: Fuse a Gemm, a Reshape, and a BatchNormalization
             node into a Gemm and a Reshape node.
@@ -49,12 +50,13 @@ class SlimONNX:
         :param fuse_gemm_gemm: Fuse two Gemm nodes into a single Gemm node.
         :param fuse_conv_bn: Fuse a Conv and BatchNormalization node into a Conv node.
         :param fuse_bn_conv: Fuse a BatchNormalization and a Conv node into a Conv node.
-        :param fuse_transposedconv_bn: Fuse a ConvTranspose and a BatchNormalization
+        :param fuse_convtransposed_bn: Fuse a ConvTranspose and a BatchNormalization
             node into a ConvTranspose node.
         :param shape_to_initializer: Convert the shape nodes to initializers.
         :param simplify_node_name: Simplify the node name by topological order.
         :param reorder_by_strict_topological_order: Reorder the nodes by topological
-            order and simiplify their names.
+            order and simplify their names.
+        :param verbose: Print the progress.
 
         :return: The simplified ONNX model.
         """
@@ -75,15 +77,15 @@ class SlimONNX:
             fuse_gemm_gemm=fuse_gemm_gemm,
             fuse_conv_bn=fuse_conv_bn,
             fuse_bn_conv=fuse_bn_conv,
-            fuse_transposedconv_bn=fuse_transposedconv_bn,
+            fuse_convtransposed_bn=fuse_convtransposed_bn,
             reorder_by_strict_topological_order=reorder_by_strict_topological_order,
             simplify_node_name=simplify_node_name,
             verbose=verbose,
         )
 
-        if target_parth is None:
-            target_parth = onnx_path.replace(".onnx", "_simplified.onnx")
-        onnx.save(new_model, target_parth)
+        if target_path is None:
+            target_path = onnx_path.replace(".onnx", "_simplified.onnx")
+        onnx.save(new_model, target_path)
         if verbose:
             t = time.perf_counter() - t
-            print(f"Slimmed ONNX model saved to {target_parth} ({t:.4f}s)")
+            print(f"Slimmed ONNX model saved to {target_path} ({t:.4f}s)")
