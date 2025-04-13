@@ -1,19 +1,76 @@
-# Byte-compiled files
+# === Python bytecode ===
 __pycache__/
 *.py[cod]
+*.pyo
 
-# Virtual environments
+# === Virtual environments ===
 .venv/
-env/
 venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
 
-# VSCode / PyCharm project settings
-.vscode/
-.idea/
+# === Distribution / packaging ===
+build/
+dist/
+*.egg
+*.whl
+*.manifest
+*.spec
 
-# Jupyter notebook checkpoints
+# === Installer logs ===
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === Unit test / coverage ===
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# === pytest / unittest ===
+.pytest_cache/
+
+# === mypy, pylint, etc ===
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# === Jupyter Notebook checkpoints ===
 .ipynb_checkpoints/
 
-# OS-specific files
-.DS_Store
+# === VS Code / IDEs ===
+.vscode/
+.idea/
+*.swp
+*.swo
 
+# === OS-specific ===
+.DS_Store
+Thumbs.db
+
+# === Model or data files ===
+#*.onnx
+#*.pt
+#*.pb
+#*.ckpt
+#*.pkl
+#*.pickle
+#*.npz
+#*.npy
+
+# === Logs and temporary files ===
+*.log
+*.tmp
+*.bak
+
+# === GitHub Codespaces ===
+.devcontainer/
