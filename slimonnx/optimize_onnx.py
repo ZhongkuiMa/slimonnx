@@ -1010,24 +1010,8 @@ def optimize_onnx(
 
     if verbose:
         print("Set batch size to 1...")
-    input_nodes = [
-        onnx.helper.make_tensor_value_info(
-            name=input_i.name,
-            elem_type=input_i.type.tensor_type.elem_type,
-            shape=[1] + [x.dim_value for x in input_i.type.tensor_type.shape.dim[1:]],
-        )
-        for input_i in model.graph.input
-    ]
-
-    output_nodes = [
-        onnx.helper.make_tensor_value_info(
-            name=output_i.name,
-            elem_type=output_i.type.tensor_type.elem_type,
-            shape=[1] + [x.dim_value for x in output_i.type.tensor_type.shape.dim[1:]],
-        )
-        for output_i in model.graph.output
-    ]
-
+    input_nodes = get_input_nodes(model)
+    output_nodes = get_output_nodes(model)
     initializers = get_initializers(model)
 
     nodes = list(model.graph.node)
