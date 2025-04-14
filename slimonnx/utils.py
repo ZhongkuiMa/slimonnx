@@ -2,6 +2,8 @@ __docformat__ = "restructuredtext"
 __all__ = [
     "EXTRACT_ATTR_MAP",
     "clear_onnx_docstring",
+    "get_input_nodes",
+    "get_output_nodes",
     "get_initializers",
     "get_next_nodes_mapping",
 ]
@@ -32,6 +34,28 @@ def clear_onnx_docstring(model: onnx.ModelProto):
     """
     for node in model.graph.node:
         node.doc_string = ""
+
+
+def get_input_nodes(model: onnx.ModelProto) -> list[onnx.ValueInfoProto]:
+    return [
+        onnx.helper.make_tensor_value_info(
+            name=input_i.name,
+            elem_type=input_i.type.tensor_type.elem_type,
+            shape=[1] + [x.dim_value for x in input_i.type.tensor_type.shape.dim[1:]],
+        )
+        for input_i in model.graph.input
+    ]
+
+
+def get_output_nodes(model: onnx.ModelProto) -> list[onnx.ValueInfoProto]:
+    return [
+        onnx.helper.make_tensor_value_info(
+            name=output_i.name,
+            elem_type=output_i.type.tensor_type.elem_type,
+            shape=[1] + [x.dim_value for x in output_i.type.tensor_type.shape.dim[1:]],
+        )
+        for output_i in model.graph.output
+    ]
 
 
 def get_initializers(model: onnx.ModelProto) -> dict[str, onnx.TensorProto]:
