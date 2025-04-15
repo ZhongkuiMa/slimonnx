@@ -1,5 +1,5 @@
 __docformat__ = "restructuredtext"
-__all__ = ["get_attrs_of_onnx_node"]
+__all__ = ["get_onnx_attrs"]
 
 from typing import Any
 
@@ -603,7 +603,7 @@ _EXTRACT_ATTRS_MAP = {
 }
 
 
-def get_attrs_of_onnx_node(
+def get_onnx_attrs(
     node: NodeProto, initializers: dict[str, TensorProto]
 ) -> dict[str, Any]:
     """

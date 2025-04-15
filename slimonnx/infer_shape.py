@@ -11,7 +11,7 @@ import numpy as np
 import onnx
 from onnx import ValueInfoProto, NodeProto, TensorProto
 
-from .onnx_attrs import get_attrs_of_onnx_node
+from .onnx_attrs import get_onnx_attrs
 
 _VERBOSE = False
 
@@ -103,7 +103,7 @@ def _infer_shape_of_concat(
     shapes: dict[str, list[int] | None],
     explicit_shapes: dict[str, Any],
 ):
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
     axis = attrs["axis"]
 
     """
@@ -170,7 +170,7 @@ def _infer_shape_of_conv(
     explicit_shapes: dict[str, Any],
 ):
 
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
     kernel_shape = attrs["kernel_shape"]
     dilations = attrs["dilations"]
     pads = attrs["pads"]
@@ -212,7 +212,7 @@ def _infer_shape_of_convtranspose(
 ):
     weight = initializers[node.input[1]]
     weight_shape = list(weight.dims)
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
 
     kernel_shape = attrs["kernel_shape"]
     dilations = attrs["dilations"]
@@ -251,7 +251,7 @@ def _infer_shape_of_flatten(
     explicit_shapes: dict[str, Any],
 ):
     shape = shapes[node.input[0]]
-    axis = get_attrs_of_onnx_node(node, initializers)["axis"]
+    axis = get_onnx_attrs(node, initializers)["axis"]
     shape = shape[:axis] + [-1]
     shapes[node.output[0]] = shape
     if _VERBOSE:
@@ -264,7 +264,7 @@ def _infer_shape_of_gather(
     shapes: dict[str, list[int] | None],
     explicit_shapes: dict[str, Any],
 ):
-    axis = get_attrs_of_onnx_node(node, initializers)["axis"]
+    axis = get_onnx_attrs(node, initializers)["axis"]
     indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
     indices = np.expand_dims(indices, 0) if indices.ndim == 0 else indices
     value = explicit_shapes[node.input[0]]
@@ -283,7 +283,7 @@ def _infer_shape_of_gemm(
     shapes: dict[str, list[int] | None],
     explicit_shapes: dict[str, Any],
 ):
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
     transA = attrs["transA"]
     transB = attrs["transB"]
     shape1 = shapes[node.input[0]]
@@ -328,7 +328,7 @@ def _infer_shape_of_reduce(
     explicit_shapes: dict[str, Any],
 ):
     shape = shapes[node.input[0]].copy()
-    keepdims = get_attrs_of_onnx_node(node, initializers)["keepdims"]
+    keepdims = get_onnx_attrs(node, initializers)["keepdims"]
     axes = onnx.numpy_helper.to_array(initializers[node.input[1]]).tolist()
     for axis in axes:
         shape[axis] = 1 if keepdims else 0
@@ -474,7 +474,7 @@ def _infer_shape_of_transpose(
     shapes: dict[str, list[int] | None],
     explicit_shapes: dict[str, Any],
 ):
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
     perm = attrs["perm"]
 
     # There are two cases:
