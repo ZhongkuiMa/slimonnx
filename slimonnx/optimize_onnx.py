@@ -8,7 +8,7 @@ import onnx
 from onnx import NodeProto, TensorProto
 
 from .infer_shape import infer_onnx_shape
-from .onnx_attrs import get_attrs_of_onnx_node
+from .onnx_attrs import get_onnx_attrs
 from .utils import *
 
 _VERBOSE = False
@@ -149,7 +149,7 @@ def _get_batch_normalization_params(
     """
     Get the parameters of a BatchNormalization node.
     """
-    epsilon = get_attrs_of_onnx_node(node, initializers)["epsilon"]
+    epsilon = get_onnx_attrs(node, initializers)["epsilon"]
     scale = onnx.numpy_helper.to_array(initializers[node.input[1]])
     b = onnx.numpy_helper.to_array(initializers[node.input[2]])
     mean = onnx.numpy_helper.to_array(initializers[node.input[3]])
@@ -171,7 +171,7 @@ def _get_gemm_params(
     """
     Get the parameters of a Gemm node.
     """
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
     alpha = attrs["alpha"]
     beta = attrs["beta"]
     transA = attrs["transA"]
@@ -192,7 +192,7 @@ def _get_conv_params(
     """
     Get the parameters of a Conv or ConvTranspose node.
     """
-    attrs = get_attrs_of_onnx_node(node, initializers)
+    attrs = get_onnx_attrs(node, initializers)
     kernel_shape = attrs["kernel_shape"]
     pads = attrs["pads"]
     strides = attrs["strides"]
@@ -831,8 +831,8 @@ def _fuse_transpose_batchnorm_transpose(
             tp_node1, bn_node, tp_node2 = pre_pre_node, pre_node, node
             data_type = initializers[bn_node.input[2]].data_type
 
-            perm1 = get_attrs_of_onnx_node(tp_node1, initializers)["perm"]
-            perm2 = get_attrs_of_onnx_node(tp_node2, initializers)["perm"]
+            perm1 = get_onnx_attrs(tp_node1, initializers)["perm"]
+            perm2 = get_onnx_attrs(tp_node2, initializers)["perm"]
             _mode = (0, 2, 1)
             assert all(p_i == p_j for p_i, p_j in zip(perm1, _mode))
             assert all(p_i == p_j for p_i, p_j in zip(perm2, _mode))
