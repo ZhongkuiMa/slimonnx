@@ -5,7 +5,7 @@ from typing import Any
 
 import numpy as np
 import onnx
-from onnx import numpy_helper
+from onnx import NodeProto, TensorProto
 
 from .infer_shape import infer_onnx_shape
 from .onnx_attrs import get_attrs_of_onnx_node
@@ -15,8 +15,8 @@ _VERBOSE = False
 
 
 def _constant_to_initializer(
-    nodes: list[onnx.NodeProto], initializers: dict[str, onnx.TensorProto]
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+) -> list[NodeProto]:
     if _VERBOSE:
         print("Convert constant nodes to initializers...")
 
@@ -24,8 +24,8 @@ def _constant_to_initializer(
     counter = 0
     for node in nodes:
         if node.op_type == "Constant":
-            np_array = numpy_helper.to_array(node.attribute[0].t)
-            initializer = numpy_helper.from_array(np_array, name=node.output[0])
+            np_array = onnx.numpy_helper.to_array(node.attribute[0].t)
+            initializer = onnx.numpy_helper.from_array(np_array, name=node.output[0])
             initializers[node.output[0]] = initializer
 
             counter += 1
@@ -39,10 +39,10 @@ def _constant_to_initializer(
 
 
 def _shape_to_initializer(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
     shapes: dict[str, list[int]],
-) -> list[onnx.NodeProto]:
+) -> list[NodeProto]:
     """
     Trace the shape node and make it as a direct constant.
     """
@@ -61,7 +61,7 @@ def _shape_to_initializer(
         if op_type == "Shape":
             # The shape node must be deleted.
             value = np.array(shapes[node.output[0]])
-            initializer = numpy_helper.from_array(value, name=node.output[0])
+            initializer = onnx.numpy_helper.from_array(value, name=node.output[0])
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
 
@@ -86,7 +86,7 @@ def _shape_to_initializer(
         elif op_type == "ConstantOfShape":
             # The node create a constant with specified shape.
             shape = shapes[node.output[0]]
-            value = numpy_helper.to_array(node.attribute[0].t)[0]
+            value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
             value = np.full(shape, value, dtype=value.dtype)
 
         elif op_type in {"Add", "Sub", "Mul", "Div", "Concat"}:
@@ -97,8 +97,8 @@ def _shape_to_initializer(
 
             value = None
             if op_type in {"Add", "Sub", "Mul", "Div"}:
-                tensor1 = numpy_helper.to_array(initializers[node.input[0]])
-                tensor2 = numpy_helper.to_array(initializers[node.input[1]])
+                tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
+                tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
                 if op_type == "Add":
                     value = tensor1 + tensor2
                 elif op_type == "Sub":
@@ -114,7 +114,7 @@ def _shape_to_initializer(
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
 
-        initializer = numpy_helper.from_array(value, name=node.output[0])
+        initializer = onnx.numpy_helper.from_array(value, name=node.output[0])
         initializers[node.output[0]] = initializer
         nodes_to_delete.append(node.output[0])
 
@@ -128,7 +128,7 @@ def _shape_to_initializer(
 
 
 def _in_single_path(
-    pre_node: onnx.NodeProto, node: onnx.NodeProto, nodes: list[onnx.NodeProto]
+    pre_node: NodeProto, node: NodeProto, nodes: list[NodeProto]
 ) -> bool:
     """
     Check the pre_node and node are in a single path. Because if there are multiple
@@ -142,18 +142,18 @@ def _in_single_path(
 
 
 def _get_batch_normalization_params(
-    node: onnx.NodeProto,
-    initializers: dict[str, onnx.TensorProto],
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
     remove_initializers: bool = True,
 ) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Get the parameters of a BatchNormalization node.
     """
-    epsilon = get_attrs_of_onnx_node(node)["epsilon"]
-    scale = numpy_helper.to_array(initializers[node.input[1]])
-    b = numpy_helper.to_array(initializers[node.input[2]])
-    mean = numpy_helper.to_array(initializers[node.input[3]])
-    var = numpy_helper.to_array(initializers[node.input[4]])
+    epsilon = get_attrs_of_onnx_node(node, initializers)["epsilon"]
+    scale = onnx.numpy_helper.to_array(initializers[node.input[1]])
+    b = onnx.numpy_helper.to_array(initializers[node.input[2]])
+    mean = onnx.numpy_helper.to_array(initializers[node.input[3]])
+    var = onnx.numpy_helper.to_array(initializers[node.input[4]])
     if remove_initializers:
         del initializers[node.input[1]]
         del initializers[node.input[2]]
@@ -164,20 +164,20 @@ def _get_batch_normalization_params(
 
 
 def _get_gemm_params(
-    node: onnx.NodeProto,
-    initializers: dict[str, onnx.TensorProto],
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
     remove_initializers: bool = True,
 ) -> tuple[float, float, int, int, np.ndarray, np.ndarray]:
     """
     Get the parameters of a Gemm node.
     """
-    attrs = get_attrs_of_onnx_node(node)
+    attrs = get_attrs_of_onnx_node(node, initializers)
     alpha = attrs["alpha"]
     beta = attrs["beta"]
     transA = attrs["transA"]
     transB = attrs["transB"]
-    weight = numpy_helper.to_array(initializers[node.input[1]])
-    bias = numpy_helper.to_array(initializers[node.input[2]])
+    weight = onnx.numpy_helper.to_array(initializers[node.input[1]])
+    bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
     if remove_initializers:
         del initializers[node.input[1]]
         del initializers[node.input[2]]
@@ -186,13 +186,13 @@ def _get_gemm_params(
 
 
 def _get_conv_params(
-    node: onnx.NodeProto,
-    initializers: dict[str, onnx.TensorProto],
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
 ):
     """
     Get the parameters of a Conv or ConvTranspose node.
     """
-    attrs = get_attrs_of_onnx_node(node)
+    attrs = get_attrs_of_onnx_node(node, initializers)
     kernel_shape = attrs["kernel_shape"]
     pads = attrs["pads"]
     strides = attrs["strides"]
@@ -200,21 +200,21 @@ def _get_conv_params(
     group = attrs["group"]
     auto_pad = attrs["auto_pad"]
 
-    weight = numpy_helper.to_array(initializers[node.input[1]])
+    weight = onnx.numpy_helper.to_array(initializers[node.input[1]])
     del initializers[node.input[1]]
 
     if len(node.input) == 2:  # No bias
         bias = np.zeros(weight.shape[0])
     else:
-        bias = numpy_helper.to_array(initializers[node.input[2]])
+        bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
         del initializers[node.input[2]]
 
     return kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias
 
 
 def _fuse_matmul_add(
-    nodes: list[onnx.NodeProto], initializers: dict[str, onnx.TensorProto]
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+) -> list[NodeProto]:
     """
     Fuse a MatMul and an Add node into a single Gemm node.
     """
@@ -268,9 +268,9 @@ def _fuse_matmul_add(
 
 
 def _fuse_gemm_reshape_bn(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[NodeProto]:
     """
     Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape
     node.
@@ -300,7 +300,7 @@ def _fuse_gemm_reshape_bn(
                 bn_node, initializers
             )
             reshape_shape = (
-                numpy_helper.to_array(initializers[reshape_node.input[1]])
+                onnx.numpy_helper.to_array(initializers[reshape_node.input[1]])
                 .astype(int)
                 .tolist()
             )
@@ -380,9 +380,9 @@ def _fuse_gemm_reshape_bn(
 
 
 def _fuse_bn_reshape_gemm(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[NodeProto]:
     """
     Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm
     node.
@@ -410,7 +410,8 @@ def _fuse_bn_reshape_gemm(
             epsilon, scale, b, mean, var = _get_batch_normalization_params(
                 bn_node, initializers
             )
-            # reshape_shape = numpy_helper.to_array(initializers[reshape_node.input[1]])
+            # reshape_shape = onnx.numpy_helper.to_array(
+            # initializers[reshape_node.input[1]])
             # reshape_shape = reshape_shape.tolist()
             assert transA == 0
             weight = weight.T if transB == 1 else weight
@@ -487,9 +488,9 @@ def _fuse_bn_reshape_gemm(
 
 
 def _fuse_bn_gemm(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[NodeProto]:
     """
     Fuse a BatchNormalization and a Gemm node into a Gemm node.
     """
@@ -564,9 +565,9 @@ def _fuse_bn_gemm(
 
 
 def _fuse_gemm_gemm(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[NodeProto]:
     new_nodes = []
 
     all_gemm_nodes = [node.output[0] for node in nodes if node.op_type == "Gemm"]
@@ -650,10 +651,10 @@ def _fuse_gemm_gemm(
 
 
 def _fuse_conv_bn_or_bn_conv(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
     is_conv_bn: bool = True,
-) -> list[onnx.NodeProto]:
+) -> list[NodeProto]:
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -742,9 +743,9 @@ def _fuse_conv_bn_or_bn_conv(
 
 
 def _fuse_convtranspose_bn(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[NodeProto]:
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -807,9 +808,9 @@ def _fuse_convtranspose_bn(
 
 
 def _fuse_transpose_batchnorm_transpose(
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> list[onnx.NodeProto]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[NodeProto]:
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -830,8 +831,8 @@ def _fuse_transpose_batchnorm_transpose(
             tp_node1, bn_node, tp_node2 = pre_pre_node, pre_node, node
             data_type = initializers[bn_node.input[2]].data_type
 
-            perm1 = get_attrs_of_onnx_node(tp_node1)["perm"]
-            perm2 = get_attrs_of_onnx_node(tp_node2)["perm"]
+            perm1 = get_attrs_of_onnx_node(tp_node1, initializers)["perm"]
+            perm2 = get_attrs_of_onnx_node(tp_node2, initializers)["perm"]
             _mode = (0, 2, 1)
             assert all(p_i == p_j for p_i, p_j in zip(perm1, _mode))
             assert all(p_i == p_j for p_i, p_j in zip(perm2, _mode))
@@ -877,9 +878,9 @@ def _fuse_transpose_batchnorm_transpose(
 def _simplify_names(
     input_nodes: list[onnx.ValueInfoProto],
     output_nodes: list[onnx.ValueInfoProto],
-    nodes: list[onnx.NodeProto],
-    initializers: dict[str, onnx.TensorProto],
-) -> tuple[list[onnx.NodeProto], dict[str, onnx.TensorProto]]:
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> tuple[list[NodeProto], dict[str, TensorProto]]:
     """
     Simplify the names of the nodes and initializers.
     """
@@ -949,9 +950,7 @@ def _simplify_names(
     return nodes, new_initializers
 
 
-def _reorder_by_strict_topological_order(
-    nodes: list[onnx.NodeProto],
-) -> list[onnx.NodeProto]:
+def _reorder_by_strict_topological_order(nodes: list[NodeProto]) -> list[NodeProto]:
 
     next_nodes_mapping = get_next_nodes_mapping(nodes)
 

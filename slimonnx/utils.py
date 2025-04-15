@@ -9,6 +9,7 @@ __all__ = [
 ]
 
 import onnx
+from onnx import ModelProto, ValueInfoProto, NodeProto, TensorProto
 
 EXTRACT_ATTR_MAP = {
     0: lambda x: None,  # UNDEFINED
@@ -26,7 +27,7 @@ EXTRACT_ATTR_MAP = {
 }
 
 
-def clear_onnx_docstring(model: onnx.ModelProto):
+def clear_onnx_docstring(model: ModelProto):
     """
     Clear docstring of all nodes in the model.
 
@@ -36,7 +37,7 @@ def clear_onnx_docstring(model: onnx.ModelProto):
         node.doc_string = ""
 
 
-def get_input_nodes(model: onnx.ModelProto) -> list[onnx.ValueInfoProto]:
+def get_input_nodes(model: ModelProto) -> list[ValueInfoProto]:
     return [
         onnx.helper.make_tensor_value_info(
             name=input_i.name,
@@ -47,7 +48,7 @@ def get_input_nodes(model: onnx.ModelProto) -> list[onnx.ValueInfoProto]:
     ]
 
 
-def get_output_nodes(model: onnx.ModelProto) -> list[onnx.ValueInfoProto]:
+def get_output_nodes(model: ModelProto) -> list[ValueInfoProto]:
     return [
         onnx.helper.make_tensor_value_info(
             name=output_i.name,
@@ -58,25 +59,11 @@ def get_output_nodes(model: onnx.ModelProto) -> list[onnx.ValueInfoProto]:
     ]
 
 
-def get_initializers(model: onnx.ModelProto) -> dict[str, onnx.TensorProto]:
-    """
-    Get initializers of the model.
-
-    :param model: The ONNX model.
-
-    .. note::
-        This function only return the attributes useful for neural network
-        verification.
-
-    :return: A dictionary of initializers with key is the name of the initializer.
-    """
-    initializers = {}
-    for initializer in model.graph.initializer:
-        initializers[initializer.name] = initializer
-    return initializers
+def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
+    return {initializer.name: initializer for initializer in model.graph.initializer}
 
 
-def get_next_nodes_mapping(nodes: list[onnx.NodeProto]) -> dict[str, list[str]]:
+def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
     name_and_output_name_mapping = {}
     for node in nodes:
         for output_name in node.output:
