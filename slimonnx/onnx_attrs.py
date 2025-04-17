@@ -487,6 +487,13 @@ def _get_attrs_of_scatternd(
     return attrs
 
 
+def _get_attrs_of_shape(*args, **kwargs) -> dict[str, Any]:
+    # https://onnx.ai/onnx/operators/onnx__Shape.html
+    raise RuntimeError(
+        "Shape is not supported. You should convert it to an initializer."
+    )
+
+
 def _get_attrs_of_sigmoid(
     node: NodeProto, initializers: dict[str, TensorProto]
 ) -> dict[str, Any]:
@@ -596,6 +603,7 @@ _EXTRACT_ATTRS_MAP = {
     "Relu": _get_attrs_of_relu,
     "Reshape": _get_attrs_of_reshape,
     "Resize": _get_attrs_of_resize,
+    "Shape": _get_attrs_of_shape,
     "Sigmoid": _get_attrs_of_sigmoid,
     "Scatter": _get_attrs_of_scatter,
     "ScatterElements": _get_attrs_of_scatterelement,
