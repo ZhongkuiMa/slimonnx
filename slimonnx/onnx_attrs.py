@@ -180,6 +180,13 @@ def _get_attrs_of_conv(
     return attrs
 
 
+def _get_attrs_of_constant(*args, **kwargs) -> dict[str, Any]:
+    # https://onnx.ai/onnx/operators/onnx__Constant.html
+    raise RuntimeError(
+        "Constant is not supported. You should convert it to an initializer."
+    )
+
+
 def _get_attrs_of_convtranspose(
     node: NodeProto, initializers: dict[str, TensorProto]
 ) -> dict[str, Any]:
@@ -570,6 +577,7 @@ _EXTRACT_ATTRS_MAP = {
     "Cast": _get_attrs_of_cast,
     "Concat": _get_attrs_of_concat,
     "Conv": _get_attrs_of_conv,
+    "Constant": _get_attrs_of_constant,
     "ConvTranspose": _get_attrs_of_convtranspose,
     "ConstantOfShape": _get_attrs_of_constantofshape,
     "Div": _get_attrs_of_div,
