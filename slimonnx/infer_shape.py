@@ -141,8 +141,7 @@ def _infer_shape_of_concat(
             value = onnx.numpy_helper.to_array(initializers[name]).tolist()
         else:
             raise RuntimeError("Should not reach here.")
-        input_shapes.append(value)
-
+        input_shapes.append(value.copy())
     shape = input_shapes[0]
     for i in range(1, len(input_shapes)):
         shape[axis] += input_shapes[i][axis]
@@ -158,7 +157,7 @@ def _infer_shape_of_constant_of_shape(
     explicit_shapes: dict[str, Any],
 ):
     shape = explicit_shapes[node.input[0]]
-    shapes[node.output[0]] = shape
+    shapes[node.output[0]] = shape.copy()  # Copy the shape
     if _VERBOSE:
         print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")
 
@@ -252,7 +251,7 @@ def _infer_shape_of_flatten(
 ):
     shape = shapes[node.input[0]]
     axis = get_onnx_attrs(node, initializers)["axis"]
-    shape = shape[:axis] + [-1]
+    shape = shape[:axis] + [int(math.prod(shape) / math.prod(shape[:axis]))]
     shapes[node.output[0]] = shape
     if _VERBOSE:
         print(f"Node {node.op_type:<20} {node.output[0]:<40} shape={shape}")

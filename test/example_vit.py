@@ -23,6 +23,7 @@ if __name__ == "__main__":
         fuse_transpose_bn_transpose=True,
         fuse_gemm_gemm=True,
         fuse_bn_gemm=True,
+        remove_redundant_reshape=True,  # This is caused convert_version
         reorder_by_strict_topological_order=True,
         simplify_node_name=True,
         verbose=True,
