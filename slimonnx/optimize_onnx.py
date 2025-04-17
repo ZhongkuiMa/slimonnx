@@ -875,6 +875,37 @@ def _fuse_transpose_batchnorm_transpose(
     return new_nodes
 
 
+def _remove_redundant_reshape(
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    data_shapes: dict[str, list[int]],
+) -> list[NodeProto]:
+    new_nodes = []
+    pre_pre_node = None
+    pre_node = None
+    for node in nodes:
+        new_node = node
+        # The following code never consider adjacent Reshape nodes.
+        if pre_node is not None and pre_node.op_type in {"Reshape", "Flatten"}:
+            # Check if the node does nothing.
+            input_shape = data_shapes[pre_node.input[0]]
+            output_shape = data_shapes[pre_node.output[0]]
+            if input_shape == output_shape:
+                if pre_node.op_type == "Reshape":
+                    del initializers[pre_node.input[1]]
+
+                new_nodes.pop()
+                for i in range(len(new_node.input)):
+                    if new_node.input[i] == pre_node.output[0]:
+                        new_node.input[i] = pre_pre_node.output[0]
+
+        new_nodes.append(new_node)
+        pre_pre_node = pre_node
+        pre_node = node
+
+    return new_nodes
+
+
 def _simplify_names(
     input_nodes: list[onnx.ValueInfoProto],
     output_nodes: list[onnx.ValueInfoProto],
@@ -993,6 +1024,7 @@ def optimize_onnx(
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
+    remove_redundant_reshape: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
     verbose: bool = False,
@@ -1014,6 +1046,8 @@ def optimize_onnx(
     initializers = get_initializers(model)
 
     nodes = list(model.graph.node)
+
+    data_shapes = None
 
     if constant_to_initializer:
         nodes = _constant_to_initializer(nodes, initializers)
@@ -1038,6 +1072,12 @@ def optimize_onnx(
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
     if fuse_convtransposed_bn:
         nodes = _fuse_convtranspose_bn(nodes, initializers)
+    if remove_redundant_reshape:
+        if data_shapes is None:
+            data_shapes = infer_onnx_shape(
+                input_nodes, output_nodes, nodes, initializers
+            )
+        nodes = _remove_redundant_reshape(nodes, initializers, data_shapes)
     if reorder_by_strict_topological_order:
         # There maybe repeated named nodes, so we need to simplify the names first
         nodes, initializers = _simplify_names(
