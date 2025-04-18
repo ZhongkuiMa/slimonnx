@@ -1,6 +1,7 @@
 __docformat__ = "restructuredtext"
 __all__ = [
     "EXTRACT_ATTR_MAP",
+    "reformat_io_shape",
     "clear_onnx_docstring",
     "get_input_nodes",
     "get_output_nodes",
@@ -37,26 +38,49 @@ def clear_onnx_docstring(model: ModelProto):
         node.doc_string = ""
 
 
+def reformat_io_shape(node: ValueInfoProto) -> list[int]:
+    shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
+
+    if len(shape) == 1:
+        # Some model takes not batch dim.
+        return shape
+
+    # Sometimes the first dimension is symbolic, so we need to set it to 1
+    shape = [1] + shape[1:]
+    return shape
+
+
 def get_input_nodes(model: ModelProto) -> list[ValueInfoProto]:
-    return [
-        onnx.helper.make_tensor_value_info(
-            name=input_i.name,
-            elem_type=input_i.type.tensor_type.elem_type,
-            shape=[1] + [x.dim_value for x in input_i.type.tensor_type.shape.dim[1:]],
-        )
-        for input_i in model.graph.input
-    ]
+    initializers = [initializer.name for initializer in model.graph.initializer]
+    # Exclude initializers from inputs because sometimes the initializers are also
+    # included in the inputs
+    nodes = []
+    for input_i in model.graph.input:
+        if input_i.name not in initializers:
+            shape = reformat_io_shape(input_i)
+
+            node = onnx.helper.make_tensor_value_info(
+                name=input_i.name,
+                elem_type=input_i.type.tensor_type.elem_type,
+                shape=shape,
+            )
+            nodes.append(node)
+
+    return nodes
 
 
 def get_output_nodes(model: ModelProto) -> list[ValueInfoProto]:
-    return [
-        onnx.helper.make_tensor_value_info(
+    nodes = []
+    for output_i in model.graph.output:
+        shape = reformat_io_shape(output_i)
+        node = onnx.helper.make_tensor_value_info(
             name=output_i.name,
             elem_type=output_i.type.tensor_type.elem_type,
-            shape=[1] + [x.dim_value for x in output_i.type.tensor_type.shape.dim[1:]],
+            shape=shape,
         )
-        for output_i in model.graph.output
-    ]
+        nodes.append(node)
+
+    return nodes
 
 
 def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
