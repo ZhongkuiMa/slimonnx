@@ -100,3 +100,19 @@ The left is the original onnx model and the right is the optimized one.
 
 ![example_comparison_vit](./README.assets/example_comparison_vit.png)
 
+## Test Examples of VNNCOMP'24
+
+You need to get the repo of [vnncomp2024](https://github.com/ChristopherBrix/vnncomp2024_benchmarks). This repo does not contain the benchmarks folder because it is about 20GB.
+Then you make sure the following folder structure:
+
+```
+- slimonnx
+    ├── slimonnx
+    ├── README.md
+    ├── test_vnncomp
+- vnncomp2024
+    ├── benchmarks
+    ├── ...
+```
+
+The testing examples are in the `test_vnncomp` folder.
