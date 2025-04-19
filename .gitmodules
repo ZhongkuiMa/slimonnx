@@ -1,0 +1,4 @@
+[submodule "shapeonnx"]
+	path = shapeonnx
+	url = https://github.com/ZhongkuiMa/shapeonnx.git
+	branch = main
