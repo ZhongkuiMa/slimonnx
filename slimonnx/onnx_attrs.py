@@ -155,8 +155,6 @@ def _get_attrs_of_conv(
     }
     attrs = _scan_attrs(attrs, node.attribute)
 
-    if attrs["group"] != 1:
-        raise ValueError(f"Only support group=1 but {attrs['group']}.")
     if attrs["auto_pad"] != "NOTSET":
         raise ValueError(f"Only support auto_pad=NOTSET but {attrs['auto_pad']}.")
 
@@ -336,7 +334,7 @@ def _get_attrs_of_maxpool(
     }
     attrs = _scan_attrs(attrs, node.attribute)
 
-    assert attrs["kernel_shape"] == 0
+    assert attrs["storage_order"] == 0
 
     if attrs["auto_pad"] != "NOTSET":
         raise ValueError(f"Only support auto_pad=NOTSET but {attrs['auto_pad']}.")
