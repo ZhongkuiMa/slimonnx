@@ -56,11 +56,26 @@ def _remove_redundant_operations(
 
     new_nodes = []
     for node in nodes:
-        if node.op_type in {"Add", "Sub", "Mul", "Div"}:
+        if node.op_type in {"Add", "Sub"}:
             # Check if the node does nothing.
             initializer = initializers[node.input[1]]
             array = onnx.numpy_helper.to_array(initializer)
             if np.all(array == 0):
+                del initializers[node.input[1]]
+                # Find all nodes taking this node as input.
+                # Change their input to the previous node.
+                for node_j in nodes:
+                    if node.output[0] in node_j.input:
+                        for k in range(len(node_j.input)):
+                            if node_j.input[k] == node.output[0]:
+                                node_j.input[k] = node.input[0]
+                count += 1
+                continue
+        elif node.op_type in {"Mul", "Div"}:
+            # Check if the node does nothing.
+            initializer = initializers[node.input[1]]
+            array = onnx.numpy_helper.to_array(initializer)
+            if np.all(array == 1):
                 del initializers[node.input[1]]
                 # Find all nodes taking this node as input.
                 # Change their input to the previous node.
