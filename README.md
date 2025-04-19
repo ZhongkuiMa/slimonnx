@@ -90,14 +90,14 @@ Maybe other versions are accepted but do not make your onnx version too old. Cur
 You need to get the repo of [vnncomp2024](https://github.com/ChristopherBrix/vnncomp2024_benchmarks). This repo does not contain the benchmarks folder because it is about 20GB. The testing examples are in the `test_vnncomp` folder. Then you make sure the following folder structure:
 
 ```
-- slimonnx
-    ├── slimonnx
-    ├── README.md
-    ├── test_vnncomp
-    ├── ...
-- vnncomp2024
-    ├── benchmarks
-    ├── ...
+slimonnx/
+│   ├── slimonnx/
+│   ├── README.md
+│   └── test_vnncomp/
+└── ...
+vnncomp2024/
+│   ├── benchmarks/
+└── ...
 ```
 
 #### 😋 An Example of ViT Model
