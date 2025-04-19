@@ -144,3 +144,8 @@ The left is the original onnx model and the right is the optimized one.
 
 ![example_comparison_vit](./README.assets/example_comparison_vit.png)
 
+## 🤝 Contributing
+
+We warmly welcome contributions from everyone! Whether it's fixing bugs 🐞, adding features ✨, improving documentation 📚, or just sharing ideas 💡—your input is appreciated!
+
+📌 NOTE: Direct pushes to the `main` branch are restricted. Make sure to fork the repository and submit a Pull Request for any changes!
