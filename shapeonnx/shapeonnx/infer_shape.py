@@ -9,8 +9,8 @@ import numpy as np
 import onnx
 from onnx import ValueInfoProto, NodeProto, TensorProto
 
-from .onnx_attrs import get_onnx_attrs
-from .utils import reformat_io_shape
+from slimonnx.slimonnx.onnx_attrs import get_onnx_attrs
+from slimonnx.slimonnx.utils import reformat_io_shape
 
 _VERBOSE = False
 

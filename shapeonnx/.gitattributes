@@ -1,0 +1,46 @@
+# === Python source files ===
+*.py     text eol=lf diff=python
+*.pyi    text eol=lf diff=python
+*.pyx    text eol=lf diff=python
+*.pxd    text eol=lf diff=python
+*.pyw    text eol=lf diff=python
+
+# === Jupyter Notebooks ===
+*.ipynb  text eol=lf
+
+# === Common config files ===
+*.json   text eol=lf
+*.yml    text eol=lf
+*.yaml   text eol=lf
+*.toml   text eol=lf
+*.cfg    text eol=lf
+*.ini    text eol=lf
+*.md     text eol=lf
+*.txt    text eol=lf
+
+# === Shell scripts ===
+*.sh     text eol=lf
+
+# === Binary or generated files ===
+*.pyc    binary export-ignore
+*.pyo    binary export-ignore
+*.pyd    binary
+*.so     binary
+*.db     binary
+*.pkl    binary
+*.pickle binary
+*.onnx   binary linguist-generated
+*.pt     binary linguist-generated
+*.pth    binary linguist-generated
+*.pb     binary linguist-generated
+*.zip    binary
+*.tar.gz binary
+*.whl    binary
+
+# === Docs ===
+docs/**  linguist-documentation
+
+# === Prevent file permission diffs ===
+# This requires setting Git config:
+# Run this ONCE for your repo:
+#   git config core.fileMode false
