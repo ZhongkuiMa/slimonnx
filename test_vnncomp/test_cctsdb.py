@@ -1,3 +1,5 @@
+import warnings
+
 import onnx
 
 from slimonnx import SlimONNX
@@ -15,7 +17,7 @@ if __name__ == "__main__":
     onnx.save(model, onnx_path)
 
     target_path = onnx_path.replace(".onnx", "_simplified.onnx")
-
+    warnings.warn("This is undertesting.")
     # NOTE: This model has no batch dim.
     slimonnx.slim(
         onnx_path,

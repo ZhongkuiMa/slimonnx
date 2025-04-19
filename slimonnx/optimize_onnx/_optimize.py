@@ -15,7 +15,7 @@ from ._ordering import *
 from ._rm_redundant import *
 from ._shp2initer import *
 from ._sim_name import *
-from ..infer_shape import infer_onnx_shape
+from slimonnx.shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ..utils import *
 
 
