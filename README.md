@@ -64,7 +64,7 @@ Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 - **remove_redundant_reshape**: Remove redundant Reshape nodes. This happens when we use [onnx.version_converter](https://onnx.ai/onnx/api/version_converter.html) sometimes. I dnk why... There is an example in current test folder.
 - **remove_redundant_operations**: This aims to remove some operation that does not make affect to the final output. For example, adding or subtracting a zero constant. It *indeed* happens in some models...
 - **simplify_node_name**: Simplify node names based on topological order, ditching the nested structure for clarity and simplicity. 🧠 Because ONNX names a node by the nested structure of the code.
-- **reorder_by_strict_topological_order**: Reorder the nodes based on strict topological order—perfect for neural network DAGs and convenient some further operations. 🏎️‘
+- **reorder_by_strict_topological_order**: Reorder the nodes based on strict topological order (depth-first)—perfect for neural network DAGs and convenient some further operations. 🏎️‘
 
 Frankly speaking, the root reason is that ONNX is just like a reader, and it read the code without most of the optimizations. We are here to make it better! 🚀
 

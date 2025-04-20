@@ -4,7 +4,10 @@ from slimonnx import SlimONNX
 
 if __name__ == "__main__":
     slimonnx = SlimONNX()
-    onnx_path = "../nets/TinyImageNet_resnet_medium.onnx"
+    onnx_path = (
+        "../../vnncomp2024_benchmarks/benchmarks/nn4sys_2023/onnx/"
+        "mscn_2048d_dual.onnx"
+    )
 
     # Convert the model to version 22 to avoid many inconsistencies
     model = onnx.load(onnx_path)
@@ -18,7 +21,7 @@ if __name__ == "__main__":
         onnx_path,
         target_path,
         constant_to_initializer=True,
-        fuse_conv_bn=True,
+        fuse_matmul_add=True,
         reorder_by_strict_topological_order=True,
         simplify_node_name=True,
         verbose=True,
