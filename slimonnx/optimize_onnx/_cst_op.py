@@ -100,10 +100,12 @@ def _fuse_constant_nodes(
 
         elif op_type == "Cast":
             value = onnx.numpy_helper.to_array(initializers[node.input[0]])
+
         elif op_type == "Reshape":
             data = onnx.numpy_helper.to_array(initializers[node.input[0]])
             shape = onnx.numpy_helper.to_array(initializers[node.input[1]])
             value = data.reshape(shape)
+
         elif op_type == "Range":
             start = onnx.numpy_helper.to_array(initializers[node.input[0]])
             limit = onnx.numpy_helper.to_array(initializers[node.input[1]])
@@ -111,50 +113,60 @@ def _fuse_constant_nodes(
             value = np.arange(start, limit, delta)
 
         elif op_type == "ConstantOfShape":
-            # The node create a constant with specified shape.
             shape = shapes[node.output[0]]
             value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
             value = np.full(shape, value, dtype=value.dtype)
 
-        elif op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Concat"}:
-            # Some operations have all constant inputs.
-            are_initializer_inputs = all(ipt in initializers for ipt in node.input)
-            if not are_initializer_inputs:
-                continue
+        elif op_type == "Relu":
+            tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            value = np.maximum(tensor, 0)
 
-            value = None
-            if op_type in {"Add", "Sub", "Mul", "Div", "MatMul"}:
-                tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
-                tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
-                if op_type == "Add":
-                    value = tensor1 + tensor2
-                elif op_type == "Sub":
-                    value = tensor1 - tensor2
-                elif op_type == "Mul":
-                    value = tensor1 * tensor2
-                elif op_type == "Div":
-                    value = tensor1 / tensor2
-                elif op_type == "MatMul":
-                    value = np.matmul(tensor1, tensor2)
-
-            elif op_type == "Concat":
-                is_concat_shape = True
-                for input_name in node.input:
-                    if input_name not in initializers:
-                        is_concat_shape = False
-                        break
-
-                if is_concat_shape:
-                    value = np.array(shapes[node.output[0]])
+        elif op_type == "ReduceSum":
+            tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            attrs = get_onnx_attrs(node, initializers)
+            if len(node.input[1]) > 1:
+                axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
+                keepdims = attrs["keepdims"]
+                value = np.sum(tensor, axis=tuple(axes), keepdims=keepdims)
+            else:
+                noop_with_empty_axes = attrs["noop_with_empty_axes"]
+                if noop_with_empty_axes:
+                    value = tensor
                 else:
-                    tensor_list = []
-                    for input_name in node.input:
-                        tensor = onnx.numpy_helper.to_array(initializers[input_name])
-                        tensor_list.append(tensor)
-                    axis = get_onnx_attrs(node, initializers)["axis"]
-                    value = np.concatenate(tensor_list, axis=axis)
+                    axes = list(range(len(tensor.shape)))
+                    keepdims = attrs["keepdims"]
+                    value = np.sum(tensor, axis=tuple(axes), keepdims=keepdims)
 
-            assert value is not None
+        elif op_type in {"Add", "Sub", "Mul", "Div", "MatMul"}:
+            tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            if op_type == "Add":
+                value = tensor1 + tensor2
+            elif op_type == "Sub":
+                value = tensor1 - tensor2
+            elif op_type == "Mul":
+                value = tensor1 * tensor2
+            elif op_type == "Div":
+                value = tensor1 / tensor2
+            elif op_type == "MatMul":
+                value = np.matmul(tensor1, tensor2)
+
+        elif op_type == "Concat":
+            is_concat_shape = True
+            for input_name in node.input:
+                if input_name not in initializers:
+                    is_concat_shape = False
+                    break
+
+            if is_concat_shape:
+                value = np.array(shapes[node.output[0]])
+            else:
+                tensor_list = []
+                for input_name in node.input:
+                    tensor = onnx.numpy_helper.to_array(initializers[input_name])
+                    tensor_list.append(tensor)
+                axis = get_onnx_attrs(node, initializers)["axis"]
+                value = np.concatenate(tensor_list, axis=axis)
 
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
