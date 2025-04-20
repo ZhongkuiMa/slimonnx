@@ -6,8 +6,11 @@ from slimonnx import SlimONNX
 
 if __name__ == "__main__":
     slimonnx = SlimONNX()
+    # onnx_path = (
+    #     "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-1.onnx"
+    # )
     onnx_path = (
-        "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-1.onnx"
+        "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-3.onnx"
     )
 
     # Convert the model to version 22 to avoid many inconsistencies
@@ -17,7 +20,7 @@ if __name__ == "__main__":
     onnx.save(model, onnx_path)
 
     target_path = onnx_path.replace(".onnx", "_simplified.onnx")
-    warnings.warn("This is undertesting.")
+    warnings.warn("This is under testing.")
     # NOTE: This model has no batch dim.
     slimonnx.slim(
         onnx_path,
