@@ -14,7 +14,7 @@ from ._gemm_gemm import *
 from ._mm_add import *
 from ._ordering import *
 from ._rm_redundant import *
-from ._shp2initer import *
+from ._cst_op import *
 from ._sim_name import *
 from ..utils import *
 
@@ -22,7 +22,7 @@ from ..utils import *
 def optimize_onnx(
     model: ModelProto,
     constant_to_initializer: bool = False,
-    shape_to_initializer: bool = False,
+    fuse_constant_nodes: bool = False,
     fuse_matmul_add: bool = False,
     fuse_gemm_reshape_bn: bool = False,
     fuse_bn_reshape_gemm: bool = False,
@@ -59,9 +59,11 @@ def optimize_onnx(
 
     if constant_to_initializer:
         nodes = _constant_to_initializer(nodes, initializers)
-    if shape_to_initializer:
+    if fuse_constant_nodes:
         data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
-        nodes = _shape_to_initializer(nodes, initializers, data_shapes)
+        nodes, initializers = _fuse_constant_nodes(
+            nodes, initializers, data_shapes, True
+        )
     if fuse_matmul_add:
         nodes = _fuse_matmul_add(nodes, initializers)
     if fuse_gemm_reshape_bn:

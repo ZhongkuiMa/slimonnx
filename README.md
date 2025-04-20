@@ -50,7 +50,7 @@ I have implemented most of commonly used operations in feedforward neural networ
 Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 
 - **constant_to_initializer**: Convert constant nodes to initializer nodes. This is a really a thing that everyone can think of, but ONNX just doesn't do it! Actually, I know why constant node should be initializer node because initializer node is always trainable not constant node, but it really really introduce troubles. We make sure every constant is an initializer, making your model cleaner and more efficient! 💡
-- **shape_to_initializer**: Convert shape nodes to initializers. This is a game-changer for reducing the number of nodes in your model! 🎉 We will trace the shape node and find the final node. In most of cases, the shape node is a constant node.
+- **fuse_constant_nodes**: Fuse constant operations like convert shape nodes to initializers. This is a game-changer for reducing the number of nodes in your model! 🎉 We will trace the shape node and find the final node. In most of the cases, the shape node is a constant node.
 - **fuse_matmul_add**: Fuse a MatMul and Add node into a single Gemm node. It's a standard operation in coding that ONNX just can't handle as an optimization, but we do! 🔥
 - **fuse_gemm_reshape_bn**: Fuse a Gemm, Reshape, and BatchNormalization node into a single Gemm + Reshape node. We streamline these linear operations like never before! 💥 Because they are all linear operations.
 - **fuse_bn_reshape_gemm**: Merge BatchNormalization, Reshape, and Gemm nodes into a unified Reshape + Gemm node. Optimization at its finest! ⚡
@@ -124,7 +124,7 @@ if __name__ == "__main__":
         onnx_path,
         target_path,
         constant_to_initializer=True,
-        shape_to_initializer=True,
+        fuse_constant_nodes=True,
         fuse_matmul_add=True,
         fuse_transpose_bn_transpose=True,
         fuse_gemm_gemm=True,

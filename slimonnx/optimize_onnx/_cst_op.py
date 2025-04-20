@@ -1,19 +1,20 @@
 __docformat__ = ["restructuredtext"]
-__all__ = ["_shape_to_initializer"]
+__all__ = ["_fuse_constant_nodes"]
 
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
 import slimonnx.slimonnx.optimize_onnx._utils as utils
+from ..onnx_attrs import get_onnx_attrs
 
 
-def _shape_to_initializer(
+def _fuse_constant_nodes(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     shapes: dict[str, list[int]],
     verbose: bool = False,
-) -> list[NodeProto]:
+) -> tuple[list[NodeProto], dict[str, TensorProto]]:
     """
     Trace the shape node and make it as a direct constant.
     """
@@ -71,7 +72,31 @@ def _shape_to_initializer(
             if pre_node_type == "Shape":
                 value = np.array(shapes[node.output[0]])
             else:
-                raise NotImplementedError
+                tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+                if op_type == "Gather":
+                    axis = get_onnx_attrs(node, initializers)["axis"]
+                    indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
+                    value = np.take(tensor, indices, axis=axis)
+                elif op_type == "Slice":
+                    starts = onnx.numpy_helper.to_array(initializers[node.input[1]])
+                    ends = onnx.numpy_helper.to_array(initializers[node.input[2]])
+                    axes = initializers.get(node.input[3])
+                    if axes is not None:
+                        axes = onnx.numpy_helper.to_array(axes)
+                    else:
+                        axes = np.arange(len(starts))
+                    steps = initializers.get(node.input[4])
+                    if steps is not None:
+                        steps = onnx.numpy_helper.to_array(steps)
+                    else:
+                        steps = np.ones_like(starts)
+                    slices = [slice(None)] * len(starts)
+                    for axis in axes:
+                        slices[axis] = slice(starts[axis], ends[axis], steps[axis])
+                    value = tensor[tuple(slices)]
+                elif op_type == "Unsqueeze":
+                    axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
+                    value = np.expand_dims(tensor, axis=tuple(axes))
 
         elif op_type == "Cast":
             value = onnx.numpy_helper.to_array(initializers[node.input[0]])
@@ -91,14 +116,14 @@ def _shape_to_initializer(
             value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
             value = np.full(shape, value, dtype=value.dtype)
 
-        elif op_type in {"Add", "Sub", "Mul", "Div", "Concat"}:
+        elif op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Concat"}:
             # Some operations have all constant inputs.
             are_initializer_inputs = all(ipt in initializers for ipt in node.input)
             if not are_initializer_inputs:
                 continue
 
             value = None
-            if op_type in {"Add", "Sub", "Mul", "Div"}:
+            if op_type in {"Add", "Sub", "Mul", "Div", "MatMul"}:
                 tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
                 tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
                 if op_type == "Add":
@@ -109,9 +134,27 @@ def _shape_to_initializer(
                     value = tensor1 * tensor2
                 elif op_type == "Div":
                     value = tensor1 / tensor2
+                elif op_type == "MatMul":
+                    value = np.matmul(tensor1, tensor2)
 
             elif op_type == "Concat":
-                value = np.array(shapes[node.output[0]])
+                is_concat_shape = True
+                for input_name in node.input:
+                    if input_name not in initializers:
+                        is_concat_shape = False
+                        break
+
+                if is_concat_shape:
+                    value = np.array(shapes[node.output[0]])
+                else:
+                    tensor_list = []
+                    for input_name in node.input:
+                        tensor = onnx.numpy_helper.to_array(initializers[input_name])
+                        tensor_list.append(tensor)
+                    axis = get_onnx_attrs(node, initializers)["axis"]
+                    value = np.concatenate(tensor_list, axis=axis)
+
+            assert value is not None
 
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
@@ -123,10 +166,6 @@ def _shape_to_initializer(
         if verbose:
             print(f"  Delete node: {node.name}")
 
-        for input_name in node.input:
-            if input_name in initializers:
-                del initializers[input_name]
-
     if utils.VERBOSE or verbose:
         print(f"Remove {len(nodes_to_delete)} nodes.")
 
@@ -137,5 +176,17 @@ def _shape_to_initializer(
             # we can remove the node.
             continue
         new_nodes.append(node)
+    nodes = new_nodes
 
-    return new_nodes
+    # Remove all unused initializers
+    all_inputs = []
+    for node in nodes:
+        for input_name in node.input:
+            all_inputs.append(input_name)
+    new_initializers = {}
+    for name, initializer in initializers.items():
+        if name in all_inputs:
+            new_initializers[name] = initializer
+    initializers = new_initializers
+
+    return nodes, initializers
