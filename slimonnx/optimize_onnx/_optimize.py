@@ -60,12 +60,8 @@ def optimize_onnx(
     if constant_to_initializer:
         nodes = _constant_to_initializer(nodes, initializers)
     if fuse_constant_nodes:
-        data_shapes = infer_onnx_shape(
-            input_nodes, output_nodes, nodes, initializers, True
-        )
-        nodes, initializers = _fuse_constant_nodes(
-            nodes, initializers, data_shapes, True
-        )
+        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
+        nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
     if fuse_matmul_add:
         nodes = _fuse_matmul_add(nodes, initializers)
     if fuse_gemm_reshape_bn:
