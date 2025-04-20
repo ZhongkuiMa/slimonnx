@@ -5,11 +5,14 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
+import slimonnx.slimonnx.optimize_onnx._utils as utils
+
 
 def _shape_to_initializer(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     shapes: dict[str, list[int]],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Trace the shape node and make it as a direct constant.
@@ -17,23 +20,42 @@ def _shape_to_initializer(
 
     """
     Currently, there are the following cases:
-    (1) We extract the shape to construct a constant tensor. we can make such 
-        constant tensor as a freezed initializer.
+    (1) We extract the shape to construct a constant tensor. We can make such 
+        constant tensor as a frozen initializer.
     (2) We extract the shape to reshape a tensor. We can make such shape as a freezed
         initializer.
     """
+
+    nodes_dict = {node.output[0]: node for node in nodes}
+
     nodes_to_delete = []
     # Iterate over value_info to print tensor names and their shapes
     for node in nodes:
+        if verbose:
+            print(f"Node: {node.op_type} {node.name}")
+
         op_type = node.op_type
+
         if op_type == "Shape":
-            # The shape node must be deleted.
             value = np.array(shapes[node.output[0]])
+            if len(value) == 1 and value[0] == 0:
+                # This is a dynamic shape, we do not need to convert it to a constant.
+                continue
             initializer = onnx.numpy_helper.from_array(value, name=node.output[0])
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
 
-        if all(input_name not in nodes_to_delete for input_name in node.input):
+            if verbose:
+                print(f"  Delete node: {node.name}")
+
+            continue
+
+        if any(
+            input_name not in initializers and input_name not in nodes_to_delete
+            for input_name in node.input
+        ):
+            # If any input is not an initializer and not a node to delete,
+            # we cannot convert the node to an initializer.
             continue
 
         """
@@ -45,12 +67,24 @@ def _shape_to_initializer(
         """
 
         if op_type in {"Gather", "Slice", "Unsqueeze"}:
-            # All these nodes extract or change the result from the shape node.
-            value = np.array(shapes[node.output[0]])
+            pre_node_type = nodes_dict[node.input[0]].op_type
+            if pre_node_type == "Shape":
+                value = np.array(shapes[node.output[0]])
+            else:
+                raise NotImplementedError
 
+        elif op_type == "Cast":
+            value = onnx.numpy_helper.to_array(initializers[node.input[0]])
         elif op_type == "Reshape":
-            # The reshape node uses the shape node.
-            continue
+            data = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            shape = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            value = data.reshape(shape)
+        elif op_type == "Range":
+            start = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            limit = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            delta = onnx.numpy_helper.to_array(initializers[node.input[2]])
+            value = np.arange(start, limit, delta)
+
         elif op_type == "ConstantOfShape":
             # The node create a constant with specified shape.
             shape = shapes[node.output[0]]
@@ -86,10 +120,22 @@ def _shape_to_initializer(
         initializers[node.output[0]] = initializer
         nodes_to_delete.append(node.output[0])
 
+        if verbose:
+            print(f"  Delete node: {node.name}")
+
         for input_name in node.input:
             if input_name in initializers:
                 del initializers[input_name]
 
-    new_nodes = [node for node in nodes if node.output[0] not in nodes_to_delete]
+    if utils.VERBOSE or verbose:
+        print(f"Remove {len(nodes_to_delete)} nodes.")
+
+    new_nodes = []
+    for node in nodes:
+        if len(node.output) == 1 and node.output[0] in nodes_to_delete:
+            # If the node has only one output, and it is in the nodes to delete,
+            # we can remove the node.
+            continue
+        new_nodes.append(node)
 
     return new_nodes

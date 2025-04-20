@@ -1,5 +1,3 @@
-import onnx
-
 from slimonnx import SlimONNX
 
 if __name__ == "__main__":

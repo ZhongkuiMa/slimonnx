@@ -5,6 +5,7 @@ import onnx
 from onnx import ModelProto
 
 import slimonnx.slimonnx.optimize_onnx._utils as utils
+from slimonnx.shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ._bn_conv import *
 from ._bn_gemm import *
 from ._bn_transpose import *
@@ -15,7 +16,6 @@ from ._ordering import *
 from ._rm_redundant import *
 from ._shp2initer import *
 from ._sim_name import *
-from slimonnx.shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ..utils import *
 
 
@@ -42,13 +42,13 @@ def optimize_onnx(
     utils.VERBOSE = verbose
 
     if verbose:
-        print("Clear ONNX docstring...")
+        print("Clear ONNX docstring.")
     clear_onnx_docstring(model)
 
     graph_name = model.graph.name + "_slimmed"
 
     if verbose:
-        print("Set batch size to 1...")
+        print("Set batch size to 1.")
     input_nodes = get_input_nodes(model)
     output_nodes = get_output_nodes(model)
     initializers = get_initializers(model)
@@ -60,9 +60,7 @@ def optimize_onnx(
     if constant_to_initializer:
         nodes = _constant_to_initializer(nodes, initializers)
     if shape_to_initializer:
-        data_shapes = infer_onnx_shape(
-            input_nodes, output_nodes, nodes, initializers, verbose=True
-        )
+        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
         nodes = _shape_to_initializer(nodes, initializers, data_shapes)
     if fuse_matmul_add:
         nodes = _fuse_matmul_add(nodes, initializers)
