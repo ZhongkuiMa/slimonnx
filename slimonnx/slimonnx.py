@@ -17,7 +17,7 @@ class SlimONNX:
         onnx_path: str,
         target_path: str | None = None,
         constant_to_initializer: bool = False,
-        shape_to_initializer: bool = False,
+        fuse_constant_nodes: bool = False,
         fuse_matmul_add: bool = False,
         fuse_gemm_reshape_bn: bool = False,
         fuse_bn_reshape_gemm: bool = False,
@@ -56,7 +56,8 @@ class SlimONNX:
             node into a ConvTranspose node.
         :param remove_redundant_reshape: Remove redundant Reshape nodes.
         :param remove_redundant_operations: Remove redundant operations.
-        :param shape_to_initializer: Convert the shape nodes to initializers.
+        :param fuse_constant_nodes: Convert the shape nodes to initializers, or fuse
+        fixed constant operations.
         :param simplify_node_name: Simplify the node name by topological order.
         :param reorder_by_strict_topological_order: Reorder the nodes by topological
             order and simplify their names.
@@ -72,7 +73,7 @@ class SlimONNX:
         new_model = optimize_onnx(
             model,
             constant_to_initializer=constant_to_initializer,
-            shape_to_initializer=shape_to_initializer,
+            fuse_constant_nodes=fuse_constant_nodes,
             fuse_matmul_add=fuse_matmul_add,
             fuse_gemm_reshape_bn=fuse_gemm_reshape_bn,
             fuse_bn_reshape_gemm=fuse_bn_reshape_gemm,

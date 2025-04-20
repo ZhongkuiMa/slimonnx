@@ -1,10 +1,15 @@
+import warnings
+
 import onnx
 
 from slimonnx import SlimONNX
 
 if __name__ == "__main__":
     slimonnx = SlimONNX()
-    onnx_path = "../nets/ibp_3_3_8.onnx"
+    onnx_path = (
+        "../../vnncomp2024_benchmarks/benchmarks/cgan_2023/onnx"
+        "/cGAN_imgSz32_nCh_3_small_transformer.onnx"
+    )
 
     # Convert the model to version 22 to avoid many inconsistencies
     model = onnx.load(onnx_path)
@@ -13,18 +18,14 @@ if __name__ == "__main__":
     onnx.save(model, onnx_path)
 
     target_path = onnx_path.replace(".onnx", "_simplified.onnx")
-
+    warnings.warn("This is under testing.")
+    # NOTE: This model has no batch dim.
     slimonnx.slim(
         onnx_path,
         target_path,
         constant_to_initializer=True,
         fuse_constant_nodes=True,
-        fuse_matmul_add=True,
-        fuse_transpose_bn_transpose=True,
-        fuse_gemm_gemm=True,
-        fuse_bn_gemm=True,
-        remove_redundant_reshape=True,  # This is caused convert_version
-        reorder_by_strict_topological_order=True,
         simplify_node_name=True,
+        reorder_by_strict_topological_order=True,
         verbose=True,
     )
