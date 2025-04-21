@@ -10,11 +10,11 @@ from ._bn_conv import *
 from ._bn_gemm import *
 from ._bn_transpose import *
 from ._cst2initer import *
+from ._cst_op import *
 from ._gemm_gemm import *
 from ._mm_add import *
 from ._ordering import *
 from ._rm_redundant import *
-from ._cst_op import *
 from ._sim_name import *
 from ..utils import *
 
