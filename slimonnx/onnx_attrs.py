@@ -12,7 +12,7 @@ def _scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
     for attr in attrs:
         extract = EXTRACT_ATTR_MAP.get(attr.type)
         if extract is None:
-            raise NotImplementedError(f"Invalid attribute type: {attr}")
+            raise NotImplementedError(f"{attr} with {attr.type} is not supported.")
         default_attrs[attr.name] = extract(attr)
 
     return default_attrs
@@ -25,7 +25,7 @@ def _check_pads(pads: tuple[int]):
     for i in range(dims):
         if pads[i] != pads[i + dims]:
             raise ValueError(
-                f"Only support pads with equal start and end pad, " f"but pads={pads}"
+                f"Pad node with unequal start and end {pads} is not supported."
             )
 
 
@@ -42,8 +42,8 @@ def _get_attrs_of_argmax(
 
     if attrs["select_last_index"] != 0:
         raise ValueError(
-            f"Only support select_last_index=0 "
-            f"but select_last_index={attrs['select_last_index']}"
+            f"Argmax node with select_last_index={attrs['select_last_index']}"
+            f"is not supported."
         )
 
     return attrs
@@ -67,7 +67,9 @@ def _get_attrs_of_avgpool(
     assert attrs["kernel_shape"] is not None
 
     if attrs["auto_pad"] != "NOTSET":
-        raise ValueError(f"Only support auto_pad=NOTSET but {attrs['auto_pad']}.")
+        raise ValueError(
+            f"AvgPool node with auto_pad={attrs['auto_pad']} is not supported."
+        )
 
     if attrs["dilations"] is None:
         attrs["dilations"] = tuple([1] * len(attrs["kernel_shape"]))
@@ -94,12 +96,13 @@ def _get_attrs_of_batchnorm(
 
     if attrs["training_mode"] != 0:
         raise ValueError(
-            f"Only support training_mode=0 "
-            f"but training_mode={attrs['training_mode']}"
+            f"Batchnorm node with training_mode={attrs['training_mode']} is not supported."
         )
 
     if len(node.output) > 1:
-        raise ValueError(f"Only support one output but {len(node.output)}.")
+        raise ValueError(
+            f"Batchnorm node with {len(node.output)} outputs is not supported."
+        )
 
     return attrs
 
@@ -114,7 +117,9 @@ def _get_attrs_of_cast(
     assert attrs["to"] is not None
 
     if attrs["saturate"] != 1:
-        raise ValueError(f"Only support saturate=1 but {attrs['saturate']}")
+        raise ValueError(
+            f"Cast node with saturate={attrs['saturate']} is not supported."
+        )
 
     return attrs
 
@@ -146,7 +151,9 @@ def _get_attrs_of_conv(
     attrs = _scan_attrs(attrs, node.attribute)
 
     if attrs["auto_pad"] != "NOTSET":
-        raise ValueError(f"Only support auto_pad=NOTSET but {attrs['auto_pad']}.")
+        raise ValueError(
+            f"Conv node with auto_pad={attrs['auto_pad']} is not supported."
+        )
 
     if attrs["kernel_shape"] is None:
         # Infer the shape from the weight tensor.
@@ -192,9 +199,13 @@ def _get_attrs_of_convtranspose(
     attrs = _scan_attrs(attrs, node.attribute)
 
     if attrs["group"] != 1:
-        raise ValueError(f"Only support group=1 but {attrs['group']}.")
+        raise ValueError(
+            f"ConvTranspose node with group={attrs['group']} is not supported."
+        )
     if attrs["auto_pad"] != "NOTSET":
-        raise ValueError(f"Only support auto_pad=NOTSET but {attrs['auto_pad']}.")
+        raise ValueError(
+            f"ConvTranspose node with auto_pad={attrs['auto_pad']} is not supported."
+        )
     if attrs["kernel_shape"] is None:
         # Infer the shape from the weight tensor.
         weight = initializers[node.input[1]]
@@ -313,9 +324,13 @@ def _get_attrs_of_maxpool(
     assert attrs["storage_order"] == 0
 
     if attrs["auto_pad"] != "NOTSET":
-        raise ValueError(f"Only support auto_pad=NOTSET but {attrs['auto_pad']}.")
+        raise ValueError(
+            f"MaxPool node with auto_pad={attrs['auto_pad']} is not supported."
+        )
     if attrs["storage_order"] != 0:
-        raise ValueError(f"Only support storage_order=0 but {attrs['storage_order']}.")
+        raise ValueError(
+            f"MaxPool node with storage_order={attrs['storage_order']} is not supported."
+        )
     if attrs["dilations"] is None:
         attrs["dilations"] = tuple([1] * len(attrs["kernel_shape"]))
     if attrs["strides"] is None:
@@ -326,7 +341,9 @@ def _get_attrs_of_maxpool(
     _check_pads(attrs["pads"])
 
     if len(node.output) > 1:
-        raise ValueError(f"Only support one output but {len(node.output)}.")
+        raise ValueError(
+            f"MaxPool node with {len(node.output)} outputs is not supported."
+        )
 
     return attrs
 
@@ -353,8 +370,8 @@ def _get_attrs_of_reducemean(
 
     if attrs["noop_with_empty_axes"] != 0:
         raise ValueError(
-            f"Only support noop_with_empty_axes=0 "
-            f"but noop_with_empty_axes={attrs['noop_with_empty_axes']}"
+            f"ReduceMean node with noop_with_empty_axes={attrs['noop_with_empty_axes']} "
+            f"is not supported."
         )
 
     return attrs
@@ -372,8 +389,8 @@ def _get_attrs_of_reducesum(
 
     if attrs["noop_with_empty_axes"] != 0:
         raise ValueError(
-            f"Only support noop_with_empty_axes=0 "
-            f"but noop_with_empty_axes={attrs['noop_with_empty_axes']}"
+            f"ReduceSum node with noop_with_empty_axes={attrs['noop_with_empty_axes']} "
+            f"is not supported."
         )
 
     return attrs
@@ -387,7 +404,9 @@ def _get_attrs_of_reshape(
     attrs = _scan_attrs(attrs, node.attribute)
 
     if attrs["allowzero"] != 0:
-        raise ValueError(f"Only support allowzero=0 but {attrs['allowzero']}")
+        raise ValueError(
+            f"Reshape node with allowzero={attrs['allowzero']} is not supported."
+        )
 
     return attrs
 
@@ -426,7 +445,9 @@ def _get_attrs_of_scatterelement(
     attrs = _scan_attrs(attrs, node.attribute)
 
     if attrs["reduction"] != "none":
-        raise ValueError(f"Only support reduction=none but {attrs['reduction']}")
+        raise ValueError(
+            f"Scatter node with reduction={attrs['reduction']} is not supported."
+        )
 
     return attrs
 
@@ -439,16 +460,26 @@ def _get_attrs_of_scatternd(
     attrs = _scan_attrs(attrs, node.attribute)
 
     if attrs["reduction"] != "none":
-        raise ValueError(f"Only support reduction=none but {attrs['reduction']}")
+        raise ValueError(
+            f"ScatterND node with reduction={attrs['reduction']} is not supported."
+        )
 
     return attrs
 
 
-def _get_attrs_of_shape(*args, **kwargs) -> dict[str, Any]:
+def _get_attrs_of_shape(
+    node: NodeProto, initializers: dict[str, TensorProto]
+) -> dict[str, Any]:
     # https://onnx.ai/onnx/operators/onnx__Shape.html
-    raise RuntimeError(
-        "Shape is not supported. You should convert it to an initializer."
-    )
+    attrs = {"end": -1, "start": 0}
+    attrs = _scan_attrs(attrs, node.attribute)
+
+    if attrs["end"] != -1:
+        raise ValueError(f"Shape node with end={attrs['end']} is not supported.")
+    if attrs["start"] != 0:
+        raise ValueError(f"Shape node with start={attrs['start']} is not supported.")
+
+    return attrs
 
 
 def _get_attrs_of_softmax(
@@ -489,8 +520,6 @@ def _get_attrs_of_unsqueeze(
     # https://onnx.ai/onnx/operators/onnx__Unsqueeze.html
     attrs = {"axes": None}
     attrs = _scan_attrs(attrs, node.attribute)
-
-    assert attrs["num_outputs"] is not None
 
     return attrs
 

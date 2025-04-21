@@ -33,7 +33,6 @@ def optimize_onnx(
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
     remove_redundant_reshape: bool = False,
-    remove_redundant_operations: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
     verbose: bool = False,
@@ -85,9 +84,7 @@ def optimize_onnx(
             data_shapes = infer_onnx_shape(
                 input_nodes, output_nodes, nodes, initializers
             )
-        nodes = _remove_redundant_reshape(nodes, initializers, data_shapes)
-    if remove_redundant_operations:
-        nodes = _remove_redundant_operations(nodes, initializers)
+        nodes = _remove_redundant_operations(nodes, initializers, data_shapes)
     if reorder_by_strict_topological_order:
         # There maybe repeated named nodes, so we need to simplify the names first
         nodes, initializers = _simplify_names(
