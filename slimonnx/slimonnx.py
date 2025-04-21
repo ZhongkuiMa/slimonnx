@@ -28,7 +28,6 @@ class SlimONNX:
         fuse_bn_conv: bool = False,
         fuse_convtransposed_bn: bool = False,
         remove_redundant_reshape: bool = False,
-        remove_redundant_operations: bool = False,
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
         verbose: bool = False,
@@ -54,8 +53,8 @@ class SlimONNX:
         :param fuse_bn_conv: Fuse a BatchNormalization and a Conv node into a Conv node.
         :param fuse_convtransposed_bn: Fuse a ConvTranspose and a BatchNormalization
             node into a ConvTranspose node.
-        :param remove_redundant_reshape: Remove redundant Reshape nodes.
-        :param remove_redundant_operations: Remove redundant operations.
+        :param remove_redundant_reshape: Remove redundant Reshape nodes, such as
+            redundant Reshape, Add, Sub, Mul, Div, Pad nodes.
         :param fuse_constant_nodes: Convert the shape nodes to initializers, or fuse
         fixed constant operations.
         :param simplify_node_name: Simplify the node name by topological order.
@@ -84,7 +83,6 @@ class SlimONNX:
             fuse_bn_conv=fuse_bn_conv,
             fuse_convtransposed_bn=fuse_convtransposed_bn,
             remove_redundant_reshape=remove_redundant_reshape,
-            remove_redundant_operations=remove_redundant_operations,
             reorder_by_strict_topological_order=reorder_by_strict_topological_order,
             simplify_node_name=simplify_node_name,
             verbose=verbose,
