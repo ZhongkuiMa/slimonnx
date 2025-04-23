@@ -7,9 +7,6 @@ from onnx import NodeProto, TensorProto
 
 from .utils import EXTRACT_ATTR_MAP
 
-# TODO: Consider the default value of the attributes. Need to consider the default
-#  value of pytorch.
-
 
 def _scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
     for attr in attrs:
