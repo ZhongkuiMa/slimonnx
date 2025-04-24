@@ -17,7 +17,7 @@ def _constant_to_initializer(
     for node in nodes:
         if node.op_type == "Constant":
             np_array = onnx.numpy_helper.to_array(node.attribute[0].t)
-            initializer = onnx.numpy_helper.from_array(np_array, name=node.output[0])
+            initializer = onnx.numpy_helper.from_array(np_array, node.output[0])
             initializers[node.output[0]] = initializer
 
             count += 1

@@ -62,18 +62,8 @@ def _fuse_conv_bn_or_bn_conv(
             else:
                 bias_name = conv_node.name + "_bias"
 
-            new_weight = onnx.helper.make_tensor(
-                name=weight_name,
-                data_type=data_type,
-                dims=new_weight.shape,
-                vals=new_weight.flatten().tolist(),
-            )
-            new_bias = onnx.helper.make_tensor(
-                name=bias_name,
-                data_type=data_type,
-                dims=new_bias.shape,
-                vals=new_bias.flatten().tolist(),
-            )
+            new_weight = onnx.numpy_helper.from_array(new_weight, weight_name)
+            new_bias = onnx.numpy_helper.from_array(new_bias, bias_name)
 
             initializers[weight_name] = new_weight
             initializers[bias_name] = new_bias
@@ -139,21 +129,14 @@ def _fuse_convtranspose_bn(
             new_weight = weight * bn_weight.reshape(-1, 1, 1, 1)
             new_bias = bias * bn_weight + bn_bias
 
-            new_weight = onnx.helper.make_tensor(
-                name=conv_node.input[1],
-                data_type=data_type,
-                dims=new_weight.shape,
-                vals=new_weight.flatten().tolist(),
-            )
-            new_bias = onnx.helper.make_tensor(
-                name=conv_node.input[2],
-                data_type=data_type,
-                dims=new_bias.shape,
-                vals=new_bias.flatten().tolist(),
-            )
+            new_weight_name = conv_node.input[1]
+            new_bias_name = conv_node.input[2]
 
-            initializers[conv_node.input[1]] = new_weight
-            initializers[conv_node.input[2]] = new_bias
+            new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
+            new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
+
+            initializers[new_weight_name] = new_weight
+            initializers[new_bias_name] = new_bias
 
             new_node = onnx.helper.make_node(
                 op_type="ConvTranspose",

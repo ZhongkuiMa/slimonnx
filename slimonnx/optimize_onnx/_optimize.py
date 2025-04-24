@@ -14,9 +14,10 @@ from ._cst_op import *
 from ._gemm_gemm import *
 from ._mm_add import *
 from ._ordering import *
-from ._rm_redundant import *
-from ._sim_name import *
+from ._redundant import *
+from ._name import *
 from ..utils import *
+from ._gemm import *
 
 
 def optimize_onnx(
@@ -32,6 +33,7 @@ def optimize_onnx(
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
+    simplify_gemm: bool = True,
     remove_redundant_reshape: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
@@ -79,6 +81,8 @@ def optimize_onnx(
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
     if fuse_convtransposed_bn:
         nodes = _fuse_convtranspose_bn(nodes, initializers)
+    if simplify_gemm:
+        nodes = _simplify_gemm(nodes, initializers)
     if remove_redundant_reshape:
         if data_shapes is None:
             data_shapes = infer_onnx_shape(

@@ -42,7 +42,7 @@ def _fuse_constant_nodes(
             if len(value) == 1 and value[0] == 0:
                 # This is a dynamic shape, we do not need to convert it to a constant.
                 continue
-            initializer = onnx.numpy_helper.from_array(value, name=node.output[0])
+            initializer = onnx.numpy_helper.from_array(value, node.output[0])
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
 
@@ -209,7 +209,7 @@ def _fuse_constant_nodes(
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
 
-        initializer = onnx.numpy_helper.from_array(value, name=node.output[0])
+        initializer = onnx.numpy_helper.from_array(value, node.output[0])
         initializers[node.output[0]] = initializer
         nodes_to_delete.append(node.output[0])
 

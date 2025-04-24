@@ -81,18 +81,12 @@ def _fuse_gemm_reshape_bn(
             new_weight = new_weight.reshape((-1, n)).T
             new_bias = new_bias.reshape((n,))
 
-            new_weight = onnx.helper.make_tensor(
-                name=gemm_node.input[1],
-                data_type=data_type,
-                dims=new_weight.shape,
-                vals=new_weight.flatten().tolist(),
-            )
-            new_bias = onnx.helper.make_tensor(
-                name=gemm_node.input[2],
-                data_type=data_type,
-                dims=new_bias.shape,
-                vals=new_bias.flatten().tolist(),
-            )
+            new_weight_name = gemm_node.input[1]
+            new_bias_name = gemm_node.input[2]
+
+            new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
+            new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
+
             initializers[gemm_node.input[1]] = new_weight
             initializers[gemm_node.input[2]] = new_bias
 
@@ -193,22 +187,16 @@ def _fuse_bn_reshape_gemm(
             bn_bias = b - mean * bn_weight
             new_weight = bn_weight.reshape(-1, 1, 1) * weight
             new_bias = bias + np.sum(bn_bias.reshape(-1, 1, 1) * weight, axis=(0, 1))
-
             new_weight = new_weight.reshape(*gemm_shape).T
-            new_weight = onnx.helper.make_tensor(
-                name=gemm_node.input[1],
-                data_type=data_type,
-                dims=new_weight.shape,
-                vals=new_weight.flatten().tolist(),
-            )
-            new_bias = onnx.helper.make_tensor(
-                name=gemm_node.input[2],
-                data_type=data_type,
-                dims=new_bias.shape,
-                vals=new_bias.flatten().tolist(),
-            )
-            initializers[gemm_node.input[1]] = new_weight
-            initializers[gemm_node.input[2]] = new_bias
+
+            new_weight_name = gemm_node.input[1]
+            new_bias_name = gemm_node.input[2]
+
+            new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
+            new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
+
+            initializers[new_weight_name] = new_weight
+            initializers[new_bias_name] = new_bias
 
             new_reshape_node = onnx.helper.make_node(
                 op_type="Reshape",
@@ -291,18 +279,12 @@ def _fuse_bn_gemm(
             new_weight = bn_weight.reshape(-1, 1) * weight
             new_bias = bias + np.sum(bn_bias.reshape(-1, 1) * weight, axis=0)
 
-            new_weight = onnx.helper.make_tensor(
-                name=gemm_node.input[1],
-                data_type=data_type,
-                dims=new_weight.shape,
-                vals=new_weight.flatten().tolist(),
-            )
-            new_bias = onnx.helper.make_tensor(
-                name=gemm_node.input[2],
-                data_type=data_type,
-                dims=new_bias.shape,
-                vals=new_bias.flatten().tolist(),
-            )
+            new_weight_name = gemm_node.input[1]
+            new_bias_name = gemm_node.input[2]
+
+            new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
+            new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
+
             initializers[gemm_node.input[1]] = new_weight
             initializers[gemm_node.input[2]] = new_bias
 
