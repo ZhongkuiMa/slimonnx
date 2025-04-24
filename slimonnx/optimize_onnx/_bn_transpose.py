@@ -48,18 +48,10 @@ def _fuse_transpose_batchnorm_transpose(
             bn_weight = scale / np.sqrt(var + epsilon)
             weight = np.diag(bn_weight)
             bias = b - mean * bn_weight
-            weight = onnx.helper.make_tensor(
-                name=weight_name,
-                data_type=data_type,
-                dims=weight.shape,
-                vals=weight.flatten().tolist(),
-            )
-            bias = onnx.helper.make_tensor(
-                name=bias_name,
-                data_type=data_type,
-                dims=bias.shape,
-                vals=bias.flatten().tolist(),
-            )
+
+            weight = onnx.numpy_helper.from_array(weight, weight_name)
+            bias = onnx.numpy_helper.from_array(bias, bias_name)
+
             initializers[weight_name] = weight
             initializers[bias_name] = bias
 

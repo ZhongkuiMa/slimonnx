@@ -67,18 +67,9 @@ def _fuse_gemm_gemm(
                 new_weight = weight2 @ weight1
                 new_bias = bias2 @ weight1 + bias1
 
-                new_weight = onnx.helper.make_tensor(
-                    name=node.input[1],
-                    data_type=data_type,
-                    dims=new_weight.shape,
-                    vals=new_weight.flatten().tolist(),
-                )
-                new_bias = onnx.helper.make_tensor(
-                    name=node.input[2],
-                    data_type=data_type,
-                    dims=new_bias.shape,
-                    vals=new_bias.flatten().tolist(),
-                )
+                new_weight = onnx.numpy_helper.from_array(new_weight, node.input[1])
+                new_bias = onnx.numpy_helper.from_array(new_bias, node.input[1])
+
                 initializers[node.input[1]] = new_weight
                 initializers[node.input[2]] = new_bias
 
