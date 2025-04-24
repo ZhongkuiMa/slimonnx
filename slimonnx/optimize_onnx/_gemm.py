@@ -13,7 +13,10 @@ def _simplify_gemm(
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
     count = 0
-
+    # Here we encounter a problem:
+    # Several Gemm nodes use the same initializer and if we change the initializer
+    # it will change the value of the other Gemm nodes.
+    # So we need to create a new copy of the initializer for each Gemm node.
     for node in nodes:
         if node.op_type == "Gemm":
             attrs = get_onnx_attrs(node, initializers)
@@ -25,25 +28,29 @@ def _simplify_gemm(
                 initializer = initializers[node.input[0]]
                 array = onnx.numpy_helper.to_array(initializer)
                 if transA == 1:
-                    array = array.T
+                    array = array.copy().T
                     transA = 0
                 if alpha != 1.0:
                     array = array * alpha
                     alpha = 1.0
-                new_initializer = onnx.numpy_helper.from_array(array, node.input[0])
-                initializers[node.input[0]] = new_initializer
+                new_initer_name = node.input[0] + "_" + str(count)
+                new_initer = onnx.numpy_helper.from_array(array, new_initer_name)
+                initializers[new_initer_name] = new_initer
+                node.input[0] = new_initer_name
 
             if node.input[1] in initializers:
                 initializer = initializers[node.input[1]]
                 array = onnx.numpy_helper.to_array(initializer)
                 if transB == 1:
-                    array = array.T
+                    array = array.copy().T
                     transB = 0
                 if alpha != 1.0:
                     array = array * alpha
                     alpha = 1.0
-                new_initializer = onnx.numpy_helper.from_array(array, node.input[1])
-                initializers[node.input[1]] = new_initializer
+                new_initer_name = node.input[1] + "_" + str(count)
+                new_initer = onnx.numpy_helper.from_array(array, new_initer_name)
+                initializers[new_initer_name] = new_initer
+                node.input[1] = new_initer_name
 
             if node.input[2] in initializers:
                 initializer = initializers[node.input[2]]
@@ -51,8 +58,10 @@ def _simplify_gemm(
                 if beta != 1.0:
                     array = array * beta
                     beta = 1.0
-                new_initializer = onnx.numpy_helper.from_array(array, node.input[2])
-                initializers[node.input[2]] = new_initializer
+                new_initer_name = node.input[2] + "_" + str(count)
+                new_initer = onnx.numpy_helper.from_array(array, new_initer_name)
+                initializers[new_initer_name] = new_initer
+                node.input[2] = new_initer_name
 
             # Change the attributes of the node
             for i, attr in enumerate(node.attribute):
@@ -66,6 +75,13 @@ def _simplify_gemm(
                     node.attribute[i].i = transB
 
             count += 1
+
+    # Remove the unused initializers because we create copy of the initializers in the
+    # above loop
+    all_input_names = [input_name for node in nodes for input_name in node.input]
+    for name in list(initializers.keys()):
+        if name not in all_input_names:
+            del initializers[name]
 
     if utils.VERBOSE:
         print(f"Simplify {count} Gemm nodes.")
