@@ -11,13 +11,13 @@ from ._bn_gemm import *
 from ._bn_transpose import *
 from ._cst2initer import *
 from ._cst_op import *
+from ._gemm import *
 from ._gemm_gemm import *
 from ._mm_add import *
+from ._name import *
 from ._ordering import *
 from ._redundant import *
-from ._name import *
 from ..utils import *
-from ._gemm import *
 
 
 def optimize_onnx(
