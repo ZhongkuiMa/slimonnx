@@ -33,7 +33,7 @@ def _in_single_path(
 def _get_batchnorm_params(
     node: NodeProto,
     initializers: dict[str, TensorProto],
-    remove_initializers: bool = True,
+    remove_initializers: bool = False,
 ) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
     """
     Get the parameters of a BatchNormalization node.
@@ -55,7 +55,7 @@ def _get_batchnorm_params(
 def _get_gemm_params(
     node: NodeProto,
     initializers: dict[str, TensorProto],
-    remove_initializers: bool = True,
+    remove_initializers: bool = False,
 ) -> tuple[float, float, int, int, np.ndarray, np.ndarray]:
     """
     Get the parameters of a Gemm node.
@@ -77,6 +77,7 @@ def _get_gemm_params(
 def _get_conv_params(
     node: NodeProto,
     initializers: dict[str, TensorProto],
+    remove_initializers: bool = False,
 ):
     """
     Get the parameters of a Conv or ConvTranspose node.
@@ -90,12 +91,14 @@ def _get_conv_params(
     auto_pad = attrs["auto_pad"]
 
     weight = onnx.numpy_helper.to_array(initializers[node.input[1]])
-    del initializers[node.input[1]]
+    if remove_initializers:
+        del initializers[node.input[1]]
 
     if len(node.input) == 2:  # No bias
         bias = np.zeros(weight.shape[0])
     else:
         bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
-        del initializers[node.input[2]]
+        if remove_initializers:
+            del initializers[node.input[2]]
 
     return kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias

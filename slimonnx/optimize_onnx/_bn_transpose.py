@@ -41,7 +41,9 @@ def _fuse_transpose_batchnorm_transpose(
             assert all(p_i == p_j for p_i, p_j in zip(perm1, _mode))
             assert all(p_i == p_j for p_i, p_j in zip(perm2, _mode))
 
-            epsilon, scale, b, mean, var = _get_batchnorm_params(bn_node, initializers)
+            epsilon, scale, b, mean, var = _get_batchnorm_params(
+                bn_node, initializers, True
+            )
 
             weight_name = bn_node.input[1] + "_gemm"
             bias_name = bn_node.input[2] + "_gemm"

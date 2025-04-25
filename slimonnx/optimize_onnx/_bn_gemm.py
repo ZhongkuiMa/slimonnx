@@ -42,9 +42,11 @@ def _fuse_gemm_reshape_bn(
             bn_node, reshape_node, gemm_node = node, pre_node, pre_pre_node
             data_type = initializers[gemm_node.input[1]].data_type
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
-                gemm_node, initializers
+                gemm_node, initializers, True
             )
-            epsilon, scale, b, mean, var = _get_batchnorm_params(bn_node, initializers)
+            epsilon, scale, b, mean, var = _get_batchnorm_params(
+                bn_node, initializers, True
+            )
             reshape_shape = (
                 onnx.numpy_helper.to_array(initializers[reshape_node.input[1]])
                 .astype(int)
@@ -152,9 +154,11 @@ def _fuse_bn_reshape_gemm(
             bn_node, reshape_node, gemm_node = pre_pre_node, pre_node, node
             data_type = initializers[gemm_node.input[1]].data_type
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
-                gemm_node, initializers
+                gemm_node, initializers, True
             )
-            epsilon, scale, b, mean, var = _get_batchnorm_params(bn_node, initializers)
+            epsilon, scale, b, mean, var = _get_batchnorm_params(
+                bn_node, initializers, True
+            )
             # reshape_shape = onnx.numpy_helper.to_array(
             # initializers[reshape_node.input[1]])
             # reshape_shape = reshape_shape.tolist()
@@ -256,9 +260,11 @@ def _fuse_bn_gemm(
             gemm_node, bn_node = node, pre_node
             data_type = initializers[gemm_node.input[1]].data_type
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
-                gemm_node, initializers
+                gemm_node, initializers, True
             )
-            epsilon, scale, b, mean, var = _get_batchnorm_params(bn_node, initializers)
+            epsilon, scale, b, mean, var = _get_batchnorm_params(
+                bn_node, initializers, True
+            )
             assert transA == 0
             weight = weight.T if transB == 1 else weight
 
