@@ -9,6 +9,7 @@ from slimonnx.shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ._bn_conv import *
 from ._bn_gemm import *
 from ._bn_transpose import *
+from ._conv import *
 from ._cst2initer import *
 from ._cst_op import *
 from ._gemm import *
@@ -33,6 +34,7 @@ def optimize_onnx(
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
+    simplify_conv_to_flatten_gemm: bool = False,
     simplify_gemm: bool = True,
     remove_redundant_reshape: bool = False,
     reorder_by_strict_topological_order: bool = False,
@@ -56,7 +58,9 @@ def optimize_onnx(
 
     nodes = list(model.graph.node)
 
-    data_shapes = None
+    # NOTE: Some operations need calculating the shape of nodes.
+    # To avoid some operations has changed the shape of nodes, we need to calculate
+    # again the shape of nodes before the operations.
 
     if constant_to_initializer:
         nodes = _constant_to_initializer(nodes, initializers)
@@ -81,13 +85,13 @@ def optimize_onnx(
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
     if fuse_convtransposed_bn:
         nodes = _fuse_convtranspose_bn(nodes, initializers)
+    if simplify_conv_to_flatten_gemm:
+        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
+        nodes = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
     if simplify_gemm:
         nodes = _simplify_gemm(nodes, initializers)
     if remove_redundant_reshape:
-        if data_shapes is None:
-            data_shapes = infer_onnx_shape(
-                input_nodes, output_nodes, nodes, initializers
-            )
+        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
         nodes = _remove_redundant_operations(nodes, initializers, data_shapes)
     if reorder_by_strict_topological_order:
         # There maybe repeated named nodes, so we need to simplify the names first
@@ -103,6 +107,7 @@ def optimize_onnx(
 
     if verbose:
         print("Assembly new model...")
+
     new_model = onnx.helper.make_model(
         onnx.helper.make_graph(
             nodes,

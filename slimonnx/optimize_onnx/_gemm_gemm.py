@@ -51,10 +51,10 @@ def _fuse_gemm_gemm(
                 pre_node = gemm_nodes_to_fuse[node.input[0]]
                 data_type = initializers[node.input[1]].data_type
                 alpha1, beta1, transA1, transB1, weight1, bias1 = _get_gemm_params(
-                    node, initializers
+                    node, initializers, True
                 )
                 alpha2, beta2, transA2, transB2, weight2, bias2 = _get_gemm_params(
-                    pre_node, initializers, remove_initializers=False
+                    pre_node, initializers, False
                 )
                 assert alpha1 == alpha2 == beta1 == beta2 == 1
                 assert transA1 == transA2 == transB1 == transB2 == 0

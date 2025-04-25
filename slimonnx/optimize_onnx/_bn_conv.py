@@ -38,9 +38,11 @@ def _fuse_conv_bn_or_bn_conv(
                 conv_node, bn_node = node, pre_node
 
             data_type = initializers[conv_node.input[1]].data_type
-            epsilon, scale, b, mean, var = _get_batchnorm_params(bn_node, initializers)
+            epsilon, scale, b, mean, var = _get_batchnorm_params(
+                bn_node, initializers, True
+            )
             kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias = (
-                _get_conv_params(conv_node, initializers)
+                _get_conv_params(conv_node, initializers, True)
             )
 
             bn_weight = scale / np.sqrt(var + epsilon)
@@ -119,9 +121,11 @@ def _fuse_convtranspose_bn(
             new_nodes.pop()
             conv_node, bn_node = pre_node, node
             data_type = initializers[conv_node.input[1]].data_type
-            epsilon, scale, b, mean, var = _get_batchnorm_params(bn_node, initializers)
+            epsilon, scale, b, mean, var = _get_batchnorm_params(
+                bn_node, initializers, True
+            )
             (kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias) = (
-                _get_conv_params(conv_node, initializers)
+                _get_conv_params(conv_node, initializers, True)
             )
 
             bn_weight = scale / np.sqrt(var + epsilon)
