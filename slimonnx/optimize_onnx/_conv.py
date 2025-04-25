@@ -81,6 +81,7 @@ def _simplify_conv_to_flatten_gemm(
             # Flatten the weight and store the new weight in the initializers
             # The bias has no need to be flattened
             weight = weight.reshape(weight.shape[0], -1)
+            weight = weight.T
             new_weight_initer = onnx.numpy_helper.from_array(weight, pre_node.input[1])
             initializers[pre_node.input[1]] = new_weight_initer
 
