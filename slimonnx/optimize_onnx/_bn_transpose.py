@@ -5,6 +5,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
+import slimonnx.slimonnx.optimize_onnx._utils as utils
 from ._utils import *
 from ..onnx_attrs import get_onnx_attrs
 
@@ -70,6 +71,7 @@ def _fuse_transpose_batchnorm_transpose(
         pre_pre_node = pre_node
         pre_node = node
 
-    print(f"Fused {count} Transpose-BN-Transpose nodes.")
+    if utils.VERBOSE:
+        print(f"Fused {count} Transpose-BN-Transpose nodes.")
 
     return new_nodes
