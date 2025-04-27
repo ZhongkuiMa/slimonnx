@@ -12,7 +12,7 @@ if __name__ == "__main__":
     onnx_path = onnx_path.replace(".onnx", "_v22.onnx")
     onnx.save(model, onnx_path)
 
-    target_path = onnx_path.replace(".onnx", "_simplified.onnx")
+    target_path = onnx_path.replace(".onnx", "_slimmed.onnx")
 
     slimonnx.slim(
         onnx_path,
