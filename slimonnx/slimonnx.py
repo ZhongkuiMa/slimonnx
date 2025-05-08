@@ -29,7 +29,7 @@ class SlimONNX:
         fuse_convtransposed_bn: bool = False,
         simplify_conv_to_flatten_gemm: bool = False,
         simplify_gemm: bool = True,
-        remove_redundant_reshape: bool = False,
+        remove_redundant_operations: bool = False,
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
         verbose: bool = False,
@@ -59,8 +59,8 @@ class SlimONNX:
             a Gemm node if possible.
         :param simplify_gemm: Simplify the Gemm node by setting the alpha and beta to
             1.0 and transA and transB to False.
-        :param remove_redundant_reshape: Remove redundant Reshape nodes, such as
-            redundant Reshape, Add, Sub, Mul, Div, Pad nodes.
+        :param remove_redundant_operations: Remove redundant nodes, such as redundant
+            Reshape, Add, Sub, Mul, Div, Pad nodes.
         :param fuse_constant_nodes: Convert the shape nodes to initializers, or fuse
         fixed constant operations.
         :param simplify_node_name: Simplify the node name by topological order.
@@ -90,7 +90,7 @@ class SlimONNX:
             fuse_convtransposed_bn=fuse_convtransposed_bn,
             simplify_conv_to_flatten_gemm=simplify_conv_to_flatten_gemm,
             simplify_gemm=simplify_gemm,
-            remove_redundant_reshape=remove_redundant_reshape,
+            remove_redundant_operations=remove_redundant_operations,
             reorder_by_strict_topological_order=reorder_by_strict_topological_order,
             simplify_node_name=simplify_node_name,
             verbose=verbose,

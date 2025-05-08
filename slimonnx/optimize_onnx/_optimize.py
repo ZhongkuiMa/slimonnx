@@ -36,7 +36,7 @@ def optimize_onnx(
     fuse_convtransposed_bn: bool = False,
     simplify_conv_to_flatten_gemm: bool = False,
     simplify_gemm: bool = True,
-    remove_redundant_reshape: bool = False,
+    remove_redundant_operations: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
     verbose: bool = False,
@@ -90,7 +90,7 @@ def optimize_onnx(
         nodes = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
     if simplify_gemm:
         nodes = _simplify_gemm(nodes, initializers)
-    if remove_redundant_reshape:
+    if remove_redundant_operations:
         data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
         nodes = _remove_redundant_operations(nodes, initializers, data_shapes)
     if reorder_by_strict_topological_order:
