@@ -22,9 +22,6 @@ if __name__ == "__main__":
     slimonnx.slim(
         onnx_path,
         target_path,
-        constant_to_initializer=True,
         fuse_constant_nodes=True,
-        simplify_node_name=True,
-        reorder_by_strict_topological_order=True,
         verbose=True,
     )

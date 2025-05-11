@@ -20,10 +20,7 @@ if __name__ == "__main__":
     slimonnx.slim(
         onnx_path,
         target_path,
-        constant_to_initializer=True,
         simplify_conv_to_flatten_gemm=True,
-        simplify_node_name=True,
-        remove_redundant_reshape=True,
-        reorder_by_strict_topological_order=True,
+        remove_redundant_operations=True,
         verbose=True,
     )

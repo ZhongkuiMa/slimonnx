@@ -35,7 +35,7 @@ def optimize_onnx(
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
     simplify_conv_to_flatten_gemm: bool = False,
-    simplify_gemm: bool = True,
+    simplify_gemm: bool = False,
     remove_redundant_operations: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,

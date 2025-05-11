@@ -16,7 +16,7 @@ class SlimONNX:
         self,
         onnx_path: str,
         target_path: str | None = None,
-        constant_to_initializer: bool = False,
+        constant_to_initializer: bool = True,
         fuse_constant_nodes: bool = False,
         fuse_matmul_add: bool = False,
         fuse_gemm_reshape_bn: bool = False,
