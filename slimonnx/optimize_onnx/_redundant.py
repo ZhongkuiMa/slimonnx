@@ -19,6 +19,32 @@ def _remove_redundant_operations(
     count = 0
 
     new_nodes = []
+    pre_pre_node = None
+    pre_node = None
+    for node in nodes:
+        # Check two consecutive Reshape nodes.
+        # Omit the first Reshape node and directly connect the second one to the
+        # previous node.
+        if (
+            pre_node is not None
+            and node.op_type == "Reshape"
+            and pre_node.op_type == "Reshape"
+        ):
+            assert len(pre_node.input) == 2
+            assert len(pre_node.output) == 1
+            assert len(node.input) == 2
+            for i, output_name in enumerate(pre_pre_node.output):
+                if output_name == pre_node.input[0]:
+                    node.input[0] = output_name
+            count += 1
+            new_nodes.pop()
+
+        pre_pre_node = pre_node
+        pre_node = node
+        new_nodes.append(node)
+
+    nodes = new_nodes
+    new_nodes = []
     for node in nodes:
         if node.op_type in {"Reshape", "Flatten"}:
             # Check if the node does nothing.
