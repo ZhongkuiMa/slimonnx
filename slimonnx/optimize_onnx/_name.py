@@ -29,9 +29,10 @@ def _simplify_names(
         node.name = f"{op_type}_{counter}"
         counter += 1
 
-    assert len(output_nodes) == 1
+    output_old_new_mapping = {}
     for node in output_nodes:
         new_name = f"output_{counter}"
+        output_old_new_mapping[node.name] = new_name
         node.name = new_name
         counter += 1
 
@@ -39,19 +40,20 @@ def _simplify_names(
     for node in nodes:
         new_output_names = []
         for idx, output_name in enumerate(node.output):
-            if len(node.output) > 1:
-                # If there are more than one output, we need to name them by index
-                new_output_name = f"{node.name}_{idx}"
+            if output_name in output_old_new_mapping:
+                # This is a special case for the output is the final output of the net.
+                # We need to change the name to the new name.
+                new_output_name = output_old_new_mapping[output_name]
             else:
-                new_output_name = node.name
+                if len(node.output) > 1:
+                    # If there are more than one output, we need to name them by index
+                    new_output_name = f"{node.name}_{idx}"
+                else:
+                    new_output_name = node.name
             new_output_names.append(new_output_name)
             node_output_names_mapping[output_name] = new_output_name
         # Change the original output names
         node.output[:] = new_output_names
-
-    # Set the output name
-    last_node = nodes[-1]
-    last_node.output[:] = [output_nodes[0].name]
 
     # Change the input name of all nodes
     for node in nodes:
