@@ -41,12 +41,13 @@ def clear_onnx_docstring(model: ModelProto):
 def reformat_io_shape(node: ValueInfoProto) -> list[int]:
     shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
 
-    if len(shape) == 1:
-        # Some model takes not batch dim.
-        return shape
+    if shape[0] != 0 and shape[0] != 1:
+        # There is no batch dimension and we set it to 1
+        shape = [1] + shape
+    else:
+        # Set the batch dimension to 1
+        shape[0] = 1
 
-    # Sometimes the first dimension is symbolic, so we need to set it to 1
-    shape = [1] + shape[1:]
     return shape
 
 

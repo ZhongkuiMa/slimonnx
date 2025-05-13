@@ -13,6 +13,7 @@ def _simplify_gemm(
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
     count = 0
+    new_nodes = []
     # Here we encounter a problem:
     # Several Gemm nodes use the same initializer and if we change the initializer
     # it will change the value of the other Gemm nodes.
@@ -74,7 +75,26 @@ def _simplify_gemm(
                 elif attr.name == "transB":
                     node.attribute[i].i = transB
 
+            # Create a new gemm node to make the following conditions:
+            # 1. If there is only one variable in the input, make it be the first input
+            # 2. Remove all defalt values of the attributes
+            var_name = node.input[0]
+            weight_name = node.input[1]
+            if var_name in initializers and weight_name not in initializers:
+                var_name, weight_name = weight_name, var_name
+            input_names = [var_name, weight_name]
+            if len(node.input) == 3:
+                input_names.append(node.input[2])
+            node = NodeProto(
+                name=node.name,
+                op_type="Gemm",
+                input=input_names,
+                output=node.output,
+            )
+
             count += 1
+        new_nodes.append(node)
+    nodes = new_nodes
 
     # Remove the unused initializers because we create copy of the initializers in the
     # above loop
