@@ -32,7 +32,6 @@ class SlimONNX:
         remove_redundant_operations: bool = False,
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
-        verbose: bool = False,
     ):
         """
         Simplify the ONNX model by fusing some nodes.
@@ -70,7 +69,7 @@ class SlimONNX:
 
         :return: The simplified ONNX model.
         """
-        if verbose:
+        if self.verbose:
             print(f"Slim ONNX model {onnx_path}...")
             t = time.perf_counter()
         model = onnx.load(onnx_path)
@@ -93,12 +92,12 @@ class SlimONNX:
             remove_redundant_operations=remove_redundant_operations,
             reorder_by_strict_topological_order=reorder_by_strict_topological_order,
             simplify_node_name=simplify_node_name,
-            verbose=verbose,
+            verbose=self.verbose,
         )
 
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
         onnx.save(new_model, target_path)
-        if verbose:
+        if self.verbose:
             t = time.perf_counter() - t
             print(f"Slimmed ONNX model saved to {target_path} ({t:.4f}s)")
