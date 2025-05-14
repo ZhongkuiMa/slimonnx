@@ -23,5 +23,4 @@ if __name__ == "__main__":
         onnx_path,
         target_path,
         fuse_constant_nodes=True,
-        verbose=True,
     )

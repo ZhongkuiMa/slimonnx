@@ -21,5 +21,4 @@ if __name__ == "__main__":
         onnx_path,
         target_path,
         fuse_conv_bn=True,
-        verbose=True,
     )
