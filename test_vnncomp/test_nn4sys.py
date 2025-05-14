@@ -33,5 +33,4 @@ if __name__ == "__main__":
         target_path,
         fuse_matmul_add=True,
         simplify_gemm=True,
-        verbose=True,
     )

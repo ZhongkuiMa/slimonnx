@@ -29,5 +29,4 @@ if __name__ == "__main__":
         onnx_path,
         target_path,
         remove_redundant_operations=True,
-        verbose=True,
     )

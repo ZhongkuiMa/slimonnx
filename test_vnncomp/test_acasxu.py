@@ -22,5 +22,4 @@ if __name__ == "__main__":
         target_path,
         fuse_matmul_add=True,
         remove_redundant_operations=True,
-        verbose=True,
     )

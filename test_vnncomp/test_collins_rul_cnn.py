@@ -22,5 +22,4 @@ if __name__ == "__main__":
         target_path,
         simplify_conv_to_flatten_gemm=True,
         remove_redundant_operations=True,
-        verbose=True,
     )

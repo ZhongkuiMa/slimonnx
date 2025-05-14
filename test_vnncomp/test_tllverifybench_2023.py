@@ -5,8 +5,8 @@ from slimonnx import SlimONNX
 if __name__ == "__main__":
     slimonnx = SlimONNX()
     onnx_path = (
-        "../../vnncomp2024_benchmarks/benchmarks/cgan_2023/onnx"
-        "/cGAN_imgSz32_nCh_3_small_transformer.onnx"
+        "../../vnncomp2024_benchmarks/benchmarks/tllverifybench_2023/onnx/"
+        "tllBench_n=2_N=M=24_m=1_instance_2_3.onnx"
     )
 
     # Convert the model to version 22 to avoid many inconsistencies
@@ -16,10 +16,10 @@ if __name__ == "__main__":
     onnx.save(model, onnx_path)
 
     target_path = onnx_path.replace(".onnx", "_simplified.onnx")
-    # NOTE: This model has no batch dim.
+
     slimonnx.slim(
         onnx_path,
         target_path,
-        fuse_constant_nodes=True,
-        remove_redundant_operations=True,
+        fuse_matmul_add=True,
+        fuse_gemm_gemm=True,
     )

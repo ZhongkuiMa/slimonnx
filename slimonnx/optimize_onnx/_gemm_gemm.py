@@ -1,8 +1,6 @@
 __docformat__ = ["restructuredtext"]
 __all__ = ["_fuse_gemm_gemm"]
 
-from typing import Any
-
 import onnx
 from onnx import NodeProto, TensorProto
 
@@ -14,82 +12,86 @@ def _fuse_gemm_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
+    all_gemm_nodes = [node for node in nodes if node.op_type == "Gemm"]
+    all_gemm_output_names = [node.output[0] for node in all_gemm_nodes]
+    # Reverse the order and group the gemm nodes by their pre nodes
+    all_gemm_nodes = all_gemm_nodes[::-1]
+
+    # Find all adjacent gemm nodes group
+    fused_gemm_groups = []
+    i = 0
+    group = []
+    while True:
+        if i >= len(all_gemm_nodes):
+            break
+        node = all_gemm_nodes[i]
+        i += 1
+        assert node.input[1] in initializers
+
+        group.append(node)
+        if node.input[0] in all_gemm_output_names:
+            continue
+
+        fused_gemm_groups.append(group[::-1])
+        group = []
+
+    fused_gemm_groups = fused_gemm_groups[::-1]
+
+    # for group in fused_gemm_groups:
+    #     print([e.output[0] for e in group])
+
+    reserved_gemm = {group[0].output[0]: i for i, group in enumerate(fused_gemm_groups)}
+
     new_nodes = []
-
-    all_gemm_nodes = [node.output[0] for node in nodes if node.op_type == "Gemm"]
-    is_next_node_gemm: dict[str, Any] = {node_name: [] for node_name in all_gemm_nodes}
     for node in nodes:
-        is_gemm = node.op_type == "Gemm"
-        for input_i in node.input:
-            if input_i in all_gemm_nodes:
-                is_next_node_gemm[input_i].append(is_gemm)
-    for node_name, is_next_node_gemm_i in is_next_node_gemm.items():
-        is_next_node_gemm[node_name] = (
-            all(is_next_node_gemm_i) and len(is_next_node_gemm_i) > 0
-        )
-
-    gemm_node_names_to_fuse = [
-        node_name
-        for node_name, is_next_node_gemm in is_next_node_gemm.items()
-        if is_next_node_gemm
-    ]
-    gemm_nodes_to_fuse = {
-        node.output[0]: node
-        for node in nodes
-        if node.output[0] in gemm_node_names_to_fuse
-    }
-
-    count = 0
-
-    for node in nodes:
-        new_node = node
         if node.op_type == "Gemm":
-            if node.output[0] in gemm_nodes_to_fuse:
+            if not node.output[0] in reserved_gemm:
                 continue
-            elif node.input[0] in gemm_nodes_to_fuse:
-                # Fuse the current node with the previous node
-                pre_node = gemm_nodes_to_fuse[node.input[0]]
-                data_type = initializers[node.input[1]].data_type
-                alpha1, beta1, transA1, transB1, weight1, bias1 = _get_gemm_params(
-                    node, initializers, True
+
+            group = fused_gemm_groups[reserved_gemm[node.output[0]]]
+
+            # Fuse all the gemm nodes in the group
+            # Collect all weight and bias initializers in the group
+            all_weights = []
+            all_biases = []
+            for gemm_node in group:
+                assert gemm_node.input[1] in initializers
+                assert gemm_node.input[2] in initializers
+                alpha, beta, transA, transB, weight, bias = _get_gemm_params(
+                    gemm_node, initializers, True
                 )
-                alpha2, beta2, transA2, transB2, weight2, bias2 = _get_gemm_params(
-                    pre_node, initializers, False
-                )
-                assert alpha1 == alpha2 == beta1 == beta2 == 1
-                assert transA1 == transA2 == transB1 == transB2 == 0
+                assert alpha == beta == 1
+                assert transA == transB == 0
+                all_weights.append(weight)
+                all_biases.append(bias)
 
-                """
-                IDEA
-                   (X @ W_2 + b_2) @ W_1 + b_1
-                => X @ (W_2 @ W_1) + (b_2 @ W_1 + b_1)
-                """
-                new_weight = weight2 @ weight1
-                new_bias = bias2 @ weight1 + bias1
+            # for w, b in zip(all_weights, all_biases):
+            #     print(w.shape, b.shape)
 
-                new_weight = onnx.numpy_helper.from_array(new_weight, node.input[1])
-                new_bias = onnx.numpy_helper.from_array(new_bias, node.input[1])
+            # Create the new weight and bias initializers
+            new_weight = all_weights[0]
+            new_bias = all_biases[0]
+            for i in range(1, len(all_weights)):
+                new_weight = new_weight @ all_weights[i]
+                new_bias = new_bias @ all_weights[i] + all_biases[i]
 
-                initializers[node.input[1]] = new_weight
-                initializers[node.input[2]] = new_bias
+            new_weight = onnx.numpy_helper.from_array(new_weight, group[0].input[1])
+            new_bias = onnx.numpy_helper.from_array(new_bias, group[0].input[2])
+            initializers[group[0].input[1]] = new_weight
+            initializers[group[0].input[2]] = new_bias
 
-                new_node = onnx.helper.make_node(
-                    op_type="Gemm",
-                    inputs=[pre_node.input[0], node.input[1], node.input[2]],
-                    outputs=node.output,
-                    name=node.name,
-                )
+            new_gemm_node = onnx.helper.make_node(
+                op_type="Gemm",
+                inputs=[group[0].input[0], group[0].input[1], group[0].input[2]],
+                outputs=group[-1].output,
+                name=group[0].name,
+            )
+            new_nodes.append(new_gemm_node)
+            continue
 
-                count += 1
-
-        new_nodes.append(new_node)
-
-    # Remove the initializers of the fused nodes
-    for node in gemm_nodes_to_fuse.values():
-        del initializers[node.input[1]]
-        del initializers[node.input[2]]
+        new_nodes.append(node)
 
     if utils.VERBOSE:
-        print(f"Fused {count} Gemm-Gemm nodes.")
+        print(f"Fused {len(fused_gemm_groups)} Gemm-Gemm groups.")
 
     return new_nodes
