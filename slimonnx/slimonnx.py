@@ -1,6 +1,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["SlimONNX"]
 
+import os.path
 import time
 
 import onnx
@@ -97,7 +98,13 @@ class SlimONNX:
 
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
+
+        # Check if the directory exists
+        if not os.path.exists(os.path.dirname(target_path)):
+            os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
         onnx.save(new_model, target_path)
+
         if self.verbose:
             t = time.perf_counter() - t
             print(f"Slimmed ONNX model saved to {target_path} ({t:.4f}s)")
