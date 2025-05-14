@@ -18,6 +18,7 @@ from ._mm_add import *
 from ._name import *
 from ._ordering import *
 from ._redundant import *
+from ._rhs_var import *
 from ..utils import *
 
 
@@ -36,6 +37,7 @@ def optimize_onnx(
     fuse_convtransposed_bn: bool = False,
     simplify_conv_to_flatten_gemm: bool = False,
     simplify_gemm: bool = False,
+    set_always_first_var: bool = True,
     remove_redundant_operations: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
@@ -67,7 +69,8 @@ def optimize_onnx(
     if fuse_constant_nodes:
         data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
         nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
-
+    if set_always_first_var:
+        nodes = _set_always_first_var(nodes, initializers)
     if fuse_matmul_add:
         nodes = _fuse_matmul_add(nodes, initializers)
     if fuse_gemm_reshape_bn:

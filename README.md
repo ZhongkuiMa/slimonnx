@@ -56,13 +56,14 @@ Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 - **fuse_bn_reshape_gemm**: Merge BatchNormalization, Reshape, and Gemm nodes into a unified Reshape + Gemm node. Optimization at its finest! ⚡
 - **fuse_bn_gemm**: Combine BatchNormalization and Gemm nodes into one streamlined Gemm node. Two linear operations? We fuse them into one! ✨
 - **fuse_transpose_bn_transpose**: Fuse Transpose, BatchNormalization, and Transpose nodes into a single Gemm node—useful for transformer-based architectures. 🔄 Because some vision data is used in the transformer structure for text data, and it introduces some transpose operations.
-- **fuse_gemm_gemm**: Combine two Gemm nodes into a single one. We donot need calculating two adjacent linear operations! 🔥
+- **fuse_gemm_gemm**: Combine two Gemm nodes into a single one. We donot need calculating two adjacent linear operations! 🔥 Support multiple adjacent Gemm nodes!
 - **fuse_conv_bn**: Fuse Conv and BatchNormalization nodes into a single Conv node. It's the kind of optimization PyTorch already uses ([torch.nn.utils.fuse_conv_bn_eval](https://pytorch.org/docs/stable/generated/torch.nn.utils.fuse_conv_bn_eval.html)), but we take it further in the next reversed case! ⚡
 - **fuse_bn_conv**: Merge BatchNormalization and Convolutional nodes into a single node. Not as common, but when needed, we’ve got it! 💥
 - **fuse_transposedconv_bn**: Fuse ConvTranspose and BatchNormalization nodes into a single ConvTranspose node. Optimization made easy! 🔄
 - **shape_to_initializer**: Convert shape nodes to initializers. Let’s get rid of unnecessary variables and treat them as initializers where possible! 🎯 This happends when the shape of a tensor is infered from another variable but the size of the variable is fixed in the model.
 - **simplify_conv_to_flatten_gemm**: Simplify the Conv node to a Flatten and a Gemm node if possible. This happends in some models...
 - **simplify_gemm**: Simplify the Gemm node by setting the alpha and beta to 1.0 and transA and transB to False. This is a common optimization that ONNX doesn't do, but we do! 💡
+- **set_always_first_var**: If a node has just one variable as input, set the variable as the first input. This benefits the downstream operations and makes the model more readable. It’s a small change, but it can make a big difference! 🧠
 - **remove_redundant_operations**: This aims to remove some operation that does not make affect to the final output. For example, adding or subtracting a zero constant. It *indeed* happens in some models... Remove redundant Reshape nodes. This happens when we use [onnx.version_converter](https://onnx.ai/onnx/api/version_converter.html) sometimes. I dnk why... There is an example in current test folder.
 - **simplify_node_name**: Simplify node names based on topological order, ditching the nested structure for clarity and simplicity. 🧠 Because ONNX names a node by the nested structure of the code.
 - **reorder_by_strict_topological_order**: Reorder the nodes based on strict topological order (depth-first)—perfect for neural network DAGs and convenient some further operations. 🏎️‘
