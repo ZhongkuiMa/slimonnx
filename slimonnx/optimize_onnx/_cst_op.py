@@ -111,6 +111,8 @@ def _fuse_constant_nodes(
 
         elif op_type == "ConstantOfShape":
             shape = shapes[node.output[0]]
+            # Here we need to remove the redundant batch dimension.
+            shape = shape[1:] if len(shape) > 1 and shape[0] == 1 else shape
             value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
             value = np.full(shape, value, dtype=value.dtype)
 
