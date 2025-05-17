@@ -1,10 +1,17 @@
-# 🌟 **SlimONNX: *Slim* Your ONNX Models**
+# 🌟 SlimONNX: *Slim* Your ONNX Models
+
+[![Python 3.10+](https://img.shields.io/badge/python-3.10+-blue.svg)](https://www.python.org/downloads/)
+[![ONNX 1.17](https://img.shields.io/badge/ONNX-1.17-brightgreen.svg)](https://onnx.ai)
+[![NumPy 2.2](https://img.shields.io/badge/NumPy-2.2-green.svg)](https://numpy.org/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
 
 **slimonnx** is not just a tool—it's *the* tool to **simplify** and **optimize** your ONNX models like never before! 🔥
 
 > ⚠️ *Disclaimer:* The converted model **might not** be supported by ONNXRuntime anymore...  
 > But trust me — the simplicity and elegance of the optimized model are totally worth it!  
-> It’s mainly designed as a preprocessing tool for **neural network verification**, where we need to manually inspect layers and build a verification model. A well-simplified model offers a solid starting point, even if ONNXRuntime can't run it anymore.
+> It's mainly designed as a preprocessing tool for **neural network verification**, where we need to manually inspect layers and build a verification model. A well-simplified model offers a solid starting point, even if ONNXRuntime can't run it anymore.
 
 To complete this repo, one important task is to infer the shape of the ONNX model, and we can infer and simplify some constant nodes. For this, please refer to another interesting repo [ShapeONNX](https://github.com/ZhongkuiMa/shapeonnx).
 
@@ -21,9 +28,9 @@ The result? Inefficient models bloated with:
 - Convoluted shapes 🧩
 - Unnecessary complexity 🌀
 
-And don’t even get me started on ONNX version inconsistencies — attributes are sometimes inputs, sometimes not... it’s chaos! 😵
+And don't even get me started on ONNX version inconsistencies — attributes are sometimes inputs, sometimes not... it's chaos! 😵
 
-### That’s where **SlimONNX** comes in. 💪
+### That's where **SlimONNX** comes in. 💪
 
 We take your model and simplify it for maximum:
 
@@ -35,7 +42,7 @@ You want cleaner, leaner, and faster models? We've got you covered.
 
 ## ✨ Features
 
-**SlimONNX** is developer- and researcher-friendly because it’s:
+**SlimONNX** is developer- and researcher-friendly because it's:
 
 - 🐍 **Pure Python:** No C/C++ dependencies. Easy to set up!
 - 💡 **Lightweight:** Only depends on `onnx` and `numpy`. No heavy frameworks.
@@ -47,7 +54,7 @@ You want cleaner, leaner, and faster models? We've got you covered.
 
 I have implemented most of commonly used operations in feedforward neural networks. Transformer-based architectures will be treated as several basic operations.
 
-Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
+Here's a quick rundown of what SlimONNX can do to streamline your ONNX models:
 
 - **constant_to_initializer**: Convert constant nodes to initializer nodes. This is a really a thing that everyone can think of, but ONNX just doesn't do it! Actually, I know why constant node should be initializer node because initializer node is always trainable not constant node, but it really really introduce troubles. We make sure every constant is an initializer, making your model cleaner and more efficient! 💡
 - **fuse_constant_nodes**: Fuse constant operations like convert shape nodes to initializers. This is a game-changer for reducing the number of nodes in your model! 🎉 We will trace the shape node and find the final node. In most of the cases, the shape node is a constant node.
@@ -58,20 +65,20 @@ Here’s a quick rundown of what SlimONNX can do to streamline your ONNX models:
 - **fuse_transpose_bn_transpose**: Fuse Transpose, BatchNormalization, and Transpose nodes into a single Gemm node—useful for transformer-based architectures. 🔄 Because some vision data is used in the transformer structure for text data, and it introduces some transpose operations.
 - **fuse_gemm_gemm**: Combine two Gemm nodes into a single one. We donot need calculating two adjacent linear operations! 🔥 Support multiple adjacent Gemm nodes!
 - **fuse_conv_bn**: Fuse Conv and BatchNormalization nodes into a single Conv node. It's the kind of optimization PyTorch already uses ([torch.nn.utils.fuse_conv_bn_eval](https://pytorch.org/docs/stable/generated/torch.nn.utils.fuse_conv_bn_eval.html)), but we take it further in the next reversed case! ⚡
-- **fuse_bn_conv**: Merge BatchNormalization and Convolutional nodes into a single node. Not as common, but when needed, we’ve got it! 💥
+- **fuse_bn_conv**: Merge BatchNormalization and Convolutional nodes into a single node. Not as common, but when needed, we've got it! 💥
 - **fuse_transposedconv_bn**: Fuse ConvTranspose and BatchNormalization nodes into a single ConvTranspose node. Optimization made easy! 🔄
-- **shape_to_initializer**: Convert shape nodes to initializers. Let’s get rid of unnecessary variables and treat them as initializers where possible! 🎯 This happends when the shape of a tensor is infered from another variable but the size of the variable is fixed in the model.
+- **shape_to_initializer**: Convert shape nodes to initializers. Let's get rid of unnecessary variables and treat them as initializers where possible! 🎯 This happends when the shape of a tensor is infered from another variable but the size of the variable is fixed in the model.
 - **simplify_conv_to_flatten_gemm**: Simplify the Conv node to a Flatten and a Gemm node if possible. This happends in some models...
 - **simplify_gemm**: Simplify the Gemm node by setting the alpha and beta to 1.0 and transA and transB to False. This is a common optimization that ONNX doesn't do, but we do! 💡
 - **remove_redundant_operations**: This aims to remove some operation that does not make affect to the final output. For example, adding or subtracting a zero constant. It *indeed* happens in some models... Remove redundant Reshape nodes. This happens when we use [onnx.version_converter](https://onnx.ai/onnx/api/version_converter.html) sometimes. I dnk why... There is an example in current test folder.
 - **simplify_node_name**: Simplify node names based on topological order, ditching the nested structure for clarity and simplicity. 🧠 Because ONNX names a node by the nested structure of the code.
-- **reorder_by_strict_topological_order**: Reorder the nodes based on strict topological order (depth-first)—perfect for neural network DAGs and convenient some further operations. 🏎️‘
+- **reorder_by_strict_topological_order**: Reorder the nodes based on strict topological order (depth-first)—perfect for neural network DAGs and convenient some further operations. 🏎️'
 
 Frankly speaking, the root reason is that ONNX is just like a reader, and it read the code without most of the optimizations. We are here to make it better! 🚀
 
 ## 🎯 Usage
 
-To use **SlimONNX** and turbocharge your ONNX models, simply call the `SlimONNX` class from `slimonnx/slimonnx.py`. It’s that simple!
+To use **SlimONNX** and turbocharge your ONNX models, simply call the `SlimONNX` class from `slimonnx/slimonnx.py`. It's that simple!
 
 ### 💻 Installation
 
@@ -86,7 +93,7 @@ Maybe other versions are accepted but do not make your onnx version too old. Cur
 
 ### 📚 Example Usage
 
-#### Test Examples of VNNCOMP'24
+#### 🧪 Test Examples of VNNCOMP'24
 
 You need to get the repo of [vnncomp2024](https://github.com/ChristopherBrix/vnncomp2024_benchmarks). This repo does not contain the benchmarks folder because it is about 20GB. The testing examples are in the `test_vnncomp` folder. Then you make sure the following folder structure:
 
