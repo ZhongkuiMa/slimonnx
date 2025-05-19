@@ -9,7 +9,7 @@
 
 **slimonnx** is not just a tool—it's *the* tool to **simplify** and **optimize** your ONNX models like never before! 🔥
 
-> ⚠️ *Disclaimer:* The converted model **might not** be supported by ONNXRuntime anymore...  
+> ⚠️ **Disclaimer:** The converted model **might not** be supported by ONNXRuntime anymore...  
 > But trust me — the simplicity and elegance of the optimized model are totally worth it!  
 > It's mainly designed as a preprocessing tool for **neural network verification**, where we need to manually inspect layers and build a verification model. A well-simplified model offers a solid starting point, even if ONNXRuntime can't run it anymore.
 
