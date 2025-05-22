@@ -93,7 +93,9 @@ def optimize_onnx(
         nodes = _fuse_convtranspose_bn(nodes, initializers)
     if remove_redundant_operations:
         data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
-        nodes = _remove_redundant_operations(nodes, initializers, data_shapes)
+        nodes = _remove_redundant_operations(
+            nodes, initializers, data_shapes, output_nodes
+        )
     if reorder_by_strict_topological_order:
         # There maybe repeated named nodes, so we need to simplify the names first
         nodes, initializers = _simplify_names(

@@ -32,7 +32,7 @@ def _simplify_conv_to_flatten_gemm(
                     weight,
                     bias,
                 ) = _get_conv_params(node, initializers, False)
-                assert weight.dim() == 4, f"{weight.dim()}D weight is not supported."
+                assert weight.ndim == 4, f"{weight.ndim}D weight is not supported."
                 input_channel = weight.shape[1]
                 kernel_height = weight.shape[2]
                 kernel_width = weight.shape[3]

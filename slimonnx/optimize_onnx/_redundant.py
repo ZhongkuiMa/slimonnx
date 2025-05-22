@@ -3,7 +3,7 @@ __all__ = ["_remove_redundant_operations"]
 
 import numpy as np
 import onnx
-from onnx import NodeProto, TensorProto
+from onnx import NodeProto, TensorProto, ValueInfoProto
 
 import slimonnx.slimonnx.optimize_onnx._utils as utils
 
@@ -12,6 +12,7 @@ def _remove_redundant_operations(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, list[int]],
+    output_nodes: list[ValueInfoProto],
 ) -> list[NodeProto]:
     """
     Remove zero adding, subtracting, multiplying, dividing operations.
@@ -60,6 +61,10 @@ def _remove_redundant_operations(
                         for k in range(len(node_j.input)):
                             if node_j.input[k] == node.output[0]:
                                 node_j.input[k] = node.input[0]
+                # Handle the output nodes.
+                for output_node_j in output_nodes:
+                    if node.output[0] == output_node_j.name:
+                        output_node_j.name = node.input[0]
                 count += 1
                 continue
         elif node.op_type in {"Add", "Sub"}:
