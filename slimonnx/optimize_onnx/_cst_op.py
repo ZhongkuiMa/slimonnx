@@ -47,7 +47,7 @@ def _fuse_constant_nodes(
             nodes_to_delete.append(node.output[0])
 
             if verbose:
-                print(f"  Delete node: {node.name}")
+                print(f"\tDelete node: {node.name}")
 
             continue
 
@@ -207,7 +207,21 @@ def _fuse_constant_nodes(
                 value = value.astype(np.complex128)
             else:
                 raise NotImplementedError(f"Not supported cast type: {to}.")
-
+        elif op_type == "Equal":
+            tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            value = np.equal(tensor1, tensor2)
+        elif op_type == "Where":
+            condition = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            x = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            y = onnx.numpy_helper.to_array(initializers[node.input[2]])
+            value = np.where(condition, x, y)
+        elif op_type == "Expand":
+            ipt = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            shape = shapes[node.output[0]]
+            # Here we need to remove the redundant batch dimension.
+            shape = shape[1:] if len(shape) > 1 and shape[0] == 1 else shape
+            value = np.broadcast_to(ipt, shape)
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
 
@@ -216,7 +230,7 @@ def _fuse_constant_nodes(
         nodes_to_delete.append(node.output[0])
 
         if verbose:
-            print(f"  Delete node: {node.name}")
+            print(f"\tDelete node: {node.name}")
 
     if utils.VERBOSE or verbose:
         print(f"Remove {len(nodes_to_delete)} nodes.")
