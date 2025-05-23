@@ -17,13 +17,10 @@ if __name__ == "__main__":
     slimonnx.slim(
         onnx_path,
         target_path,
-        constant_to_initializer=True,
         fuse_constant_nodes=True,
         fuse_matmul_add=True,
         fuse_transpose_bn_transpose=True,
         fuse_gemm_gemm=True,
         fuse_bn_gemm=True,
         remove_redundant_operations=True,  # This is caused convert_version
-        reorder_by_strict_topological_order=True,
-        simplify_node_name=True,
     )

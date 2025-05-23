@@ -43,6 +43,9 @@ def _fuse_constant_nodes(
                 # This is a dynamic shape, we do not need to convert it to a constant.
                 continue
             initializer = onnx.numpy_helper.from_array(value, node.output[0])
+            if verbose:
+                print(f"Save initializer {node.output[0]}: {value}")
+
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
 
@@ -224,6 +227,9 @@ def _fuse_constant_nodes(
             value = np.broadcast_to(ipt, shape)
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
+
+        if verbose:
+            print(f"Save initializer {node.output[0]}: {value}")
 
         initializer = onnx.numpy_helper.from_array(value, node.output[0])
         initializers[node.output[0]] = initializer
