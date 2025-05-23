@@ -7,7 +7,8 @@ if __name__ == "__main__":
     onnx_path = (
         "../../vnncomp2024_benchmarks/benchmarks/ml4acopf_2024/onnx/"
         # "300_ieee_ml4acopf-linear-residual.onnx"
-        "300_ieee_ml4acopf.onnx"
+        # "300_ieee_ml4acopf.onnx"
+        "14_ieee_ml4acopf-linear-residual.onnx"
     )
 
     # Convert the model to version 22 to avoid many inconsistencies
