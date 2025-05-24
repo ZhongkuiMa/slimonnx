@@ -4,9 +4,7 @@ from slimonnx import SlimONNX
 
 if __name__ == "__main__":
     slimonnx = SlimONNX()
-    onnx_path = (
-        "../../vnncomp2024_benchmarks/benchmarks/vit_2023/onnx/" "ibp_3_3_8.onnx"
-    )
+    onnx_path = "../../vnncomp2024_benchmarks/benchmarks/vit_2023/onnx/ibp_3_3_8_s.onnx"
 
     # Convert the model to version 22 to avoid many inconsistencies
     model = onnx.load(onnx_path)
@@ -19,10 +17,10 @@ if __name__ == "__main__":
     slimonnx.slim(
         onnx_path,
         target_path,
-        fuse_constant_nodes=True,
-        fuse_matmul_add=True,
-        # remove_redundant_operations=True,
-        fuse_transpose_bn_transpose=True,
-        fuse_bn_gemm=True,
+        # fuse_constant_nodes=True,
+        # fuse_matmul_add=True,
+        # # remove_redundant_operations=True,
+        # fuse_transpose_bn_transpose=True,
+        # fuse_bn_gemm=True,
         fuse_gemm_gemm=True,
     )
