@@ -72,10 +72,7 @@ def _fuse_gemm_gemm(
             new_nodes.append(node)
             continue
         if node.output[0] not in gemm_group_start_nodes:
-            print(f"Remove {node.output[0]}")
             continue
-
-        print(node.output[0])
 
         group = fused_gemm_groups[gemm_group_start_nodes[node.output[0]]]
 
@@ -120,14 +117,9 @@ def _fuse_gemm_gemm(
             name=group[-1].name,
         )
 
-        print(new_gemm_node)
-
         new_nodes.append(new_gemm_node)
 
     if utils.VERBOSE:
         print(f"Fused {len(fused_gemm_groups)} Gemm-Gemm groups.")
-
-    # for node in new_nodes:
-    #     print(node.output[0])
 
     return new_nodes

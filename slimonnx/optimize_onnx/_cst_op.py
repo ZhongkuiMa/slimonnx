@@ -239,7 +239,7 @@ def _fuse_constant_nodes(
             print(f"\tDelete node: {node.name}")
 
     if utils.VERBOSE or verbose:
-        print(f"Remove {len(nodes_to_delete)} nodes.")
+        print(f"Remove {len(nodes_to_delete)} nodes for fusing constant nodes.")
 
     new_nodes = []
     for node in nodes:
