@@ -32,8 +32,8 @@ def _fuse_constant_nodes(
     nodes_to_delete = []
     # Iterate over value_info to print tensor names and their shapes
     for node in nodes:
-        if verbose:
-            print(f"Node: {node.op_type} {node.name}")
+        # if verbose:
+        #     print(f"Node: {node.op_type} {node.name}")
 
         op_type = node.op_type
 
@@ -79,11 +79,13 @@ def _fuse_constant_nodes(
                 if op_type == "Gather":
                     axis = get_onnx_attrs(node, initializers)["axis"]
                     indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
+                    indices += 1  # Ignore the batch dimension.
                     value = np.take(tensor, indices, axis=axis)
                 elif op_type == "Slice":
                     starts = onnx.numpy_helper.to_array(initializers[node.input[1]])
                     ends = onnx.numpy_helper.to_array(initializers[node.input[2]])
                     axes = initializers.get(node.input[3])
+                    axes += 1  # Ignore the batch dimension.
                     if axes is not None:
                         axes = onnx.numpy_helper.to_array(axes)
                     else:
