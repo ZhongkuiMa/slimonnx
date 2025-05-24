@@ -3,13 +3,13 @@ import onnx
 from slimonnx import SlimONNX
 
 if __name__ == "__main__":
-    slimonnx = SlimONNX()
-    # onnx_path = (
-    #     "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-1.onnx"
-    # )
+    slimonnx = SlimONNX(verbose=True)
     onnx_path = (
-        "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-3.onnx"
+        "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-1.onnx"
     )
+    # onnx_path = (
+    #     "../../vnncomp2024_benchmarks/benchmarks/cctsdb_yolo_2023/onnx/patch-3.onnx"
+    # )
 
     # Convert the model to version 22 to avoid many inconsistencies
     model = onnx.load(onnx_path)
