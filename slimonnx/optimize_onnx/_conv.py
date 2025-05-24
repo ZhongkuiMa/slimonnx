@@ -71,8 +71,8 @@ def _simplify_conv_to_flatten_gemm(
     for node in nodes:
         if pre_node is not None and pre_node.name in conv_nodes_to_replaced_names:
             assert pre_pre_node is not None
-            assert _in_single_path(pre_pre_node, pre_node, nodes)
-            assert _in_single_path(pre_node, node, nodes)
+            assert _is_only_next_node(pre_pre_node, pre_node, nodes)
+            assert _is_only_next_node(pre_node, node, nodes)
             count += 1
 
             kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias = (

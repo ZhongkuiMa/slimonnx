@@ -26,7 +26,7 @@ def _fuse_matmul_add(
             and (node.input[0] in initializers or node.input[1] in initializers)
             and pre_node.op_type == "MatMul"
             and (pre_node.input[0] in initializers or pre_node.input[1] in initializers)
-            and _in_single_path(pre_node, node, nodes)
+            and _is_only_next_node(pre_node, node, nodes)
         ):
             count += 1
 

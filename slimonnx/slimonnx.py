@@ -28,6 +28,7 @@ class SlimONNX:
         fuse_conv_bn: bool = False,
         fuse_bn_conv: bool = False,
         fuse_convtransposed_bn: bool = False,
+        fuse_bn_convtransposed: bool = False,
         simplify_conv_to_flatten_gemm: bool = False,
         simplify_gemm: bool = True,
         remove_redundant_operations: bool = False,
@@ -54,6 +55,8 @@ class SlimONNX:
         :param fuse_conv_bn: Fuse a Conv and BatchNormalization node into a Conv node.
         :param fuse_bn_conv: Fuse a BatchNormalization and a Conv node into a Conv node.
         :param fuse_convtransposed_bn: Fuse a ConvTranspose and a BatchNormalization
+            node into a ConvTranspose node.
+        :param fuse_bn_convtransposed: Fuse a BatchNormalization and a ConvTranspose
             node into a ConvTranspose node.
         :param simplify_conv_to_flatten_gemm: Simplify the Conv node to a Flatten and
             a Gemm node if possible.
@@ -88,6 +91,7 @@ class SlimONNX:
             fuse_conv_bn=fuse_conv_bn,
             fuse_bn_conv=fuse_bn_conv,
             fuse_convtransposed_bn=fuse_convtransposed_bn,
+            fuse_bn_convtransposed=fuse_bn_convtransposed,
             simplify_conv_to_flatten_gemm=simplify_conv_to_flatten_gemm,
             simplify_gemm=simplify_gemm,
             remove_redundant_operations=remove_redundant_operations,

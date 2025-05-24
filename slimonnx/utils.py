@@ -41,9 +41,10 @@ def clear_onnx_docstring(model: ModelProto):
 def reformat_io_shape(node: ValueInfoProto) -> list[int]:
     shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
 
-    if shape[0] == 0 or len(shape) > 1:
-        # Set the batch dimension to 1
-        shape[0] = 1
+    if not len(shape) == 0:
+        if shape[0] == 0 or len(shape) > 1:
+            # Set the batch dimension to 1
+            shape[0] = 1
 
     return shape
 
@@ -86,9 +87,15 @@ def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
 
 
 def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
+    empty_name_counter = 0
     name_and_output_name_mapping = {}
     for node in nodes:
         for output_name in node.output:
+            if node.name == "":
+                # Sometimes, there will be a node with empty string name.
+                # This is caused during the ONNX version conversion.
+                node.name = f"{node.op_type}_{empty_name_counter}"
+                empty_name_counter += 1
             name_and_output_name_mapping[output_name] = node.name
 
     next_nodes_mapping = {node.name: [] for node in nodes}
@@ -98,4 +105,5 @@ def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
                 next_nodes_mapping[name_and_output_name_mapping[input_name]].append(
                     node.name
                 )
+
     return next_nodes_mapping

@@ -68,7 +68,8 @@ Here's a quick rundown of what SlimONNX can do to streamline your ONNX models:
 - **fuse_gemm_gemm**: Combine two Gemm nodes into a single one. We donot need calculating two adjacent linear operations! 🔥 Support multiple adjacent Gemm nodes!
 - **fuse_conv_bn**: Fuse Conv and BatchNormalization nodes into a single Conv node. It's the kind of optimization PyTorch already uses ([torch.nn.utils.fuse_conv_bn_eval](https://pytorch.org/docs/stable/generated/torch.nn.utils.fuse_conv_bn_eval.html)), but we take it further in the next reversed case! ⚡
 - **fuse_bn_conv**: Merge BatchNormalization and Convolutional nodes into a single node. Not as common, but when needed, we've got it! 💥
-- **fuse_transposedconv_bn**: Fuse ConvTranspose and BatchNormalization nodes into a single ConvTranspose node. Optimization made easy! 🔄
+- **fuse_convtranspose_bn**: Fuse ConvTranspose and BatchNormalization nodes into a single ConvTranspose node. Optimization made easy! 🔄
+- **fuse_bn_convtranspose**: Merge BatchNormalization and ConvTranspose nodes into a single node. We make it happen! 💡
 - **shape_to_initializer**: Convert shape nodes to initializers. Let's get rid of unnecessary variables and treat them as initializers where possible! 🎯 This happends when the shape of a tensor is infered from another variable but the size of the variable is fixed in the model.
 - **simplify_conv_to_flatten_gemm**: Simplify the Conv node to a Flatten and a Gemm node if possible. This happends in some models...
 - **simplify_gemm**: Simplify the Gemm node by setting the alpha and beta to 1.0 and transA and transB to False. This is a common optimization that ONNX doesn't do, but we do! 💡
