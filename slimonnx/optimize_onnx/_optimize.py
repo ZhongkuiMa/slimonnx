@@ -34,6 +34,7 @@ def optimize_onnx(
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
+    fuse_bn_convtransposed: bool = False,
     simplify_conv_to_flatten_gemm: bool = False,
     simplify_gemm: bool = False,
     remove_redundant_operations: bool = False,
@@ -99,11 +100,15 @@ def optimize_onnx(
         nodes = _fuse_gemm_gemm(nodes, initializers)
 
     if fuse_conv_bn:
-        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=True)
+        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers)
     if fuse_bn_conv:
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
     if fuse_convtransposed_bn:
-        nodes = _fuse_convtranspose_bn(nodes, initializers)
+        nodes = _fuse_convtranspose_bn_or_bn_convtranspose(nodes, initializers)
+    if fuse_bn_convtransposed:
+        nodes = _fuse_convtranspose_bn_or_bn_convtranspose(
+            nodes, initializers, is_convtranspose_bn=False
+        )
     if reorder_by_strict_topological_order:
         # There maybe repeated named nodes, so we need to simplify the names first
         nodes, initializers = _simplify_names(

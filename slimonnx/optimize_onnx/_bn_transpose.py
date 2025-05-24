@@ -28,8 +28,8 @@ def _fuse_transpose_batchnorm_transpose(
             and pre_node is not None
             and pre_pre_node.op_type == "Transpose"
             and pre_node.op_type == "BatchNormalization"
-            and _in_single_path(pre_pre_node, pre_node, nodes)
-            and _in_single_path(pre_node, node, nodes)
+            and _is_only_next_node(pre_pre_node, pre_node, nodes)
+            and _is_only_next_node(pre_node, node, nodes)
         ):
             new_nodes.pop()
             new_nodes.pop()
