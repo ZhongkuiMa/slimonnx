@@ -22,16 +22,13 @@ def _simplify_conv_to_flatten_gemm(
         if node.op_type == "Conv":
             conv_node = node
             if pre_conv_node is not None:
-                (
-                    kernel_shape,
-                    pads,
-                    strides,
-                    dilations,
-                    group,
-                    auto_pad,
-                    weight,
-                    bias,
-                ) = _get_conv_params(node, initializers, False)
+                (weight, bias, attrs) = _get_conv_params(node, initializers, False)
+                kernel_shape = attrs["kernel_shape"]
+                pads = attrs["pads"]
+                strides = attrs["strides"]
+                dilations = attrs["dilations"]
+                group = attrs["group"]
+                auto_pad = attrs.get("auto_pad", "NOTSET")
                 assert weight.ndim == 4, f"{weight.ndim}D weight is not supported."
                 input_channel = weight.shape[1]
                 kernel_height = weight.shape[2]
