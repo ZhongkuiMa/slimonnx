@@ -68,7 +68,7 @@ def _fuse_conv_bn_or_bn_conv(
         if len(conv_node.input) > 2:
             new_bias_name = conv_node.input[2]
         else:
-            new_bias_name = conv_node.input[2] + "_bias"
+            new_bias_name = conv_node.input[1] + "_bias"
         new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
         new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
         initializers[new_weight_name] = new_weight

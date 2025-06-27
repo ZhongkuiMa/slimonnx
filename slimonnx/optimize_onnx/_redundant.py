@@ -44,6 +44,19 @@ def _remove_redundant_operations(
         pre_node = node
         new_nodes.append(node)
 
+    def skip_node(node: NodeProto):
+        # Find all nodes taking this node as input.
+        # Change their input to the previous node.
+        for node_j in nodes:
+            if node.output[0] in node_j.input:
+                for k in range(len(node_j.input)):
+                    if node_j.input[k] == node.output[0]:
+                        node_j.input[k] = node.input[0]
+        # Handle the output nodes.
+        for output_node_j in output_nodes:
+            if node.output[0] == output_node_j.name:
+                output_node_j.name = node.input[0]
+
     nodes = new_nodes
     new_nodes = []
     for node in nodes:
@@ -54,70 +67,40 @@ def _remove_redundant_operations(
             if input_shape == output_shape:
                 if node.op_type == "Reshape":
                     del initializers[node.input[1]]
-                # Find all nodes taking this node as input.
-                # Change their input to the previous node.
-                for node_j in nodes:
-                    if node.output[0] in node_j.input:
-                        for k in range(len(node_j.input)):
-                            if node_j.input[k] == node.output[0]:
-                                node_j.input[k] = node.input[0]
-                # Handle the output nodes.
-                for output_node_j in output_nodes:
-                    if node.output[0] == output_node_j.name:
-                        output_node_j.name = node.input[0]
+                skip_node(node)
                 count += 1
                 continue
-        elif node.op_type in {"Add", "Sub"}:
-            # TODO: Be compatible with any input is initializer.
-            # Check if the node does nothing.
-            if node.input[1] not in initializers:
+
+        elif node.op_type in {"Add", "Sub", "Mul", "Div"}:
+            if node.input[1] in initializers:
+                initializer_name = node.input[1]
+            elif node.input[0] in initializers:
+                initializer_name = node.input[0]
+            else:
                 new_nodes.append(node)
                 continue
-            initializer = initializers[node.input[1]]
+            initializer = initializers[initializer_name]
             array = onnx.numpy_helper.to_array(initializer)
-            if np.all(array == 0):
-                del initializers[node.input[1]]
-                # Find all nodes taking this node as input.
-                # Change their input to the previous node.
-                for node_j in nodes:
-                    if node.output[0] in node_j.input:
-                        for k in range(len(node_j.input)):
-                            if node_j.input[k] == node.output[0]:
-                                node_j.input[k] = node.input[0]
+
+            redundant = False
+            if node.op_type in {"Add", "Sub"} and np.all(array == 0):
+                redundant = True
+            elif node.op_type in {"Mul", "Div"} and np.all(array == 1):
+                redundant = True
+
+            if redundant:
+                del initializers[initializer_name]
+                skip_node(node)
                 count += 1
                 continue
-        elif node.op_type in {"Mul", "Div"}:
-            # TODO: Be compatible with any input is initializer.
-            # Check if the node does nothing.
-            if node.input[1] not in initializers:
-                new_nodes.append(node)
-                continue
-            initializer = initializers[node.input[1]]
-            array = onnx.numpy_helper.to_array(initializer)
-            if np.all(array == 1):
-                del initializers[node.input[1]]
-                # Find all nodes taking this node as input.
-                # Change their input to the previous node.
-                for node_j in nodes:
-                    if node.output[0] in node_j.input:
-                        for k in range(len(node_j.input)):
-                            if node_j.input[k] == node.output[0]:
-                                node_j.input[k] = node.input[0]
-                count += 1
-                continue
+
         elif node.op_type in {"Pad"}:
             # Check if the node does nothing.
             initializer = initializers[node.input[1]]
             array = onnx.numpy_helper.to_array(initializer)
             if np.all(array == 0):
                 del initializers[node.input[1]]
-                # Find all nodes taking this node as input.
-                # Change their input to the previous node.
-                for node_j in nodes:
-                    if node.output[0] in node_j.input:
-                        for k in range(len(node_j.input)):
-                            if node_j.input[k] == node.output[0]:
-                                node_j.input[k] = node.input[0]
+                skip_node(node)
                 count += 1
                 continue
 

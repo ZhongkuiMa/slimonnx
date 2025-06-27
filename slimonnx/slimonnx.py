@@ -34,6 +34,7 @@ class SlimONNX:
         remove_redundant_operations: bool = False,
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
+        validate_model: bool = True,
     ):
         """
         Simplify the ONNX model by fusing some nodes.
@@ -69,7 +70,6 @@ class SlimONNX:
         :param simplify_node_name: Simplify the node name by topological order.
         :param reorder_by_strict_topological_order: Reorder the nodes by topological
             order and simplify their names.
-        :param verbose: Print the progress.
 
         :return: The simplified ONNX model.
         """

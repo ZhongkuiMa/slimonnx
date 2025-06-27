@@ -4,10 +4,7 @@ from slimonnx import SlimONNX
 
 if __name__ == "__main__":
     slimonnx = SlimONNX(verbose=True)
-    onnx_path = (
-        "../../../vnncomp2024_benchmarks/benchmarks/acasxu_2023/onnx/"
-        "ACASXU_run2a_1_1_batch_2000.onnx"
-    )
+    onnx_path = "../../../vnncomp2025_benchmarks/benchmarks/test/onnx/test_tiny.onnx"
 
     # Convert the model to version 22 to avoid many inconsistencies
     model = onnx.load(onnx_path)
