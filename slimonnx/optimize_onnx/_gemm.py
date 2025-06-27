@@ -82,6 +82,14 @@ def _simplify_gemm(
             weight_name = node.input[1]
             if var_name in initializers and weight_name not in initializers:
                 var_name, weight_name = weight_name, var_name
+                # We need to transpose the weight if it is a matrix
+                weight = initializers[weight_name]
+                weight = onnx.numpy_helper.to_array(weight)
+                weight = weight.copy().T
+                initializers[weight_name] = onnx.numpy_helper.from_array(
+                    weight, weight_name
+                )
+
             input_names = [var_name, weight_name]
             if len(node.input) == 3:
                 input_names.append(node.input[2])

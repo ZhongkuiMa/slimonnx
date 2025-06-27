@@ -40,11 +40,13 @@ def clear_onnx_docstring(model: ModelProto):
 
 def reformat_io_shape(node: ValueInfoProto) -> list[int]:
     shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
-
     if not len(shape) == 0:
         if shape[0] == 0 or len(shape) > 1:
             # Set the batch dimension to 1
             shape[0] = 1
+        elif len(shape) == 1:
+            # Add a batch dimension
+            shape = [1, shape[0]]
 
     return shape
 
