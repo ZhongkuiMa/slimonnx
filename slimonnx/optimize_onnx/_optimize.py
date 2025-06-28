@@ -97,6 +97,8 @@ def optimize_onnx(
     if simplify_gemm:
         nodes = _simplify_gemm(nodes, initializers)
     if fuse_gemm_gemm:
+        # There may be multiple gemm nodes, so we need to fuse them multiple times.
+        nodes = _fuse_gemm_gemm(nodes, initializers)
         nodes = _fuse_gemm_gemm(nodes, initializers)
 
     if fuse_conv_bn:
