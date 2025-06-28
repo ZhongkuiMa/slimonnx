@@ -25,7 +25,9 @@ def _fuse_gemm_gemm(
                     n_gemm_pre_nodes += 1
             if gemm_node.output[0] in node.input:
                 n_gemm_post_nodes += 1
-        if n_gemm_pre_nodes == 1 and n_gemm_post_nodes == 1:
+        if not (n_gemm_pre_nodes > 1 or n_gemm_post_nodes > 1):
+            # If the pre or post nodes are 0, that means the gemm node is connected to
+            # the input or output of the model, so we can keep it
             new_all_gemm_nodes.append(gemm_node)
     chosen_gemm_nodes = new_all_gemm_nodes
     # Reverse the order and group the gemm nodes by their pre nodes
