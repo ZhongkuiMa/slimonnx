@@ -1,6 +1,5 @@
 __docformat__ = ["restructuredtext"]
 __all__ = [
-    "VERBOSE",
     "_is_only_next_node",
     "_get_batchnorm_params",
     "_get_gemm_params",
@@ -13,8 +12,6 @@ import onnx
 from onnx import NodeProto, TensorProto
 
 from ..onnx_attrs import get_onnx_attrs
-
-VERBOSE = False
 
 
 def _is_only_next_node(

@@ -5,7 +5,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto, ValueInfoProto
 
-import slimonnx.slimonnx.optimize_onnx._utils as utils
+import slimonnx.slimonnx.utils as utils
 
 
 def _remove_redundant_operations(

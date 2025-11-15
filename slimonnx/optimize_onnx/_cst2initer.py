@@ -5,7 +5,7 @@ __all__ = ["_constant_to_initializer"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.optimize_onnx._utils as utils
+import slimonnx.slimonnx.utils as utils
 
 
 def _constant_to_initializer(
@@ -24,6 +24,7 @@ def _constant_to_initializer(
             continue
 
         new_nodes.append(node)
+
     if utils.VERBOSE:
         print(f"Convert {count} constant nodes to initializers.")
 

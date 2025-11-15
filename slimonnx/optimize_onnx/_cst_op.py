@@ -5,7 +5,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.optimize_onnx._utils as utils
+import slimonnx.slimonnx.utils as utils
 from ..onnx_attrs import get_onnx_attrs
 
 
@@ -23,7 +23,7 @@ def _fuse_constant_nodes(
     Currently, there are the following cases:
     (1) We extract the shape to construct a constant tensor. We can make such 
         constant tensor as a frozen initializer.
-    (2) We extract the shape to reshape a tensor. We can make such shape as a freezed
+    (2) We extract the shape to reshape a tensor. We can make such shape as a frozen
         initializer.
     """
 
@@ -38,18 +38,21 @@ def _fuse_constant_nodes(
         op_type = node.op_type
 
         if op_type == "Shape":
+            if verbose:
+                print(f"Handle Shape node {node.name}")
+
             value = np.array(shapes[node.output[0]])
             if len(value) == 1 and value[0] == 0:
                 # This is a dynamic shape, we do not need to convert it to a constant.
+                if verbose:
+                    print(f"\tSkip dynamic shape for {node.output[0]}.")
                 continue
-            initializer = onnx.numpy_helper.from_array(value, node.output[0])
-            if verbose:
-                print(f"Save initializer {node.output[0]}: {value}")
 
+            initializer = onnx.numpy_helper.from_array(value, node.output[0])
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
-
             if verbose:
+                print(f"\tSave initializer {node.output[0]}: {value}")
                 print(f"\tDelete node: {node.name}")
 
             continue
@@ -71,6 +74,9 @@ def _fuse_constant_nodes(
         """
 
         if op_type in {"Gather", "Slice", "Unsqueeze"}:
+            if verbose:
+                print(f"Handle {op_type} node {node.name}")
+
             pre_node_type = nodes_dict[node.input[0]].op_type
             if pre_node_type == "Shape":
                 value = np.array(shapes[node.output[0]])
@@ -104,17 +110,26 @@ def _fuse_constant_nodes(
                     value = np.expand_dims(tensor, axis=tuple(axes))
 
         elif op_type == "Reshape":
+            if verbose:
+                print(f"Handle Reshape node {node.name}")
+
             data = onnx.numpy_helper.to_array(initializers[node.input[0]])
             shape = onnx.numpy_helper.to_array(initializers[node.input[1]])
             value = data.reshape(shape)
 
         elif op_type == "Range":
+            if verbose:
+                print(f"Handle Range node {node.name}")
+
             start = onnx.numpy_helper.to_array(initializers[node.input[0]])
             limit = onnx.numpy_helper.to_array(initializers[node.input[1]])
             delta = onnx.numpy_helper.to_array(initializers[node.input[2]])
             value = np.arange(start, limit, delta)
 
         elif op_type == "ConstantOfShape":
+            if verbose:
+                print(f"Handle ConstantOfShape node {node.name}")
+
             shape = shapes[node.output[0]]
             # Here we need to remove the redundant batch dimension.
             shape = shape[1:] if len(shape) > 1 and shape[0] == 1 else shape
@@ -122,6 +137,9 @@ def _fuse_constant_nodes(
             value = np.full(shape, value, dtype=value.dtype)
 
         elif op_type == "ReduceSum":
+            if verbose:
+                print(f"Handle ReduceSum node {node.name}")
+
             tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
             attrs = get_onnx_attrs(node, initializers)
             if len(node.input[1]) > 1:
@@ -138,6 +156,9 @@ def _fuse_constant_nodes(
                     value = np.sum(tensor, axis=tuple(axes), keepdims=keepdims)
 
         elif op_type == "Concat":
+            if verbose:
+                print(f"Handle Concat node {node.name}")
+
             is_concat_shape = True
             for input_name in node.input:
                 if input_name not in initializers:
@@ -155,6 +176,9 @@ def _fuse_constant_nodes(
                 value = np.concatenate(tensor_list, axis=axis)
 
         elif op_type in {"Relu", "Neg"}:
+            if verbose:
+                print(f"Handle {op_type} node {node.name}")
+
             tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
             if op_type == "Relu":
                 value = np.maximum(tensor, 0)
@@ -162,6 +186,9 @@ def _fuse_constant_nodes(
                 value = -tensor
 
         elif op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Pow"}:
+            if verbose:
+                print(f"Handle {op_type} node {node.name}")
+
             tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
             tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
             if op_type == "Add":
@@ -178,6 +205,9 @@ def _fuse_constant_nodes(
                 value = np.power(tensor1, tensor2)
 
         elif op_type == "Cast":
+            if verbose:
+                print(f"Handle Cast node {node.name}")
+
             to = get_onnx_attrs(node, initializers)["to"]
             value = onnx.numpy_helper.to_array(initializers[node.input[0]])
             if to == 1:  # float
@@ -212,16 +242,26 @@ def _fuse_constant_nodes(
                 value = value.astype(np.complex128)
             else:
                 raise NotImplementedError(f"Not supported cast type: {to}.")
+
         elif op_type == "Equal":
+            if verbose:
+                print(f"Handle Equal node {node.name}")
+
             tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
             tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
             value = np.equal(tensor1, tensor2)
         elif op_type == "Where":
+            if verbose:
+                print(f"Handle Where node {node.name}")
+
             condition = onnx.numpy_helper.to_array(initializers[node.input[0]])
             x = onnx.numpy_helper.to_array(initializers[node.input[1]])
             y = onnx.numpy_helper.to_array(initializers[node.input[2]])
             value = np.where(condition, x, y)
         elif op_type == "Expand":
+            if verbose:
+                print(f"Handle Expand node {node.name}")
+
             ipt = onnx.numpy_helper.to_array(initializers[node.input[0]])
             shape = shapes[node.output[0]]
             # Here we need to remove the redundant batch dimension.
@@ -231,7 +271,7 @@ def _fuse_constant_nodes(
             raise NotImplementedError(f"Not supported node type: {op_type}.")
 
         if verbose:
-            print(f"Save initializer {node.output[0]}: {value}")
+            print(f"\tSave initializer {node.output[0]}: {value}")
 
         initializer = onnx.numpy_helper.from_array(value, node.output[0])
         initializers[node.output[0]] = initializer

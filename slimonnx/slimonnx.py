@@ -17,6 +17,7 @@ class SlimONNX:
         self,
         onnx_path: str,
         target_path: str | None = None,
+        *,
         constant_to_initializer: bool = True,
         fuse_constant_nodes: bool = False,
         fuse_matmul_add: bool = False,
@@ -35,6 +36,7 @@ class SlimONNX:
         simplify_node_name: bool = True,
         reorder_by_strict_topological_order: bool = True,
         validate_model: bool = True,
+        has_batch_dim: bool = True,
     ):
         """
         Simplify the ONNX model by fusing some nodes.
@@ -73,11 +75,13 @@ class SlimONNX:
 
         :return: The simplified ONNX model.
         """
+        t = time.perf_counter()
         if self.verbose:
-            print(f"Slim ONNX model {onnx_path}...")
-            t = time.perf_counter()
+            print(f"Load ONNX model from {onnx_path}...")
         model = onnx.load(onnx_path)
 
+        if self.verbose:
+            print(f"Slim ONNX model...")
         new_model = optimize_onnx(
             model,
             constant_to_initializer=constant_to_initializer,
@@ -97,18 +101,17 @@ class SlimONNX:
             remove_redundant_operations=remove_redundant_operations,
             reorder_by_strict_topological_order=reorder_by_strict_topological_order,
             simplify_node_name=simplify_node_name,
+            has_batch_dim=has_batch_dim,
             verbose=self.verbose,
         )
+        t = time.perf_counter() - t
+        if self.verbose:
+            print(f"Complete slimming ONNX model in {t:.4f}s")
 
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
-
-        # Check if the directory exists
-        if not os.path.exists(os.path.dirname(target_path)):
-            os.makedirs(os.path.dirname(target_path), exist_ok=True)
-
+        os.makedirs(os.path.dirname(target_path), exist_ok=True)
         onnx.save(new_model, target_path)
 
         if self.verbose:
-            t = time.perf_counter() - t
-            print(f"Slimmed ONNX model saved to {target_path} ({t:.4f}s)")
+            print(f"Slimmed ONNX model saved to {target_path}")

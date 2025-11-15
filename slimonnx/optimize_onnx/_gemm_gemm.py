@@ -4,7 +4,7 @@ __all__ = ["_fuse_gemm_gemm"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.optimize_onnx._utils as utils
+import slimonnx.slimonnx.utils as utils
 from ._utils import *
 
 
