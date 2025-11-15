@@ -1,5 +1,6 @@
 __docformat__ = "restructuredtext"
 __all__ = [
+    "VERBOSE",
     "EXTRACT_ATTR_MAP",
     "reformat_io_shape",
     "clear_onnx_docstring",
@@ -11,6 +12,8 @@ __all__ = [
 
 import onnx
 from onnx import ModelProto, ValueInfoProto, NodeProto, TensorProto
+
+VERBOSE = False
 
 EXTRACT_ATTR_MAP = {
     0: lambda x: None,  # UNDEFINED
@@ -29,43 +32,37 @@ EXTRACT_ATTR_MAP = {
 
 
 def clear_onnx_docstring(model: ModelProto):
-    """
-    Clear docstring of all nodes in the model.
-
-    :param model: The ONNX model.
-    """
+    if VERBOSE:
+        print("Clear ONNX doc strings...")
     for node in model.graph.node:
         node.doc_string = ""
 
 
-def reformat_io_shape(node: ValueInfoProto) -> list[int]:
+def reformat_io_shape(node: ValueInfoProto, has_batch_dim: bool = True) -> list[int]:
     shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
-    if not len(shape) == 0:
-        if shape[0] == 0:
-            # Set the batch dimension to 1
+    if has_batch_dim:
+        if len(shape) < 2:
+            raise ValueError(
+                f"There should have been a batch dimension. "
+                f"Node {node.name} has invalid shape {shape}."
+            )
+        if shape[0] != 1:
             shape[0] = 1
-        elif len(shape) > 1:
-            # If there are multiple dimensions, we assume the first one is batch size
-            # and set it to 1 if it is 0
-            if shape[0] != 1:
-                shape = [1] + shape
-        # Some models just must not have batch dimension
-        # elif len(shape) == 1:
-        #     # Add a batch dimension
-        #     shape = [1, shape[0]]
 
     return shape
 
 
-def get_input_nodes(model: ModelProto) -> list[ValueInfoProto]:
-    initializers = [initializer.name for initializer in model.graph.initializer]
+def get_input_nodes(
+    model: ModelProto, initializers: dict[str, TensorProto], has_batch_dim: bool = True
+) -> list[ValueInfoProto]:
     # Exclude initializers from inputs because sometimes the initializers are also
     # included in the inputs
     nodes = []
     for input_i in model.graph.input:
         if input_i.name not in initializers:
-            shape = reformat_io_shape(input_i)
-
+            shape = reformat_io_shape(input_i, has_batch_dim)
+            if VERBOSE:
+                print(f"Get input node {input_i.name} with shape {shape}.")
             node = onnx.helper.make_tensor_value_info(
                 name=input_i.name,
                 elem_type=input_i.type.tensor_type.elem_type,
@@ -76,10 +73,14 @@ def get_input_nodes(model: ModelProto) -> list[ValueInfoProto]:
     return nodes
 
 
-def get_output_nodes(model: ModelProto) -> list[ValueInfoProto]:
+def get_output_nodes(
+    model: ModelProto, has_batch_dim: bool = True
+) -> list[ValueInfoProto]:
     nodes = []
     for output_i in model.graph.output:
-        shape = reformat_io_shape(output_i)
+        shape = reformat_io_shape(output_i, has_batch_dim)
+        if VERBOSE:
+            print(f"Get output node {output_i.name} with shape {shape}.")
         node = onnx.helper.make_tensor_value_info(
             name=output_i.name,
             elem_type=output_i.type.tensor_type.elem_type,
@@ -91,10 +92,18 @@ def get_output_nodes(model: ModelProto) -> list[ValueInfoProto]:
 
 
 def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
-    return {initializer.name: initializer for initializer in model.graph.initializer}
+    initializers = {
+        initializer.name: initializer for initializer in model.graph.initializer
+    }
+    if VERBOSE:
+        print(f"Get {len(initializers)} initializers.")
+    return initializers
 
 
 def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
+    """
+    Get the mapping from each node to its next nodes.
+    """
     empty_name_counter = 0
     name_and_output_name_mapping = {}
     for node in nodes:

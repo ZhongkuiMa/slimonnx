@@ -4,7 +4,7 @@ __all__ = ["optimize_onnx"]
 import onnx
 from onnx import ModelProto
 
-import slimonnx.slimonnx.optimize_onnx._utils as utils
+import slimonnx.slimonnx.utils as utils
 from slimonnx.shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ._bn_conv import *
 from ._bn_gemm import *
@@ -40,22 +40,17 @@ def optimize_onnx(
     remove_redundant_operations: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
+    has_batch_dim: bool = True,
     verbose: bool = False,
 ) -> ModelProto:
-
     utils.VERBOSE = verbose
-
-    if verbose:
-        print("Clear ONNX docstring.")
-    clear_onnx_docstring(model)
 
     graph_name = model.graph.name + "_slimmed"
 
-    if verbose:
-        print("Set batch size to 1.")
-    input_nodes = get_input_nodes(model)
-    output_nodes = get_output_nodes(model)
+    clear_onnx_docstring(model)
     initializers = get_initializers(model)
+    input_nodes = get_input_nodes(model, initializers, has_batch_dim)
+    output_nodes = get_output_nodes(model, has_batch_dim)
 
     nodes = list(model.graph.node)
 
@@ -72,17 +67,23 @@ def optimize_onnx(
     if constant_to_initializer:
         nodes = _constant_to_initializer(nodes, initializers)
     if fuse_constant_nodes:
-        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
+        data_shapes = infer_onnx_shape(
+            input_nodes, output_nodes, nodes, initializers, has_batch_dim
+        )
         nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
     if remove_redundant_operations:
-        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
+        data_shapes = infer_onnx_shape(
+            input_nodes, output_nodes, nodes, initializers, has_batch_dim
+        )
         # We need the correct order to check the redundant operations.
         nodes = _reorder_by_strict_topological_order(nodes)
         nodes = _remove_redundant_operations(
             nodes, initializers, data_shapes, output_nodes
         )
     if simplify_conv_to_flatten_gemm:
-        data_shapes = infer_onnx_shape(input_nodes, output_nodes, nodes, initializers)
+        data_shapes = infer_onnx_shape(
+            input_nodes, output_nodes, nodes, initializers, has_batch_dim
+        )
         nodes = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
     if fuse_matmul_add:
         nodes = _fuse_matmul_add(nodes, initializers)
@@ -125,7 +126,6 @@ def optimize_onnx(
 
     if verbose:
         print("Assembly new model...")
-
     new_model = onnx.helper.make_model(
         onnx.helper.make_graph(
             nodes,
