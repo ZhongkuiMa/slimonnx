@@ -5,7 +5,7 @@ import onnx
 from onnx import ModelProto
 
 import slimonnx.slimonnx.utils as utils
-from slimonnx.shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ._bn_conv import *
 from ._bn_gemm import *
 from ._bn_transpose import *
