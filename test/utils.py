@@ -1,9 +1,27 @@
-"""Utility functions for ShapeONNX testing.
+"""Utility functions for SlimONNX testing.
 
 Extracted helper functions used across multiple test files.
 """
 
+__docformat__ = "restructuredtext"
+__all__ = [
+    "find_benchmarks_folders",
+    "find_onnx_folders",
+    "find_all_onnx_files",
+    "find_all_vnnlib_files",
+    "get_benchmark_name",
+    "load_onnx_model",
+    "if_has_batch_dim",
+    "check_shape_compatibility",
+    "infer_shape",
+    "load_vnnlib_inputs",
+    "compare_onnx_outputs",
+]
+
 import os
+from pathlib import Path
+
+import numpy as np
 
 
 def find_benchmarks_folders(base_dir):
@@ -70,6 +88,31 @@ def find_all_onnx_files(benchmark_dirs, num_limit: int = 20):
                         if i >= num_limit:
                             break
     return onnx_files
+
+
+def find_all_vnnlib_files(benchmark_dirs: list[str]) -> list[str]:
+    """Find all VNNLib files in benchmark directories.
+
+    :param benchmark_dirs: List of benchmark directory paths
+    :return: List of VNNLib file paths
+    """
+    vnnlib_files = []
+    for bdir in benchmark_dirs:
+        # Look for vnnlib files directly in benchmark dir
+        for entry in os.listdir(bdir):
+            if entry.endswith(".vnnlib"):
+                vnnlib_path = os.path.normpath(os.path.join(bdir, entry))
+                vnnlib_files.append(vnnlib_path)
+
+        # Also check vnnlib subdirectory if exists
+        vnnlib_subdir = os.path.join(bdir, "vnnlib")
+        if os.path.isdir(vnnlib_subdir):
+            for entry in os.listdir(vnnlib_subdir):
+                if entry.endswith(".vnnlib"):
+                    vnnlib_path = os.path.normpath(os.path.join(vnnlib_subdir, entry))
+                    vnnlib_files.append(vnnlib_path)
+
+    return vnnlib_files
 
 
 def get_benchmark_name(onnx_path: str, benchmarks_dir: str = "benchmarks") -> str:
@@ -205,3 +248,149 @@ def infer_shape(model, has_batch_dim: bool = True, verbose: bool = False):
             )
 
     return data_shapes
+
+
+def load_vnnlib_inputs(
+    onnx_path: str,
+    inputs_dir: str = "inputs",
+    benchmarks_dir: str = "benchmarks",
+) -> list[dict] | None:
+    """Load test inputs from torchvnnlib .pth files.
+
+    Reads .pth files created by torchvnnlib containing input bounds as tensors.
+    Generates test inputs using the midpoint of bounds.
+
+    Directory structure expected:
+    inputs_dir/benchmark_name/vnnlib_name/or_group_0/sub_prop_*.pth
+
+    :param onnx_path: Path to ONNX model file
+    :param inputs_dir: Directory containing converted .pth files
+    :param benchmarks_dir: Root benchmarks directory name
+    :return: List of input dictionaries, or None if not found
+    """
+    import onnx
+    import torch
+
+    benchmark_name = get_benchmark_name(onnx_path, benchmarks_dir)
+    inputs_path = Path(inputs_dir)
+    benchmark_inputs_dir = inputs_path / benchmark_name
+
+    if not benchmark_inputs_dir.exists():
+        return None
+
+    # Find VNNLib name from instances.csv
+    benchmark_dir = Path(onnx_path).parent.parent  # Go up from onnx/ to benchmark/
+    instances_csv = benchmark_dir / "instances.csv"
+
+    if not instances_csv.exists():
+        return None
+
+    # Parse instances.csv to find VNNLib file for this ONNX model
+    onnx_rel_path = os.path.relpath(onnx_path, benchmark_dir)
+    vnnlib_name = None
+
+    try:
+        with open(instances_csv) as f:
+            lines = f.readlines()
+            for line in lines[1:]:  # Skip header
+                line = line.strip()
+                if not line:
+                    continue
+                parts = line.split(",")
+                if len(parts) >= 2:
+                    model_path = parts[0].strip()
+                    if model_path == onnx_rel_path:
+                        vnnlib_path = parts[1].strip()
+                        vnnlib_name = Path(vnnlib_path).stem
+                        break
+    except Exception:
+        return None
+
+    if vnnlib_name is None:
+        return None
+
+    # Look for .pth files in or_group_0 (taking first OR group only)
+    vnnlib_dir = benchmark_inputs_dir / vnnlib_name / "or_group_0"
+
+    if not vnnlib_dir.exists():
+        return None
+
+    # Find all sub_prop_*.pth files
+    pth_files = sorted(vnnlib_dir.glob("sub_prop_*.pth"))
+
+    if not pth_files:
+        return None
+
+    # Load ONNX model to get input name
+    model = onnx.load(onnx_path)
+    input_names = [
+        inp.name
+        for inp in model.graph.input
+        if not any(init.name == inp.name for init in model.graph.initializer)
+    ]
+
+    if len(input_names) == 0:
+        return None
+
+    input_name = input_names[0]
+
+    # Load inputs from all .pth files
+    inputs_list = []
+
+    for pth_file in pth_files:
+        try:
+            data = torch.load(pth_file, weights_only=True)
+            input_bounds = data["input"]  # Shape: (n_inputs, 2)
+
+            # Use midpoint of bounds as test input
+            lower = input_bounds[:, 0]
+            upper = input_bounds[:, 1]
+            midpoint = (lower + upper) / 2
+
+            # Convert to numpy and reshape for ONNX Runtime
+            arr = midpoint.numpy().astype(np.float32)
+            inputs_list.append(
+                {input_name: arr.reshape(1, -1) if arr.ndim == 1 else arr}
+            )
+        except Exception:
+            continue
+
+    return inputs_list if inputs_list else None
+
+
+def compare_onnx_outputs(
+    outputs1: dict,
+    outputs2: dict,
+    rtol: float = 1e-5,
+    atol: float = 1e-6,
+) -> tuple[bool, list[str]]:
+    """Compare outputs from two ONNX models.
+
+    :param outputs1: First model outputs (dict of arrays)
+    :param outputs2: Second model outputs (dict of arrays)
+    :param rtol: Relative tolerance for comparison
+    :param atol: Absolute tolerance for comparison
+    :return: Tuple of (all_match, mismatch_messages)
+    """
+    if set(outputs1.keys()) != set(outputs2.keys()):
+        return False, [
+            f"Output keys mismatch: {set(outputs1.keys())} vs {set(outputs2.keys())}"
+        ]
+
+    mismatches = []
+    for key in outputs1.keys():
+        out1 = outputs1[key]
+        out2 = outputs2[key]
+
+        if out1.shape != out2.shape:
+            mismatches.append(f"  {key}: shape {out1.shape} vs {out2.shape}")
+            continue
+
+        if not np.allclose(out1, out2, rtol=rtol, atol=atol):
+            max_diff = np.max(np.abs(out1 - out2))
+            mean_diff = np.mean(np.abs(out1 - out2))
+            mismatches.append(
+                f"  {key}: max diff {max_diff:.2e}, mean diff {mean_diff:.2e}"
+            )
+
+    return len(mismatches) == 0, mismatches

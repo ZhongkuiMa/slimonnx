@@ -97,7 +97,7 @@ def _get_conv_params(
         del initializers[node.input[1]]
 
     if len(node.input) == 2:  # No bias
-        bias = np.zeros(weight.shape[0])
+        bias = np.zeros(weight.shape[0], dtype=weight.dtype)
     else:
         bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
         if remove_initializers:
@@ -130,7 +130,7 @@ def _get_convtranspose_params(
         del initializers[node.input[1]]
 
     if len(node.input) == 2:  # No bias
-        bias = np.zeros(weight.shape[1])
+        bias = np.zeros(weight.shape[1], dtype=weight.dtype)
     else:
         bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
         if remove_initializers:
