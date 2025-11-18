@@ -4,7 +4,7 @@ __all__ = ["optimize_onnx"]
 import onnx
 from onnx import ModelProto
 
-import slimonnx.slimonnx.utils as utils
+from .. import utils
 from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 from ._bn_conv import *
 from ._bn_gemm import *

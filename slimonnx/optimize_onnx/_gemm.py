@@ -4,7 +4,7 @@ __all__ = ["_simplify_gemm"]
 import onnx.numpy_helper
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.utils as utils
+from .. import utils
 from ..onnx_attrs import get_onnx_attrs
 
 

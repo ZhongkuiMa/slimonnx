@@ -4,7 +4,7 @@ __all__ = ["_fuse_matmul_add"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.utils as utils
+from .. import utils
 from ._utils import *
 
 
