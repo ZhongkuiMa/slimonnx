@@ -5,7 +5,7 @@ __all__ = ["_constant_to_initializer"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.utils as utils
+from .. import utils
 
 
 def _constant_to_initializer(

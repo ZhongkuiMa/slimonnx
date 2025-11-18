@@ -9,7 +9,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-import slimonnx.slimonnx.utils as utils
+from .. import utils
 from ._utils import *
 
 
