@@ -35,33 +35,27 @@ def extract_inputs_from_vnnlib(vnnlib_path: str, output_dir: str) -> None:
     converter.convert(vnnlib_path, output_dir)
 
 
-def extract_all_inputs(
-    benchmarks_dir: str = "benchmarks", inputs_dir: str = "inputs"
-) -> None:
+def extract_all_inputs(benchmarks_dir: str = "benchmarks") -> None:
     """Extract inputs from all VNNLib files using torchvnnlib.
 
     Uses instances.csv to discover VNNLib files and converts each unique file.
     Creates directory structure:
-    inputs/
+    benchmarks/
       benchmark_name/
-        vnnlib_name/        # VNNLib filename without .vnnlib suffix
-          or_group_0/
-            sub_prop_0.pth
-            sub_prop_1.pth
-          or_group_1/
-            ...
+        torchvnnlib/        # Converted .pth files from torchvnnlib
+          vnnlib_name/      # VNNLib filename without .vnnlib suffix
+            or_group_0/
+              sub_prop_0.pth
+              sub_prop_1.pth
+            or_group_1/
+              ...
 
     :param benchmarks_dir: Root directory containing benchmark subdirectories
-    :param inputs_dir: Root directory to store extracted .pth files
     """
     benchmarks_path = Path(benchmarks_dir)
-    inputs_path = Path(inputs_dir)
 
     if not benchmarks_path.exists():
         raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_dir}")
-
-    # Create inputs directory
-    inputs_path.mkdir(parents=True, exist_ok=True)
 
     # Find all benchmark directories
     benchmark_dirs = sorted([d for d in benchmarks_path.iterdir() if d.is_dir()])
@@ -110,9 +104,9 @@ def extract_all_inputs(
             print(f"[{benchmark_name}] No VNNLib files in instances.csv")
             continue
 
-        # Create benchmark inputs directory
-        benchmark_inputs_dir = inputs_path / benchmark_name
-        benchmark_inputs_dir.mkdir(parents=True, exist_ok=True)
+        # Create torchvnnlib directory inside benchmark
+        torchvnnlib_dir = benchmark_dir / "torchvnnlib"
+        torchvnnlib_dir.mkdir(parents=True, exist_ok=True)
 
         # Convert each unique VNNLib file
         success = 0
@@ -127,7 +121,7 @@ def extract_all_inputs(
                 continue
 
             # Output directory named after VNNLib file
-            output_dir = benchmark_inputs_dir / vnnlib_name
+            output_dir = torchvnnlib_dir / vnnlib_name
 
             try:
                 extract_inputs_from_vnnlib(str(vnnlib_file), str(output_dir))
