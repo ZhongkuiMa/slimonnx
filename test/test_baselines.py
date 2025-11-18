@@ -15,9 +15,23 @@ Usage::
     create_all_baselines()
 """
 
+__docformat__ = "restructuredtext"
+__all__ = [
+    "get_baseline_path",
+    "get_optimization_config",
+    "generate_random_inputs",
+    "run_onnx_model",
+    "compare_outputs",
+    "create_baseline",
+    "compare_baseline",
+    "create_all_baselines",
+    "verify_all_baselines",
+]
+
 import os
 import sys
 import time
+from pathlib import Path
 
 import numpy as np
 import onnx
@@ -34,6 +48,7 @@ from utils import (
     get_benchmark_name,
     if_has_batch_dim,
     load_onnx_model,
+    load_vnnlib_inputs,
 )
 
 
@@ -214,6 +229,7 @@ def create_baseline(
 def compare_baseline(
     onnx_path: str,
     baselines_dir: str = "baselines",
+    use_vnnlib_inputs: bool = True,
     verbose: bool = False,
     num_test_samples: int = 5,
 ) -> bool:
@@ -222,14 +238,15 @@ def compare_baseline(
     Process:
     1. Load baseline optimized model
     2. Re-optimize source model with current code
-    3. Generate random inputs
+    3. Load torchvnnlib-extracted inputs or generate random inputs
     4. Run both models through ONNX Runtime
     5. Compare outputs with tolerance
 
     :param onnx_path: Path to source ONNX model file
     :param baselines_dir: Root directory containing baseline files
+    :param use_vnnlib_inputs: Whether to use torchvnnlib inputs if available
     :param verbose: Whether to print verbose output
-    :param num_test_samples: Number of random input samples to test
+    :param num_test_samples: Number of random input samples to test (fallback)
     :return: True if outputs match baseline, False otherwise
     """
     baseline_path = get_baseline_path(onnx_path, baselines_dir)
@@ -274,8 +291,16 @@ def compare_baseline(
             )
             return False
 
-        # Generate test inputs
-        test_inputs = generate_random_inputs(model, num_samples=num_test_samples)
+        # Get test inputs (try torchvnnlib first, fallback to random)
+        test_inputs = None
+        input_source = "random"
+        if use_vnnlib_inputs:
+            test_inputs = load_vnnlib_inputs(onnx_path)
+            if test_inputs:
+                input_source = "torchvnnlib"
+
+        if test_inputs is None:
+            test_inputs = generate_random_inputs(model, num_samples=num_test_samples)
 
         # Run both models and compare outputs
         all_match = True
@@ -298,7 +323,9 @@ def compare_baseline(
                 all_match = False
 
         if all_match:
-            print(f"OK: {os.path.basename(onnx_path)}")
+            print(
+                f"OK: {os.path.basename(onnx_path)} ({input_source} inputs, {len(test_inputs)} samples)"
+            )
 
         return all_match
 
@@ -356,6 +383,7 @@ def verify_all_baselines(
     benchmark_dir: str = "benchmarks",
     baselines_dir: str = "baselines",
     max_per_benchmark: int = 20,
+    use_vnnlib_inputs: bool = True,
     verbose: bool = False,
     num_test_samples: int = 5,
 ):
@@ -364,6 +392,7 @@ def verify_all_baselines(
     :param benchmark_dir: Root directory of benchmarks
     :param baselines_dir: Root directory containing baseline files
     :param max_per_benchmark: Maximum models per benchmark to verify
+    :param use_vnnlib_inputs: Whether to use torchvnnlib inputs if available
     :param verbose: Whether to print verbose output during optimization
     :param num_test_samples: Number of random input samples to test per model
     """
@@ -386,7 +415,11 @@ def verify_all_baselines(
                 continue
 
             if compare_baseline(
-                onnx_path, baselines_dir, verbose=verbose, num_test_samples=num_test_samples
+                onnx_path,
+                baselines_dir,
+                use_vnnlib_inputs,
+                verbose=verbose,
+                num_test_samples=num_test_samples,
             ):
                 passed += 1
             else:

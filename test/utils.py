@@ -252,7 +252,6 @@ def infer_shape(model, has_batch_dim: bool = True, verbose: bool = False):
 
 def load_vnnlib_inputs(
     onnx_path: str,
-    inputs_dir: str = "inputs",
     benchmarks_dir: str = "benchmarks",
 ) -> list[dict] | None:
     """Load test inputs from torchvnnlib .pth files.
@@ -261,25 +260,21 @@ def load_vnnlib_inputs(
     Generates test inputs using the midpoint of bounds.
 
     Directory structure expected:
-    inputs_dir/benchmark_name/vnnlib_name/or_group_0/sub_prop_*.pth
+    benchmarks/benchmark_name/torchvnnlib/vnnlib_name/or_group_0/sub_prop_*.pth
 
     :param onnx_path: Path to ONNX model file
-    :param inputs_dir: Directory containing converted .pth files
     :param benchmarks_dir: Root benchmarks directory name
     :return: List of input dictionaries, or None if not found
     """
     import onnx
     import torch
 
-    benchmark_name = get_benchmark_name(onnx_path, benchmarks_dir)
-    inputs_path = Path(inputs_dir)
-    benchmark_inputs_dir = inputs_path / benchmark_name
-
-    if not benchmark_inputs_dir.exists():
-        return None
-
     # Find VNNLib name from instances.csv
     benchmark_dir = Path(onnx_path).parent.parent  # Go up from onnx/ to benchmark/
+    torchvnnlib_dir = benchmark_dir / "torchvnnlib"
+
+    if not torchvnnlib_dir.exists():
+        return None
     instances_csv = benchmark_dir / "instances.csv"
 
     if not instances_csv.exists():
@@ -310,7 +305,7 @@ def load_vnnlib_inputs(
         return None
 
     # Look for .pth files in or_group_0 (taking first OR group only)
-    vnnlib_dir = benchmark_inputs_dir / vnnlib_name / "or_group_0"
+    vnnlib_dir = torchvnnlib_dir / vnnlib_name / "or_group_0"
 
     if not vnnlib_dir.exists():
         return None
