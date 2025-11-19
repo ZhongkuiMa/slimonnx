@@ -6,6 +6,8 @@ __all__ = [
     "get_input_nodes",
     "get_output_nodes",
     "get_initializers",
+    "extract_nodes",
+    "convert_constant_to_initializer",
     "get_next_nodes_mapping",
     "generate_random_inputs",
     "compare_outputs",
@@ -31,16 +33,15 @@ EXTRACT_ATTR_MAP = {
 }
 
 
-def clear_onnx_docstring(model: ModelProto, verbose: bool = False):
+def clear_onnx_docstring(model: ModelProto) -> ModelProto:
     """Clear all doc strings from ONNX model nodes.
 
     :param model: ONNX model
-    :param verbose: Whether to print progress messages
+    :return: Model with cleared docstrings
     """
-    if verbose:
-        print("Clear ONNX doc strings...")
     for node in model.graph.node:
         node.doc_string = ""
+    return model
 
 
 def reformat_io_shape(node: ValueInfoProto, has_batch_dim: bool = True) -> list[int]:
@@ -129,6 +130,70 @@ def get_initializers(
     if verbose:
         print(f"Get {len(initializers)} initializers.")
     return initializers
+
+
+def convert_constant_to_initializer(
+    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+) -> list[NodeProto]:
+    """Convert Constant nodes to initializers.
+
+    This is critical for shape inference and optimization.
+    Constant nodes are converted to initializers and removed from node list.
+
+    :param nodes: List of ONNX nodes
+    :param initializers: Initializers dictionary to update (modified in-place)
+    :return: List of nodes with Constant nodes removed
+    """
+    new_nodes = []
+    for node in nodes:
+        if node.op_type == "Constant":
+            # Extract tensor from Constant node
+            np_array = onnx.numpy_helper.to_array(node.attribute[0].t)
+            initializer = onnx.numpy_helper.from_array(np_array, node.output[0])
+            initializers[node.output[0]] = initializer
+            continue
+        new_nodes.append(node)
+    return new_nodes
+
+
+def extract_nodes(
+    model: ModelProto,
+    has_batch_dim: bool = True,
+    verbose: bool = False,
+) -> tuple[
+    list[ValueInfoProto], list[ValueInfoProto], list[NodeProto], dict[str, TensorProto]
+]:
+    """Extract and preprocess nodes from ONNX model.
+
+    This is a helper function that:
+    1. Extracts initializers
+    2. Converts Constant nodes to initializers (critical for shape inference)
+    3. Extracts input nodes (excluding initializers)
+    4. Extracts output nodes
+
+    :param model: ONNX model
+    :param has_batch_dim: Whether the model has batch dimension
+    :param verbose: Whether to print progress messages
+    :return: Tuple of (input_nodes, output_nodes, nodes, initializers)
+    """
+    # Get initializers
+    initializers = get_initializers(model, verbose=verbose)
+
+    # Convert Constant nodes to initializers
+    nodes = list(model.graph.node)
+    nodes = convert_constant_to_initializer(nodes, initializers)
+
+    # Get input and output nodes
+    input_nodes = get_input_nodes(model, initializers, has_batch_dim, verbose)
+    output_nodes = get_output_nodes(model, has_batch_dim, verbose)
+
+    if verbose:
+        print(
+            f"Extracted {len(input_nodes)} inputs, {len(output_nodes)} outputs, "
+            f"{len(nodes)} nodes, {len(initializers)} initializers"
+        )
+
+    return input_nodes, output_nodes, nodes, initializers
 
 
 def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:

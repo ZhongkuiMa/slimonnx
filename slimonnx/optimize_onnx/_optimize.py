@@ -11,11 +11,13 @@ from ._bn_conv import (
     _fuse_conv_bn_or_bn_conv,
     _fuse_convtranspose_bn_or_bn_convtranspose,
 )
+from ._depthwise_conv import _fuse_depthwise_conv_bn_or_bn_depthwise_conv
 from ._bn_gemm import _fuse_gemm_reshape_bn, _fuse_bn_reshape_gemm, _fuse_bn_gemm
 from ._bn_transpose import _fuse_transpose_batchnorm_transpose
 from ._conv import _simplify_conv_to_flatten_gemm
 from ._cst2initer import _constant_to_initializer
 from ._cst_op import _fuse_constant_nodes
+from ._dropout import remove_dropout as _remove_dropout
 from ._gemm import _simplify_gemm
 from ._gemm_gemm import _fuse_gemm_gemm
 from ._mm_add import _fuse_matmul_add
@@ -33,7 +35,7 @@ from ..utils import (
 def optimize_onnx(
     model: ModelProto,
     constant_to_initializer: bool = False,
-    fuse_constant_nodes: bool = False,
+    constant_folding: bool = False,
     fuse_matmul_add: bool = False,
     fuse_gemm_reshape_bn: bool = False,
     fuse_bn_reshape_gemm: bool = False,
@@ -44,8 +46,11 @@ def optimize_onnx(
     fuse_bn_conv: bool = False,
     fuse_convtransposed_bn: bool = False,
     fuse_bn_convtransposed: bool = False,
+    fuse_depthwise_conv_bn: bool = False,
+    fuse_bn_depthwise_conv: bool = False,
     simplify_conv_to_flatten_gemm: bool = False,
     simplify_gemm: bool = False,
+    remove_dropout: bool = True,
     remove_redundant_operations: bool = False,
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
@@ -56,7 +61,7 @@ def optimize_onnx(
 
     :param model: Input ONNX model
     :param constant_to_initializer: Convert constant nodes to initializers
-    :param fuse_constant_nodes: Fold constant operations
+    :param constant_folding: Fold constant operations (renamed from fuse_constant_nodes)
     :param fuse_matmul_add: Fuse MatMul + Add to Gemm
     :param fuse_gemm_reshape_bn: Fuse Gemm-Reshape-BatchNorm
     :param fuse_bn_reshape_gemm: Fuse BatchNorm-Reshape-Gemm
@@ -67,8 +72,11 @@ def optimize_onnx(
     :param fuse_bn_conv: Fuse BatchNorm-Conv
     :param fuse_convtransposed_bn: Fuse ConvTranspose-BatchNorm
     :param fuse_bn_convtransposed: Fuse BatchNorm-ConvTranspose
+    :param fuse_depthwise_conv_bn: Fuse Depthwise Conv-BatchNorm
+    :param fuse_bn_depthwise_conv: Fuse BatchNorm-Depthwise Conv
     :param simplify_conv_to_flatten_gemm: Convert Conv to Flatten-Gemm
     :param simplify_gemm: Normalize Gemm attributes
+    :param remove_dropout: Remove Dropout nodes (default True for inference)
     :param remove_redundant_operations: Remove no-op nodes
     :param reorder_by_strict_topological_order: Topological sort
     :param simplify_node_name: Rename nodes sequentially
@@ -79,6 +87,8 @@ def optimize_onnx(
     graph_name = model.graph.name + "_slimmed"
 
     clear_onnx_docstring(model, verbose)
+
+    # TODO: Here, we can use extract_nodes()
     initializers = get_initializers(model, verbose)
     input_nodes = get_input_nodes(model, initializers, has_batch_dim, verbose)
     output_nodes = get_output_nodes(model, has_batch_dim, verbose)
@@ -87,7 +97,13 @@ def optimize_onnx(
 
     nodes = _constant_to_initializer(nodes, initializers, verbose)
 
-    if fuse_constant_nodes:
+    if remove_dropout:
+        if verbose:
+            print("Removing Dropout nodes...")
+        model = _remove_dropout(model)
+        nodes = list(model.graph.node)
+
+    if constant_folding:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
@@ -138,6 +154,14 @@ def optimize_onnx(
     if fuse_bn_convtransposed:
         nodes = _fuse_convtranspose_bn_or_bn_convtranspose(
             nodes, initializers, is_convtranspose_bn=False, verbose=verbose
+        )
+    if fuse_depthwise_conv_bn:
+        nodes = _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
+            nodes, initializers, verbose=verbose
+        )
+    if fuse_bn_depthwise_conv:
+        nodes = _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
+            nodes, initializers, is_conv_bn=False, verbose=verbose
         )
     if reorder_by_strict_topological_order:
         nodes, initializers = _simplify_names(

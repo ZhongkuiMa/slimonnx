@@ -3,7 +3,9 @@
 __docformat__ = "restructuredtext"
 __all__ = [
     "detect_add_zero",
+    "detect_sub_zero",
     "detect_mul_one",
+    "detect_div_one",
     "detect_pad_zero",
     "detect_identity_reshape",
 ]
@@ -47,6 +49,38 @@ def detect_add_zero(
     return instances
 
 
+def detect_sub_zero(
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[dict]:
+    """Detect Sub operations with zero constant.
+
+    :param nodes: Model nodes
+    :param initializers: Model initializers
+    :return: List of detected instances
+    """
+    instances = []
+
+    for i, node in enumerate(nodes):
+        if node.op_type != "Sub":
+            continue
+
+        # Check if second input is a zero initializer
+        if len(node.input) >= 2 and node.input[1] in initializers:
+            tensor = initializers[node.input[1]]
+            array = onnx.numpy_helper.to_array(tensor)
+            if np.all(array == 0):
+                instances.append(
+                    {
+                        "node": node.name if node.name else f"Sub_{i}",
+                        "initializer": node.input[1],
+                        "shape": list(array.shape),
+                    }
+                )
+
+    return instances
+
+
 def detect_mul_one(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
@@ -77,6 +111,38 @@ def detect_mul_one(
                         }
                     )
                     break
+
+    return instances
+
+
+def detect_div_one(
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+) -> list[dict]:
+    """Detect Div operations with one constant.
+
+    :param nodes: Model nodes
+    :param initializers: Model initializers
+    :return: List of detected instances
+    """
+    instances = []
+
+    for i, node in enumerate(nodes):
+        if node.op_type != "Div":
+            continue
+
+        # Check if second input is a one initializer
+        if len(node.input) >= 2 and node.input[1] in initializers:
+            tensor = initializers[node.input[1]]
+            array = onnx.numpy_helper.to_array(tensor)
+            if np.all(array == 1):
+                instances.append(
+                    {
+                        "node": node.name if node.name else f"Div_{i}",
+                        "initializer": node.input[1],
+                        "shape": list(array.shape),
+                    }
+                )
 
     return instances
 

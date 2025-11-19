@@ -42,8 +42,7 @@ import onnxruntime as ort
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from slimonnx import SlimONNX
-from slim_kwargs import SLIM_KWARGS
+from slimonnx import SlimONNX, get_preset
 from utils import (
     find_all_onnx_files,
     find_benchmarks_folders,
@@ -74,13 +73,13 @@ def get_baseline_path(onnx_path: str, baselines_dir: str = "baselines") -> str:
     return os.path.join(baselines_dir, benchmark_name, basename)
 
 
-def get_optimization_config(benchmark_name: str) -> dict:
+def get_optimization_config(benchmark_name: str):
     """Get optimization configuration for a benchmark.
 
     :param benchmark_name: Name of the benchmark
-    :return: Dictionary of optimization kwargs
+    :return: OptimizationConfig instance
     """
-    return dict(SLIM_KWARGS[benchmark_name])
+    return get_preset(benchmark_name)
 
 
 def generate_random_inputs(model: onnx.ModelProto, num_samples: int = 5) -> list[dict]:
@@ -210,16 +209,9 @@ def create_baseline(
     # Run optimization
     try:
         slimonnx = SlimONNX(verbose=verbose)
-        slimonnx.slim(
-            temp_v22_path,
-            baseline_path,
-            has_batch_dim=has_batch_dim,
-            **opt_config,
-        )
+        slimonnx.slim(temp_v22_path, baseline_path, config=opt_config)
 
-        print(
-            f"[{benchmark_name}] Created baseline: {os.path.basename(onnx_path)} ({len(opt_config)} optimizations)"
-        )
+        print(f"[{benchmark_name}] Created baseline: {os.path.basename(onnx_path)}")
     finally:
         # Clean up temp file
         if os.path.exists(temp_v22_path):
@@ -272,12 +264,7 @@ def compare_baseline(
 
     try:
         slimonnx = SlimONNX(verbose=verbose)
-        slimonnx.slim(
-            temp_v22_path,
-            temp_optimized_path,
-            has_batch_dim=has_batch_dim,
-            **opt_config,
-        )
+        slimonnx.slim(temp_v22_path, temp_optimized_path, config=opt_config)
 
         # Load both models for comparison
         baseline_model = onnx.load(baseline_path)

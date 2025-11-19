@@ -19,8 +19,7 @@ import onnxruntime as ort
 # Add parent directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from slimonnx import SlimONNX
-from slim_kwargs import SLIM_KWARGS
+from slimonnx import SlimONNX, get_preset
 from utils import (
     find_all_onnx_files,
     find_benchmarks_folders,
@@ -140,8 +139,7 @@ def test_model_correctness(
     :return: Dictionary with test results
     """
     benchmark_name = get_benchmark_name(onnx_path)
-    opt_config = dict(SLIM_KWARGS[benchmark_name])
-    has_batch_dim = if_has_batch_dim(onnx_path)
+    config = get_preset(benchmark_name)
 
     # Load original model
     original_model = load_onnx_model(onnx_path)
@@ -171,24 +169,15 @@ def test_model_correctness(
 
         # Run optimization
         slimonnx = SlimONNX(verbose=verbose)
-        slimonnx.slim(
-            temp_v22_path,
-            temp_optimized_path,
-            has_batch_dim=has_batch_dim,
-            **opt_config,
-        )
+        slimonnx.slim(temp_v22_path, temp_optimized_path, config=config)
 
         # Load optimized model
         optimized_model = onnx.load(temp_optimized_path)
         optimized_node_count = len(optimized_model.graph.node)
         result["optimized_nodes"] = optimized_node_count
 
-        # Structural check: if no optimizations configured, node counts should match
-        if len(opt_config) == 0:
-            result["structural_match"] = original_node_count == optimized_node_count
-        else:
-            # With optimizations, we expect node count to stay same or decrease
-            result["structural_match"] = optimized_node_count <= original_node_count
+        # Structural check: we expect node count to stay same or decrease
+        result["structural_match"] = optimized_node_count <= original_node_count
 
         # Get test inputs
         test_inputs = None
