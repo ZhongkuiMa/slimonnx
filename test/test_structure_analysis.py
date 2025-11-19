@@ -13,15 +13,137 @@ from pathlib import Path
 
 # Add parent and rover_alpha directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
+
+import numpy as np
+import onnx
 
 from slimonnx import SlimONNX, OptimizationConfig
+from slimonnx.slimonnx.structure_analysis.topology import build_topology
 from utils import (
     find_all_onnx_files,
     find_benchmarks_folders,
     get_benchmark_name,
     if_has_batch_dim,
 )
+
+
+def calculate_topology_metrics(nodes: list) -> dict:
+    """Calculate topology complexity metrics from ONNX nodes.
+
+    :param nodes: List of ONNX NodeProto objects
+    :return: Dictionary of topology metrics
+    """
+    if not nodes:
+        return {
+            "avg_predecessors": 0.0,
+            "avg_successors": 0.0,
+            "max_fan_in": 0,
+            "max_fan_out": 0,
+        }
+
+    topology = build_topology(nodes)
+
+    predecessors_counts = [len(info["predecessors"]) for info in topology.values()]
+    successors_counts = [len(info["successors"]) for info in topology.values()]
+
+    return {
+        "avg_predecessors": (
+            np.mean(predecessors_counts) if predecessors_counts else 0.0
+        ),
+        "avg_successors": np.mean(successors_counts) if successors_counts else 0.0,
+        "max_fan_in": max(predecessors_counts) if predecessors_counts else 0,
+        "max_fan_out": max(successors_counts) if successors_counts else 0,
+    }
+
+
+def calculate_shape_coverage(
+    nodes: list, data_shapes: dict[str, list[int]] | None
+) -> dict:
+    """Calculate shape inference coverage metrics.
+
+    :param nodes: List of ONNX NodeProto objects
+    :param data_shapes: Dictionary mapping tensor names to shapes (or None)
+    :return: Dictionary of shape coverage metrics
+    """
+    if not nodes:
+        return {
+            "shape_coverage_pct": 0.0,
+            "nodes_with_shapes": 0,
+            "nodes_missing_shapes": 0,
+        }
+
+    if data_shapes is None:
+        return {
+            "shape_coverage_pct": 0.0,
+            "nodes_with_shapes": 0,
+            "nodes_missing_shapes": len(nodes),
+        }
+
+    nodes_with_shapes = 0
+    for node in nodes:
+        if node.output:
+            # Check if any output has a known shape
+            if any(out in data_shapes for out in node.output):
+                nodes_with_shapes += 1
+
+    nodes_missing_shapes = len(nodes) - nodes_with_shapes
+    coverage_pct = (nodes_with_shapes / len(nodes) * 100) if nodes else 0.0
+
+    return {
+        "shape_coverage_pct": coverage_pct,
+        "nodes_with_shapes": nodes_with_shapes,
+        "nodes_missing_shapes": nodes_missing_shapes,
+    }
+
+
+def calculate_parameter_metrics(initializers: dict[str, onnx.TensorProto]) -> dict:
+    """Calculate parameter count and memory metrics.
+
+    :param initializers: Dictionary of ONNX initializers
+    :return: Dictionary of parameter metrics
+    """
+    if not initializers:
+        return {
+            "total_parameters": 0,
+            "memory_mb": 0.0,
+            "largest_initializer_size": 0,
+        }
+
+    total_params = 0
+    total_bytes = 0
+    largest_size = 0
+
+    for tensor in initializers.values():
+        # Calculate number of elements
+        size = 1
+        for dim in tensor.dims:
+            size *= dim
+
+        total_params += size
+        largest_size = max(largest_size, size)
+
+        # Estimate bytes based on data type
+        # Most common: FLOAT (1) = 4 bytes, DOUBLE (11) = 8 bytes
+        if tensor.data_type == 1:  # FLOAT
+            total_bytes += size * 4
+        elif tensor.data_type == 11:  # DOUBLE
+            total_bytes += size * 8
+        elif tensor.data_type in {6, 7}:  # INT32, INT64
+            total_bytes += size * 4
+        else:
+            # Default to 4 bytes for other types
+            total_bytes += size * 4
+
+    memory_mb = total_bytes / (1024 * 1024)
+
+    return {
+        "total_parameters": total_params,
+        "memory_mb": memory_mb,
+        "largest_initializer_size": largest_size,
+    }
 
 
 def test_one_structure_analysis(
@@ -46,9 +168,22 @@ def test_one_structure_analysis(
 
         structure = analysis["structure"]
 
+        # Load model to get nodes and initializers for new metrics
+        model = onnx.load(onnx_path)
+        nodes = list(model.graph.node)
+        initializers = {init.name: init for init in model.graph.initializer}
+
+        # Calculate new metrics
+        topology_metrics = calculate_topology_metrics(nodes)
+        shape_metrics = calculate_shape_coverage(
+            nodes, analysis.get("structure", {}).get("data_shapes")
+        )
+        parameter_metrics = calculate_parameter_metrics(initializers)
+
         return {
             "success": True,
             "benchmark": benchmark_name,
+            # Basic structure metrics
             "node_count": structure["node_count"],
             "initializer_count": structure["initializer_count"],
             "num_inputs": structure["num_inputs"],
@@ -62,6 +197,17 @@ def test_one_structure_analysis(
                     reverse=True,
                 )[:5]
             ),
+            # Advanced metrics
+            "avg_predecessors": topology_metrics["avg_predecessors"],
+            "avg_successors": topology_metrics["avg_successors"],
+            "max_fan_in": topology_metrics["max_fan_in"],
+            "max_fan_out": topology_metrics["max_fan_out"],
+            "shape_coverage_pct": shape_metrics["shape_coverage_pct"],
+            "nodes_with_shapes": shape_metrics["nodes_with_shapes"],
+            "nodes_missing_shapes": shape_metrics["nodes_missing_shapes"],
+            "total_parameters": parameter_metrics["total_parameters"],
+            "memory_mb": parameter_metrics["memory_mb"],
+            "largest_initializer_size": parameter_metrics["largest_initializer_size"],
             "error": None,
         }
 
@@ -76,6 +222,16 @@ def test_one_structure_analysis(
             "has_shapes": False,
             "op_types": 0,
             "top_ops": {},
+            "avg_predecessors": 0.0,
+            "avg_successors": 0.0,
+            "max_fan_in": 0,
+            "max_fan_out": 0,
+            "shape_coverage_pct": 0.0,
+            "nodes_with_shapes": 0,
+            "nodes_missing_shapes": 0,
+            "total_parameters": 0,
+            "memory_mb": 0.0,
+            "largest_initializer_size": 0,
             "error": str(e),
         }
 
@@ -115,6 +271,11 @@ def test_all_structure_analysis(
             "total_nodes": 0,
             "total_initializers": 0,
             "has_shapes_count": 0,
+            "total_parameters": 0,
+            "total_memory_mb": 0.0,
+            "total_avg_predecessors": 0.0,
+            "total_avg_successors": 0.0,
+            "total_shape_coverage": 0.0,
             "errors": [],
         }
     )
@@ -134,6 +295,11 @@ def test_all_structure_analysis(
             stats["success"] += 1
             stats["total_nodes"] += result["node_count"]
             stats["total_initializers"] += result["initializer_count"]
+            stats["total_parameters"] += result["total_parameters"]
+            stats["total_memory_mb"] += result["memory_mb"]
+            stats["total_avg_predecessors"] += result["avg_predecessors"]
+            stats["total_avg_successors"] += result["avg_successors"]
+            stats["total_shape_coverage"] += result["shape_coverage_pct"]
             if result["has_shapes"]:
                 stats["has_shapes_count"] += 1
 
@@ -141,7 +307,9 @@ def test_all_structure_analysis(
                 f"{op}={count}" for op, count in list(result["top_ops"].items())[:3]
             )
             print(
-                f"OK ({result['node_count']} nodes, {result['op_types']} op types, top: {top_ops_str})"
+                f"OK ({result['node_count']} nodes, {result['op_types']} op types, "
+                f"{result['total_parameters']:,} params, {result['memory_mb']:.1f}MB, "
+                f"shape_cov={result['shape_coverage_pct']:.1f}%)"
             )
         else:
             stats["failed"] += 1
@@ -158,13 +326,26 @@ def test_all_structure_analysis(
 
     for benchmark in sorted(benchmark_stats.keys()):
         stats = benchmark_stats[benchmark]
-        avg_nodes = (
-            stats["total_nodes"] / stats["success"] if stats["success"] > 0 else 0
-        )
+        success_count = stats["success"]
+
+        avg_nodes = stats["total_nodes"] / success_count if success_count > 0 else 0
         avg_inits = (
-            stats["total_initializers"] / stats["success"]
-            if stats["success"] > 0
-            else 0
+            stats["total_initializers"] / success_count if success_count > 0 else 0
+        )
+        avg_params = (
+            stats["total_parameters"] / success_count if success_count > 0 else 0
+        )
+        avg_memory = (
+            stats["total_memory_mb"] / success_count if success_count > 0 else 0
+        )
+        avg_predecessors = (
+            stats["total_avg_predecessors"] / success_count if success_count > 0 else 0
+        )
+        avg_successors = (
+            stats["total_avg_successors"] / success_count if success_count > 0 else 0
+        )
+        avg_shape_cov = (
+            stats["total_shape_coverage"] / success_count if success_count > 0 else 0
         )
 
         print(f"\n{benchmark}:")
@@ -173,6 +354,12 @@ def test_all_structure_analysis(
         )
         print(f"  Avg nodes: {avg_nodes:.0f}")
         print(f"  Avg initializers: {avg_inits:.0f}")
+        print(f"  Avg parameters: {avg_params:,.0f}")
+        print(f"  Avg memory: {avg_memory:.1f} MB")
+        print(
+            f"  Avg topology - predecessors: {avg_predecessors:.2f}, successors: {avg_successors:.2f}"
+        )
+        print(f"  Avg shape coverage: {avg_shape_cov:.1f}%")
         print(f"  Has shapes: {stats['has_shapes_count']}/{stats['success']}")
 
         if stats["errors"]:
