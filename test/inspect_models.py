@@ -1,17 +1,57 @@
-"""Inspect ONNX models to collect metadata and diagnose issues.
-
-This module analyzes ONNX models to help diagnose why some models
-fail during processing (extract_inputs.py, cal_outputs.py).
-"""
+"""Inspect ONNX models to collect metadata and diagnose issues."""
 
 __docformat__ = "restructuredtext"
 __all__ = ["inspect_model", "inspect_all_models"]
 
-import os
 from pathlib import Path
 
-import numpy as np
 import onnx
+
+DTYPE_MAP = {
+    1: "float32",
+    2: "uint8",
+    3: "int8",
+    6: "int32",
+    7: "int64",
+    11: "float64",
+}
+
+
+def _get_tensor_shape(tensor_type) -> tuple[list[int], bool]:
+    """Extract shape and dynamic flag from tensor type.
+
+    :param tensor_type: ONNX tensor type
+    :return: Tuple of (shape list, has_dynamic flag)
+    """
+    shape = []
+    has_dynamic = False
+    for dim in tensor_type.shape.dim:
+        if dim.dim_value > 0:
+            shape.append(dim.dim_value)
+        else:
+            shape.append(-1)
+            has_dynamic = True
+    return shape, has_dynamic
+
+
+def _parse_instances_csv(csv_path: Path) -> set[str]:
+    """Parse instances.csv and return unique model paths.
+
+    :param csv_path: Path to instances.csv
+    :return: Set of unique model paths
+    """
+    unique_models = set()
+    try:
+        with open(csv_path) as f:
+            for line in f.readlines()[1:]:
+                line = line.strip()
+                if line:
+                    parts = line.split(",")
+                    if len(parts) >= 2:
+                        unique_models.add(parts[0].strip())
+    except Exception:
+        pass
+    return unique_models
 
 
 def inspect_model(onnx_path: str) -> dict | None:
@@ -23,43 +63,21 @@ def inspect_model(onnx_path: str) -> dict | None:
     try:
         model = onnx.load(onnx_path)
 
-        # Basic model info
         ir_version = model.ir_version
         opset_version = model.opset_import[0].version if model.opset_import else None
         producer_name = model.producer_name if model.producer_name else "Unknown"
 
-        # Input information
         inputs_info = []
         for inp in model.graph.input:
-            # Skip initializers
             if any(init.name == inp.name for init in model.graph.initializer):
                 continue
 
-            input_name = inp.name
+            shape, has_dynamic = _get_tensor_shape(inp.type.tensor_type)
+            dtype = DTYPE_MAP.get(
+                inp.type.tensor_type.elem_type,
+                f"unknown({inp.type.tensor_type.elem_type})",
+            )
 
-            # Extract shape
-            shape = []
-            has_dynamic = False
-            for dim in inp.type.tensor_type.shape.dim:
-                if dim.dim_value > 0:
-                    shape.append(dim.dim_value)
-                else:
-                    shape.append(-1)
-                    has_dynamic = True
-
-            # Extract dtype
-            dtype_int = inp.type.tensor_type.elem_type
-            dtype_map = {
-                1: "float32",
-                2: "uint8",
-                3: "int8",
-                6: "int32",
-                7: "int64",
-                11: "float64",
-            }
-            dtype = dtype_map.get(dtype_int, f"unknown({dtype_int})")
-
-            # Calculate total elements (excluding dynamic dims)
             total_elements = 1
             for dim in shape:
                 if dim > 0:
@@ -67,7 +85,7 @@ def inspect_model(onnx_path: str) -> dict | None:
 
             inputs_info.append(
                 {
-                    "name": input_name,
+                    "name": inp.name,
                     "shape": shape,
                     "dtype": dtype,
                     "has_dynamic": has_dynamic,
@@ -75,62 +93,29 @@ def inspect_model(onnx_path: str) -> dict | None:
                 }
             )
 
-        # Output information
         outputs_info = []
         for out in model.graph.output:
-            output_name = out.name
-
-            # Extract shape
-            shape = []
-            has_dynamic = False
-            for dim in out.type.tensor_type.shape.dim:
-                if dim.dim_value > 0:
-                    shape.append(dim.dim_value)
-                else:
-                    shape.append(-1)
-                    has_dynamic = True
-
-            # Extract dtype
-            dtype_int = out.type.tensor_type.elem_type
-            dtype_map = {
-                1: "float32",
-                2: "uint8",
-                3: "int8",
-                6: "int32",
-                7: "int64",
-                11: "float64",
-            }
-            dtype = dtype_map.get(dtype_int, f"unknown({dtype_int})")
+            shape, has_dynamic = _get_tensor_shape(out.type.tensor_type)
+            dtype = DTYPE_MAP.get(
+                out.type.tensor_type.elem_type,
+                f"unknown({out.type.tensor_type.elem_type})",
+            )
 
             outputs_info.append(
                 {
-                    "name": output_name,
+                    "name": out.name,
                     "shape": shape,
                     "dtype": dtype,
                     "has_dynamic": has_dynamic,
                 }
             )
 
-        # Graph information
-        node_count = len(model.graph.node)
-        initializer_count = len(model.graph.initializer)
+        op_types = {node.op_type for node in model.graph.node}
 
-        # Collect unique operator types
-        op_types = set(node.op_type for node in model.graph.node)
-
-        # Check initializer dtypes
-        initializer_dtypes = set()
-        for init in model.graph.initializer:
-            dtype_int = init.data_type
-            dtype_map = {
-                1: "float32",
-                2: "uint8",
-                3: "int8",
-                6: "int32",
-                7: "int64",
-                11: "float64",
-            }
-            initializer_dtypes.add(dtype_map.get(dtype_int, f"unknown({dtype_int})"))
+        initializer_dtypes = {
+            DTYPE_MAP.get(init.data_type, f"unknown({init.data_type})")
+            for init in model.graph.initializer
+        }
 
         return {
             "path": onnx_path,
@@ -139,8 +124,8 @@ def inspect_model(onnx_path: str) -> dict | None:
             "producer": producer_name,
             "inputs": inputs_info,
             "outputs": outputs_info,
-            "node_count": node_count,
-            "initializer_count": initializer_count,
+            "node_count": len(model.graph.node),
+            "initializer_count": len(model.graph.initializer),
             "op_types": sorted(op_types),
             "initializer_dtypes": sorted(initializer_dtypes),
         }
@@ -163,7 +148,6 @@ def inspect_all_models(
     if not benchmarks_path.exists():
         raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_dir}")
 
-    # Find all benchmark directories
     benchmark_dirs = sorted([d for d in benchmarks_path.iterdir() if d.is_dir()])
 
     if not benchmark_dirs:
@@ -175,8 +159,6 @@ def inspect_all_models(
 
     total_inspected = 0
     total_failed = 0
-
-    # Track issues
     high_ir_version = []
     high_opset_version = []
     dynamic_shapes = []
@@ -185,40 +167,22 @@ def inspect_all_models(
     for benchmark_dir in benchmark_dirs:
         benchmark_name = benchmark_dir.name
 
-        # Skip hidden directories
         if benchmark_name.startswith("."):
             continue
 
-        # Check for instances.csv
         instances_csv = benchmark_dir / "instances.csv"
         if not instances_csv.exists():
             continue
 
-        # Get unique ONNX models
-        unique_models = set()
-        try:
-            with open(instances_csv) as f:
-                lines = f.readlines()
-                for line in lines[1:]:
-                    line = line.strip()
-                    if not line:
-                        continue
-                    parts = line.split(",")
-                    if len(parts) >= 2:
-                        model_path = parts[0].strip()
-                        unique_models.add(model_path)
-        except Exception:
-            continue
-
+        unique_models = _parse_instances_csv(instances_csv)
         if not unique_models:
             continue
 
-        # Limit number of models
-        unique_models = sorted(unique_models)[:max_per_benchmark]
+        unique_models_list = sorted(unique_models)[:max_per_benchmark]
 
-        print(f"\n[{benchmark_name}] Inspecting {len(unique_models)} models...")
+        print(f"\n[{benchmark_name}] Inspecting {len(unique_models_list)} models...")
 
-        for model_rel_path in unique_models:
+        for model_rel_path in unique_models_list:
             model_path = benchmark_dir / model_rel_path
             model_name = Path(model_rel_path).stem
 
@@ -234,7 +198,6 @@ def inspect_all_models(
 
             total_inspected += 1
 
-            # Print model info
             print(f"\n  {model_name}:")
             print(f"    IR version: {info['ir_version']}")
             print(f"    Opset version: {info['opset_version']}")
@@ -243,19 +206,16 @@ def inspect_all_models(
                 f"    Nodes: {info['node_count']}, Initializers: {info['initializer_count']}"
             )
 
-            # Print inputs
             for inp in info["inputs"]:
                 shape_str = str(inp["shape"]).replace("-1", "dynamic")
                 print(f"    Input '{inp['name']}': {shape_str} {inp['dtype']}")
                 if inp["has_dynamic"]:
                     dynamic_shapes.append(f"{benchmark_name}/{model_name}")
 
-            # Print outputs
             for out in info["outputs"]:
                 shape_str = str(out["shape"]).replace("-1", "dynamic")
                 print(f"    Output '{out['name']}': {shape_str} {out['dtype']}")
 
-            # Track potential issues
             if info["ir_version"] > 10:
                 high_ir_version.append(
                     f"{benchmark_name}/{model_name} (IR {info['ir_version']})"
@@ -269,7 +229,6 @@ def inspect_all_models(
             if "float64" in info["initializer_dtypes"]:
                 float64_models.append(f"{benchmark_name}/{model_name}")
 
-    # Print summary
     print("\n" + "=" * 80)
     print(f"Total models inspected: {total_inspected}")
     print(f"Total failed: {total_failed}")
