@@ -26,6 +26,8 @@ __all__ = [
     "compare_baseline",
     "create_all_baselines",
     "verify_all_baselines",
+    "extract_benchmark_io_data",
+    "compare_with_benchmark_data",
 ]
 
 import os
@@ -442,6 +444,121 @@ def verify_all_baselines(
     print(f"Total time: {total_time:.2f}s")
 
     return len(failed) == 0
+
+
+def extract_benchmark_io_data(
+    onnx_path: str,
+    benchmark_dir: str,
+    num_samples: int = 5,
+) -> tuple[list[dict[str, np.ndarray]], list[dict[str, np.ndarray]]]:
+    """Extract input-output pairs from benchmark data.
+
+    :param onnx_path: Path to ONNX model in benchmark
+    :param benchmark_dir: Root benchmark directory
+    :param num_samples: Number of I/O samples to extract
+    :return: Tuple of (inputs, expected_outputs)
+    """
+    from pathlib import Path
+
+    # Try to find VNNLib file with same base name
+    model_name = Path(onnx_path).stem
+    vnnlib_candidates = list(Path(benchmark_dir).rglob(f"{model_name}*.vnnlib"))
+
+    if not vnnlib_candidates:
+        # Try finding any vnnlib file in the benchmark
+        vnnlib_candidates = list(Path(benchmark_dir).rglob("*.vnnlib"))
+
+    # Try to extract bounds from VNNLib
+    input_bounds = None
+    if vnnlib_candidates:
+        try:
+            # Try to parse first VNNLib file for input bounds
+            from utils import parse_vnnlib_input_bounds
+
+            input_bounds = parse_vnnlib_input_bounds(str(vnnlib_candidates[0]))
+        except Exception:
+            pass
+
+    # Load original model
+    model = onnx.load(onnx_path)
+
+    # Generate inputs
+    if input_bounds is not None:
+        # Use bounds from VNNLib
+        from slimonnx.model_validate import generate_inputs_from_bounds
+
+        input_shape = tuple(
+            d.dim_value for d in model.graph.input[0].type.tensor_type.shape.dim
+        )
+        inputs = generate_inputs_from_bounds(input_bounds, input_shape, num_samples)
+    else:
+        # Generate random inputs
+        inputs = generate_random_inputs(model, num_samples)
+
+    # Run original model to get expected outputs
+    expected_outputs = []
+    for inp in inputs:
+        outputs = run_onnx_model(onnx_path, inp)
+        expected_outputs.append(outputs)
+
+    return inputs, expected_outputs
+
+
+def compare_with_benchmark_data(
+    optimized_model_path: str,
+    benchmark_onnx_path: str,
+    benchmark_dir: str,
+    num_samples: int = 5,
+    rtol: float = 1e-5,
+    atol: float = 1e-6,
+) -> dict:
+    """Compare optimized model outputs with benchmark ground truth.
+
+    :param optimized_model_path: Path to optimized model (from baselines/)
+    :param benchmark_onnx_path: Path to original model (from benchmarks/)
+    :param benchmark_dir: Root directory of benchmark
+    :param num_samples: Number of test samples
+    :param rtol: Relative tolerance
+    :param atol: Absolute tolerance
+    :return: Comparison report
+    """
+    # Extract I/O data from benchmark
+    test_inputs, expected_outputs = extract_benchmark_io_data(
+        benchmark_onnx_path, benchmark_dir, num_samples
+    )
+
+    # Run optimized model
+    actual_outputs = []
+    for inp in test_inputs:
+        outputs = run_onnx_model(optimized_model_path, inp)
+        actual_outputs.append(outputs)
+
+    # Compare outputs
+    passed = 0
+    failed = 0
+    max_diff = 0.0
+    mismatches = []
+
+    for i, (expected, actual) in enumerate(zip(expected_outputs, actual_outputs)):
+        match, diffs = compare_outputs(expected, actual, rtol, atol)
+
+        if match:
+            passed += 1
+        else:
+            failed += 1
+            for diff in diffs:
+                if "max_diff" in diff:
+                    max_diff = max(max_diff, diff["max_diff"])
+            mismatches.append(f"Test {i}: {[d['message'] for d in diffs]}")
+
+    return {
+        "all_match": failed == 0,
+        "num_tests": len(test_inputs),
+        "passed": passed,
+        "failed": failed,
+        "max_diff": max_diff,
+        "mismatches": mismatches,
+    }
 
 
 if __name__ == "__main__":

@@ -1,6 +1,5 @@
 __docformat__ = "restructuredtext"
 __all__ = [
-    "VERBOSE",
     "EXTRACT_ATTR_MAP",
     "reformat_io_shape",
     "clear_onnx_docstring",
@@ -8,12 +7,13 @@ __all__ = [
     "get_output_nodes",
     "get_initializers",
     "get_next_nodes_mapping",
+    "generate_random_inputs",
+    "compare_outputs",
 ]
 
+import numpy as np
 import onnx
 from onnx import ModelProto, ValueInfoProto, NodeProto, TensorProto
-
-VERBOSE = False
 
 EXTRACT_ATTR_MAP = {
     0: lambda x: None,  # UNDEFINED
@@ -31,8 +31,13 @@ EXTRACT_ATTR_MAP = {
 }
 
 
-def clear_onnx_docstring(model: ModelProto):
-    if VERBOSE:
+def clear_onnx_docstring(model: ModelProto, verbose: bool = False):
+    """Clear all doc strings from ONNX model nodes.
+
+    :param model: ONNX model
+    :param verbose: Whether to print progress messages
+    """
+    if verbose:
         print("Clear ONNX doc strings...")
     for node in model.graph.node:
         node.doc_string = ""
@@ -53,15 +58,26 @@ def reformat_io_shape(node: ValueInfoProto, has_batch_dim: bool = True) -> list[
 
 
 def get_input_nodes(
-    model: ModelProto, initializers: dict[str, TensorProto], has_batch_dim: bool = True
+    model: ModelProto,
+    initializers: dict[str, TensorProto],
+    has_batch_dim: bool = True,
+    verbose: bool = False,
 ) -> list[ValueInfoProto]:
+    """Get input nodes from ONNX model.
+
+    :param model: ONNX model
+    :param initializers: Dictionary of initializers
+    :param has_batch_dim: Whether the model has batch dimension
+    :param verbose: Whether to print progress messages
+    :return: List of input nodes
+    """
     # Exclude initializers from inputs because sometimes the initializers are also
     # included in the inputs
     nodes = []
     for input_i in model.graph.input:
         if input_i.name not in initializers:
             shape = reformat_io_shape(input_i, has_batch_dim)
-            if VERBOSE:
+            if verbose:
                 print(f"Get input node {input_i.name} with shape {shape}.")
             node = onnx.helper.make_tensor_value_info(
                 name=input_i.name,
@@ -74,12 +90,19 @@ def get_input_nodes(
 
 
 def get_output_nodes(
-    model: ModelProto, has_batch_dim: bool = True
+    model: ModelProto, has_batch_dim: bool = True, verbose: bool = False
 ) -> list[ValueInfoProto]:
+    """Get output nodes from ONNX model.
+
+    :param model: ONNX model
+    :param has_batch_dim: Whether the model has batch dimension
+    :param verbose: Whether to print progress messages
+    :return: List of output nodes
+    """
     nodes = []
     for output_i in model.graph.output:
         shape = reformat_io_shape(output_i, has_batch_dim)
-        if VERBOSE:
+        if verbose:
             print(f"Get output node {output_i.name} with shape {shape}.")
         node = onnx.helper.make_tensor_value_info(
             name=output_i.name,
@@ -91,11 +114,19 @@ def get_output_nodes(
     return nodes
 
 
-def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
+def get_initializers(
+    model: ModelProto, verbose: bool = False
+) -> dict[str, TensorProto]:
+    """Get initializers from ONNX model.
+
+    :param model: ONNX model
+    :param verbose: Whether to print progress messages
+    :return: Dictionary of initializers
+    """
     initializers = {
         initializer.name: initializer for initializer in model.graph.initializer
     }
-    if VERBOSE:
+    if verbose:
         print(f"Get {len(initializers)} initializers.")
     return initializers
 
@@ -124,3 +155,129 @@ def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
                 )
 
     return next_nodes_mapping
+
+
+def generate_random_inputs(
+    model: ModelProto,
+    num_samples: int = 1,
+) -> list[dict[str, np.ndarray]]:
+    """Generate random inputs matching model signature.
+
+    :param model: ONNX model
+    :param num_samples: Number of input samples to generate
+    :return: List of input dictionaries
+    """
+    inputs_list = []
+
+    for _ in range(num_samples):
+        input_dict = {}
+        for input_info in model.graph.input:
+            # Skip if this is an initializer (not a true input)
+            initializer_names = {init.name for init in model.graph.initializer}
+            if input_info.name in initializer_names:
+                continue
+
+            # Get shape
+            shape = tuple(
+                d.dim_value if d.HasField("dim_value") else 1
+                for d in input_info.type.tensor_type.shape.dim
+            )
+
+            # Get dtype
+            dtype_map = {
+                1: np.float32,  # FLOAT
+                2: np.uint8,  # UINT8
+                3: np.int8,  # INT8
+                6: np.int32,  # INT32
+                7: np.int64,  # INT64
+                10: np.float16,  # FLOAT16
+                11: np.float64,  # DOUBLE
+            }
+            elem_type = input_info.type.tensor_type.elem_type
+            dtype = dtype_map.get(elem_type, np.float32)
+
+            # Generate random input
+            if dtype in (np.float32, np.float64, np.float16):
+                input_array = np.random.randn(*shape).astype(dtype)
+            else:
+                input_array = np.random.randint(0, 10, size=shape).astype(dtype)
+
+            input_dict[input_info.name] = input_array
+
+        inputs_list.append(input_dict)
+
+    return inputs_list
+
+
+def compare_outputs(
+    outputs1: dict[str, np.ndarray],
+    outputs2: dict[str, np.ndarray],
+    rtol: float = 1e-5,
+    atol: float = 1e-6,
+) -> tuple[bool, list[dict]]:
+    """Compare two output dictionaries.
+
+    :param outputs1: First output dictionary
+    :param outputs2: Second output dictionary
+    :param rtol: Relative tolerance for comparison
+    :param atol: Absolute tolerance for comparison
+    :return: Tuple of (all_match, mismatch_details)
+    """
+    mismatches = []
+
+    # Check if all keys match
+    keys1 = set(outputs1.keys())
+    keys2 = set(outputs2.keys())
+
+    if keys1 != keys2:
+        missing_in_2 = keys1 - keys2
+        missing_in_1 = keys2 - keys1
+        if missing_in_2:
+            mismatches.append(
+                {
+                    "type": "missing_key",
+                    "message": f"Keys missing in outputs2: {missing_in_2}",
+                }
+            )
+        if missing_in_1:
+            mismatches.append(
+                {
+                    "type": "missing_key",
+                    "message": f"Keys missing in outputs1: {missing_in_1}",
+                }
+            )
+        return False, mismatches
+
+    # Compare each output
+    for key in outputs1.keys():
+        out1 = outputs1[key]
+        out2 = outputs2[key]
+
+        # Check shape match
+        if out1.shape != out2.shape:
+            mismatches.append(
+                {
+                    "key": key,
+                    "type": "shape_mismatch",
+                    "shape1": out1.shape,
+                    "shape2": out2.shape,
+                    "message": f"Shape mismatch for '{key}': {out1.shape} vs {out2.shape}",
+                }
+            )
+            continue
+
+        # Check numerical match
+        if not np.allclose(out1, out2, rtol=rtol, atol=atol):
+            max_diff = np.max(np.abs(out1 - out2))
+            mismatches.append(
+                {
+                    "key": key,
+                    "type": "value_mismatch",
+                    "max_diff": float(max_diff),
+                    "rtol": rtol,
+                    "atol": atol,
+                    "message": f"Values differ for '{key}': max_diff={max_diff:.2e}",
+                }
+            )
+
+    return len(mismatches) == 0, mismatches

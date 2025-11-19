@@ -1,11 +1,9 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_remove_redundant_operations"]
 
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto, ValueInfoProto
-
-from .. import utils
 
 
 def _remove_redundant_operations(
@@ -13,6 +11,7 @@ def _remove_redundant_operations(
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, list[int]],
     output_nodes: list[ValueInfoProto],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Remove zero adding, subtracting, multiplying, dividing operations.
@@ -31,9 +30,14 @@ def _remove_redundant_operations(
             and node.op_type == "Reshape"
             and pre_node.op_type == "Reshape"
         ):
-            assert len(pre_node.input) == 2
-            assert len(pre_node.output) == 1
-            assert len(node.input) == 2
+            if (
+                len(pre_node.input) != 2
+                or len(pre_node.output) != 1
+                or len(node.input) != 2
+            ):
+                raise ValueError(
+                    f"Invalid Reshape node structure: {pre_node.name} inputs={len(pre_node.input)}, outputs={len(pre_node.output)}, {node.name} inputs={len(node.input)}. Expected 2 inputs and 1 output."
+                )
             for i, output_name in enumerate(pre_pre_node.output):
                 if output_name == pre_node.input[0]:
                     node.input[0] = output_name
@@ -106,7 +110,7 @@ def _remove_redundant_operations(
 
         new_nodes.append(node)
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Remove {count} redundant operations.")
 
     return new_nodes

@@ -1,16 +1,17 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_fuse_gemm_gemm"]
 
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
-from ._utils import *
+
+from ._utils import _get_gemm_params
 
 
 def _fuse_gemm_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     # Get all gemm nodes
     # Remove those gemm nodes that has multiple pre/post nodes
@@ -44,7 +45,10 @@ def _fuse_gemm_gemm(
 
         node = chosen_gemm_nodes[i]
         i += 1
-        assert node.input[1] in initializers
+        if node.input[1] not in initializers:
+            raise ValueError(
+                f"Gemm node {node.name} weight input {node.input[1]} not found in initializers."
+            )
 
         group.append(node)
         if node.input[0] in chosen_gemm_output_names:
@@ -83,13 +87,25 @@ def _fuse_gemm_gemm(
         all_weights = []
         all_biases = []
         for gemm_node in group:
-            assert gemm_node.input[1] in initializers
-            assert gemm_node.input[2] in initializers
+            if gemm_node.input[1] not in initializers:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} weight input {gemm_node.input[1]} not found in initializers."
+                )
+            if gemm_node.input[2] not in initializers:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} bias input {gemm_node.input[2]} not found in initializers."
+                )
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
-            assert alpha == beta == 1
-            assert transA == transB == 0
+            if alpha != 1 or beta != 1:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} has unsupported alpha={alpha} or beta={beta}. Only alpha=beta=1 is supported for fusion."
+                )
+            if transA != 0 or transB != 0:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} has unsupported transA={transA} or transB={transB}. Only transA=transB=0 is supported for fusion."
+                )
             all_weights.append(weight)
             all_biases.append(bias)
 
@@ -121,7 +137,7 @@ def _fuse_gemm_gemm(
 
         new_nodes.append(new_gemm_node)
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {len(fused_gemm_groups)} Gemm-Gemm groups.")
 
     return new_nodes

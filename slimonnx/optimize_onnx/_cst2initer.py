@@ -1,15 +1,13 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_constant_to_initializer"]
 
 
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
-
 
 def _constant_to_initializer(
-    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+    nodes: list[NodeProto], initializers: dict[str, TensorProto], verbose: bool = False
 ) -> list[NodeProto]:
     count = 0
 
@@ -25,7 +23,7 @@ def _constant_to_initializer(
 
         new_nodes.append(node)
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Convert {count} constant nodes to initializers.")
 
     return new_nodes

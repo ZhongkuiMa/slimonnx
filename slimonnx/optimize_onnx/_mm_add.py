@@ -1,15 +1,14 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_fuse_matmul_add"]
 
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
-from ._utils import *
+from ._utils import _is_only_next_node
 
 
 def _fuse_matmul_add(
-    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+    nodes: list[NodeProto], initializers: dict[str, TensorProto], verbose: bool = False
 ) -> list[NodeProto]:
     """
     Fuse a MatMul and an Add node into a single Gemm node.
@@ -64,7 +63,7 @@ def _fuse_matmul_add(
         new_nodes.append(new_node)
         pre_node = node
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {count} MatMul-Add nodes.")
 
     return new_nodes

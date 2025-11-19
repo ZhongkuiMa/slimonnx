@@ -1,18 +1,24 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_fuse_conv_bn_or_bn_conv", "_fuse_convtranspose_bn_or_bn_convtranspose"]
 
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
-from ._utils import *
+from ._utils import (
+    _is_only_next_node,
+    _get_batchnorm_params,
+    _get_conv_params,
+    _get_convtranspose_params,
+    compute_batchnorm_fusion_params,
+)
 
 
 def _fuse_conv_bn_or_bn_conv(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     is_conv_bn: bool = True,
+    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
 
@@ -51,8 +57,9 @@ def _fuse_conv_bn_or_bn_conv(
         )
         weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
 
-        bn_weight = scale / np.sqrt(var + epsilon)
-        bn_bias = b - mean * bn_weight
+        bn_weight, bn_bias = compute_batchnorm_fusion_params(
+            epsilon, scale, b, mean, var
+        )
 
         # If the bias is None, we have create a zero tensor in the above functions.
         if is_conv_bn:
@@ -98,7 +105,7 @@ def _fuse_conv_bn_or_bn_conv(
         new_nodes.append(new_node)
         pre_node = node
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {count} Conv-BN or BN-Conv.")
 
     return new_nodes
@@ -108,6 +115,7 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     is_convtranspose_bn: bool = True,
+    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
 
@@ -152,8 +160,9 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
         )
         weight, bias, attrs = _get_convtranspose_params(conv_node, initializers, True)
 
-        bn_weight = scale / np.sqrt(var + epsilon)
-        bn_bias = b - mean * bn_weight
+        bn_weight, bn_bias = compute_batchnorm_fusion_params(
+            epsilon, scale, b, mean, var
+        )
 
         if is_convtranspose_bn:
             new_weight = weight * bn_weight.reshape(1, -1, 1, 1)
@@ -201,7 +210,7 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
         new_nodes.append(new_node)
         pre_node = node
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {count} ConvTranspose-BN.")
 
     return new_nodes

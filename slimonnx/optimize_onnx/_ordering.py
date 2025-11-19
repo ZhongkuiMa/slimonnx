@@ -1,4 +1,4 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_reorder_by_strict_topological_order"]
 
 from onnx import NodeProto
@@ -32,8 +32,9 @@ def _reorder_by_strict_topological_order(nodes: list[NodeProto]) -> list[NodePro
     name_node_mapping = {node.name: node for node in nodes}
     new_nodes = [name_node_mapping[node_name] for node_name in stack]
 
-    assert len(nodes) == len(
-        new_nodes
-    ), "The number of nodes should be the same after reordering."
+    if len(nodes) != len(new_nodes):
+        raise RuntimeError(
+            f"Node count mismatch after topological ordering: original={len(nodes)}, reordered={len(new_nodes)}."
+        )
 
     return new_nodes

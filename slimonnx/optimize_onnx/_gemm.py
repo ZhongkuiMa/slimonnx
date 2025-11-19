@@ -4,13 +4,13 @@ __all__ = ["_simplify_gemm"]
 import onnx.numpy_helper
 from onnx import NodeProto, TensorProto
 
-from .. import utils
 from ..onnx_attrs import get_onnx_attrs
 
 
 def _simplify_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
     new_nodes = []
@@ -111,7 +111,7 @@ def _simplify_gemm(
         if name not in all_input_names:
             del initializers[name]
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Simplify {count} Gemm nodes.")
 
     return nodes

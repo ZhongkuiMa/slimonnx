@@ -77,3 +77,4 @@ Thumbs.db
 /test/benchmarks
 /test/inputs/
 /test/baselines/
+/test/results/
