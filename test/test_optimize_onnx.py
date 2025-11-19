@@ -16,18 +16,11 @@ from pathlib import Path
 
 import onnx
 
-# Add parent and rover_alpha directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-
 from slimonnx import SlimONNX, get_preset
 from utils import (
     find_all_onnx_files,
     find_benchmarks_folders,
     get_benchmark_name,
-    if_has_batch_dim,
     load_onnx_model,
 )
 

@@ -11,8 +11,6 @@ import onnx
 import onnxruntime as ort
 import torch
 
-from utils import get_benchmark_name
-
 
 def _parse_model_vnnlib_mapping(csv_path: Path, onnx_rel_path: str) -> list[str] | None:
     """Parse instances.csv and return VNNLib names for a model.

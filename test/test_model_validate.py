@@ -11,10 +11,6 @@ import sys
 from collections import defaultdict
 from pathlib import Path
 
-# Add parent and rover_alpha directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
-
 from slimonnx import SlimONNX, OptimizationConfig
 from utils import (
     find_all_onnx_files,

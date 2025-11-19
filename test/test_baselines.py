@@ -31,16 +31,11 @@ __all__ = [
 ]
 
 import os
-import sys
 import time
-from pathlib import Path
 
 import numpy as np
 import onnx
 import onnxruntime as ort
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 from slimonnx import SlimONNX, get_preset
 from utils import (

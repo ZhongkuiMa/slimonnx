@@ -11,12 +11,6 @@ import os
 import sys
 import warnings
 
-# Add parent and rover_alpha directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-
 from slimonnx import SlimONNX, RECOMMENDED_OPSET, MAX_TESTED_OPSET
 
 
