@@ -86,7 +86,7 @@ def optimize_onnx(
     """
     graph_name = model.graph.name + "_slimmed"
 
-    clear_onnx_docstring(model, verbose)
+    model = clear_onnx_docstring(model)
 
     # TODO: Here, we can use extract_nodes()
     initializers = get_initializers(model, verbose)
@@ -95,7 +95,15 @@ def optimize_onnx(
 
     nodes = list(model.graph.node)
 
-    nodes = _constant_to_initializer(nodes, initializers, verbose)
+    if constant_to_initializer:
+        nodes = _constant_to_initializer(nodes, initializers, verbose)
+
+    # Update model with converted constants before any shape inference
+    if constant_to_initializer:
+        model.graph.ClearField("node")
+        model.graph.node.extend(nodes)
+        model.graph.ClearField("initializer")
+        model.graph.initializer.extend(list(initializers.values()))
 
     if remove_dropout:
         if verbose:

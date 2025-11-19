@@ -18,7 +18,9 @@ import onnx
 
 # Add parent and rover_alpha directory to path for imports
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+sys.path.insert(
+    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+)
 
 from slimonnx import SlimONNX, get_preset
 from utils import (
@@ -28,6 +30,36 @@ from utils import (
     if_has_batch_dim,
     load_onnx_model,
 )
+
+
+def calculate_model_parameters(model: onnx.ModelProto) -> tuple[int, float]:
+    """Calculate total parameters and memory usage of an ONNX model.
+
+    :param model: ONNX model
+    :return: Tuple of (total_parameters, memory_mb)
+    """
+    total_params = 0
+    total_bytes = 0
+
+    for tensor in model.graph.initializer:
+        size = 1
+        for dim in tensor.dims:
+            size *= dim
+
+        total_params += size
+
+        # Estimate bytes based on data type
+        if tensor.data_type == 1:  # FLOAT
+            total_bytes += size * 4
+        elif tensor.data_type == 11:  # DOUBLE
+            total_bytes += size * 8
+        elif tensor.data_type in {6, 7}:  # INT32, INT64
+            total_bytes += size * 4
+        else:
+            total_bytes += size * 4
+
+    memory_mb = total_bytes / (1024 * 1024)
+    return total_params, memory_mb
 
 
 def test_one_optimize(
@@ -45,9 +77,10 @@ def test_one_optimize(
     benchmark_name = get_benchmark_name(onnx_path)
     config = get_preset(benchmark_name)
 
-    # Load original model to get node count
+    # Load original model to get metrics
     original_model = load_onnx_model(onnx_path)
     original_node_count = len(original_model.graph.node)
+    original_params, original_memory = calculate_model_parameters(original_model)
 
     # Create temp paths
     temp_v22_path = onnx_path.replace(".onnx", "_temp_v22.onnx")
@@ -57,9 +90,13 @@ def test_one_optimize(
         # Save as v22
         onnx.save(original_model, temp_v22_path)
 
+        # Detect patterns before optimization
+        slimonnx = SlimONNX(verbose=verbose)
+        patterns_before = slimonnx.detect_patterns(temp_v22_path, config=config)
+        total_patterns = sum(p["count"] for p in patterns_before.values())
+
         # Run optimization
         start_time = time.perf_counter()
-        slimonnx = SlimONNX(verbose=verbose)
         slimonnx.slim(
             temp_v22_path,
             temp_optimized_path,
@@ -67,21 +104,25 @@ def test_one_optimize(
         )
         elapsed_time = time.perf_counter() - start_time
 
-        # Load optimized model to get node count
+        # Load optimized model to get metrics
         optimized_model = onnx.load(temp_optimized_path)
         optimized_node_count = len(optimized_model.graph.node)
+        optimized_params, optimized_memory = calculate_model_parameters(optimized_model)
 
-        reduction = original_node_count - optimized_node_count
-        reduction_pct = (
-            (reduction / original_node_count * 100) if original_node_count > 0 else 0
+        node_reduction = original_node_count - optimized_node_count
+        node_reduction_pct = (
+            (node_reduction / original_node_count * 100)
+            if original_node_count > 0
+            else 0
         )
 
+        param_reduction = original_params - optimized_params
+        memory_reduction = original_memory - optimized_memory
+
         # Save optimized model to results folder
-        # Create results subdirectory: results/benchmark_name/
         result_subdir = Path(results_dir) / benchmark_name
         result_subdir.mkdir(parents=True, exist_ok=True)
 
-        # Save with same filename: results/acasxu_2023/model1.onnx
         model_filename = Path(onnx_path).name
         output_path = result_subdir / model_filename
         shutil.copy(temp_optimized_path, output_path)
@@ -93,8 +134,16 @@ def test_one_optimize(
             "time": elapsed_time,
             "original_nodes": original_node_count,
             "optimized_nodes": optimized_node_count,
-            "reduction": reduction,
-            "reduction_pct": reduction_pct,
+            "node_reduction": node_reduction,
+            "node_reduction_pct": node_reduction_pct,
+            "original_params": original_params,
+            "optimized_params": optimized_params,
+            "param_reduction": param_reduction,
+            "original_memory": original_memory,
+            "optimized_memory": optimized_memory,
+            "memory_reduction": memory_reduction,
+            "patterns_detected": total_patterns,
+            "patterns_detail": patterns_before,
             "error": None,
             "saved_path": saved_path,
         }
@@ -106,8 +155,16 @@ def test_one_optimize(
             "time": 0.0,
             "original_nodes": original_node_count,
             "optimized_nodes": 0,
-            "reduction": 0,
-            "reduction_pct": 0.0,
+            "node_reduction": 0,
+            "node_reduction_pct": 0.0,
+            "original_params": original_params,
+            "optimized_params": 0,
+            "param_reduction": 0,
+            "original_memory": original_memory,
+            "optimized_memory": 0.0,
+            "memory_reduction": 0.0,
+            "patterns_detected": 0,
+            "patterns_detail": {},
             "error": str(e),
             "saved_path": None,
         }
@@ -153,9 +210,17 @@ def test_all_optimize(
             "success": 0,
             "failed": 0,
             "total_time": 0.0,
-            "total_reduction": 0,
+            "total_node_reduction": 0,
             "total_original_nodes": 0,
             "total_optimized_nodes": 0,
+            "total_param_reduction": 0,
+            "total_original_params": 0,
+            "total_optimized_params": 0,
+            "total_memory_reduction": 0.0,
+            "total_original_memory": 0.0,
+            "total_optimized_memory": 0.0,
+            "total_patterns": 0,
+            "pattern_counts": defaultdict(int),
             "errors": [],
         }
     )
@@ -180,14 +245,25 @@ def test_all_optimize(
         if result["success"]:
             stats["success"] += 1
             stats["total_time"] += result["time"]
-            stats["total_reduction"] += result["reduction"]
+            stats["total_node_reduction"] += result["node_reduction"]
             stats["total_original_nodes"] += result["original_nodes"]
             stats["total_optimized_nodes"] += result["optimized_nodes"]
+            stats["total_param_reduction"] += result["param_reduction"]
+            stats["total_original_params"] += result["original_params"]
+            stats["total_optimized_params"] += result["optimized_params"]
+            stats["total_memory_reduction"] += result["memory_reduction"]
+            stats["total_original_memory"] += result["original_memory"]
+            stats["total_optimized_memory"] += result["optimized_memory"]
+            stats["total_patterns"] += result["patterns_detected"]
 
-            saved_info = f" → {result['saved_path']}" if result["saved_path"] else ""
+            # Track individual pattern counts
+            for pattern_name, pattern_info in result["patterns_detail"].items():
+                stats["pattern_counts"][pattern_name] += pattern_info["count"]
+
             print(
                 f"OK ({result['time']:.2f}s, {result['original_nodes']}->{result['optimized_nodes']} nodes, "
-                f"{result['reduction_pct']:.1f}% reduction{saved_info})"
+                f"{result['node_reduction_pct']:.1f}% reduction, {result['patterns_detected']} patterns, "
+                f"{result['original_memory']:.1f}->{result['optimized_memory']:.1f}MB)"
             )
         else:
             stats["failed"] += 1
@@ -206,11 +282,24 @@ def test_all_optimize(
 
     for benchmark in sorted(benchmark_stats.keys()):
         stats = benchmark_stats[benchmark]
-        avg_time = stats["total_time"] / stats["success"] if stats["success"] > 0 else 0
-        avg_reduction_pct = (
-            (stats["total_reduction"] / stats["total_original_nodes"] * 100)
+        success_count = stats["success"]
+
+        avg_time = stats["total_time"] / success_count if success_count > 0 else 0
+        avg_node_reduction_pct = (
+            (stats["total_node_reduction"] / stats["total_original_nodes"] * 100)
             if stats["total_original_nodes"] > 0
             else 0
+        )
+        avg_param_reduction_pct = (
+            (stats["total_param_reduction"] / stats["total_original_params"] * 100)
+            if stats["total_original_params"] > 0
+            else 0
+        )
+        avg_memory_reduction = (
+            stats["total_memory_reduction"] / success_count if success_count > 0 else 0
+        )
+        avg_patterns = (
+            stats["total_patterns"] / success_count if success_count > 0 else 0
         )
 
         print(f"\n{benchmark}:")
@@ -219,12 +308,29 @@ def test_all_optimize(
         )
         print(f"  Avg time: {avg_time:.2f}s")
         print(
-            f"  Total nodes: {stats['total_original_nodes']} -> {stats['total_optimized_nodes']}"
+            f"  Nodes: {stats['total_original_nodes']} -> {stats['total_optimized_nodes']} "
+            f"({avg_node_reduction_pct:.1f}% reduction)"
         )
-        print(f"  Avg reduction: {avg_reduction_pct:.1f}%")
+        print(
+            f"  Params: {stats['total_original_params']:,} -> {stats['total_optimized_params']:,} "
+            f"({avg_param_reduction_pct:.1f}% reduction)"
+        )
+        print(
+            f"  Memory: {stats['total_original_memory']:.1f} -> {stats['total_optimized_memory']:.1f} MB "
+            f"({avg_memory_reduction:.1f} MB avg reduction)"
+        )
+        print(f"  Avg patterns detected: {avg_patterns:.1f}")
+
+        # Show top patterns if any
+        if stats["pattern_counts"]:
+            top_patterns = sorted(
+                stats["pattern_counts"].items(), key=lambda x: x[1], reverse=True
+            )[:5]
+            pattern_str = ", ".join(f"{p}={c}" for p, c in top_patterns)
+            print(f"  Top patterns: {pattern_str}")
 
         if stats["errors"]:
-            print(f"  Errors:")
+            print("  Errors:")
             for basename, error in stats["errors"]:
                 print(f"    {basename}: {error}")
 
