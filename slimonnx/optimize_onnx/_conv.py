@@ -4,14 +4,15 @@ __all__ = ["_simplify_conv_to_flatten_gemm"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
-from ._utils import *
+
+from ._utils import _is_only_next_node, _get_conv_params
 
 
 def _simplify_conv_to_flatten_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, list[int]],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
 
@@ -29,7 +30,10 @@ def _simplify_conv_to_flatten_gemm(
                 dilations = attrs["dilations"]
                 group = attrs["group"]
                 auto_pad = attrs.get("auto_pad", "NOTSET")
-                assert weight.ndim == 4, f"{weight.ndim}D weight is not supported."
+                if weight.ndim != 4:
+                    raise ValueError(
+                        f"Conv node {node.name} has unsupported weight dimension {weight.ndim}D. Only 4D weight is supported."
+                    )
                 input_channel = weight.shape[1]
                 kernel_height = weight.shape[2]
                 kernel_width = weight.shape[3]
@@ -67,9 +71,18 @@ def _simplify_conv_to_flatten_gemm(
 
     for node in nodes:
         if pre_node is not None and pre_node.name in conv_nodes_to_replaced_names:
-            assert pre_pre_node is not None
-            assert _is_only_next_node(pre_pre_node, pre_node, nodes)
-            assert _is_only_next_node(pre_node, node, nodes)
+            if pre_pre_node is None:
+                raise ValueError(
+                    f"Conv node {pre_node.name} marked for simplification but has no predecessor."
+                )
+            if not _is_only_next_node(pre_pre_node, pre_node, nodes):
+                raise ValueError(
+                    f"Conv simplification invalid: {pre_pre_node.name} has multiple successors."
+                )
+            if not _is_only_next_node(pre_node, node, nodes):
+                raise ValueError(
+                    f"Conv simplification invalid: {pre_node.name} has multiple successors."
+                )
             count += 1
 
             kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias = (
@@ -110,7 +123,7 @@ def _simplify_conv_to_flatten_gemm(
         pre_node = node
         new_nodes.append(node)
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Simplify {count} Conv to Flatten-Gemm nodes.")
 
     return new_nodes

@@ -1,10 +1,11 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = [
     "_is_only_next_node",
     "_get_batchnorm_params",
     "_get_gemm_params",
     "_get_conv_params",
     "_get_convtranspose_params",
+    "compute_batchnorm_fusion_params",
 ]
 
 import numpy as np
@@ -137,3 +138,22 @@ def _get_convtranspose_params(
             del initializers[node.input[2]]
 
     return weight, bias, attrs
+
+
+def compute_batchnorm_fusion_params(
+    epsilon: float, scale: np.ndarray, b: np.ndarray, mean: np.ndarray, var: np.ndarray
+) -> tuple[np.ndarray, np.ndarray]:
+    """Compute fused BatchNorm weight and bias for fusion operations.
+
+    This shared computation is used in Conv-BN, Gemm-BN, and Transpose-BN fusions.
+
+    :param epsilon: BatchNorm epsilon value
+    :param scale: BatchNorm scale parameter
+    :param b: BatchNorm bias parameter
+    :param mean: BatchNorm mean parameter
+    :param var: BatchNorm variance parameter
+    :return: Tuple of (bn_weight, bn_bias) for fusion
+    """
+    bn_weight = scale / np.sqrt(var + epsilon)
+    bn_bias = b - mean * bn_weight
+    return bn_weight, bn_bias

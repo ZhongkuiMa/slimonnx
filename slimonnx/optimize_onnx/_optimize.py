@@ -1,24 +1,33 @@
-__docformat__ = ["restructuredtext"]
+"""Main optimization orchestration for ONNX models."""
+
+__docformat__ = "restructuredtext"
 __all__ = ["optimize_onnx"]
 
 import onnx
 from onnx import ModelProto
 
-from .. import utils
 from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
-from ._bn_conv import *
-from ._bn_gemm import *
-from ._bn_transpose import *
-from ._conv import *
-from ._cst2initer import *
-from ._cst_op import *
-from ._gemm import *
-from ._gemm_gemm import *
-from ._mm_add import *
-from ._name import *
-from ._ordering import *
-from ._redundant import *
-from ..utils import *
+from ._bn_conv import (
+    _fuse_conv_bn_or_bn_conv,
+    _fuse_convtranspose_bn_or_bn_convtranspose,
+)
+from ._bn_gemm import _fuse_gemm_reshape_bn, _fuse_bn_reshape_gemm, _fuse_bn_gemm
+from ._bn_transpose import _fuse_transpose_batchnorm_transpose
+from ._conv import _simplify_conv_to_flatten_gemm
+from ._cst2initer import _constant_to_initializer
+from ._cst_op import _fuse_constant_nodes
+from ._gemm import _simplify_gemm
+from ._gemm_gemm import _fuse_gemm_gemm
+from ._mm_add import _fuse_matmul_add
+from ._name import _simplify_names
+from ._ordering import _reorder_by_strict_topological_order
+from ._redundant import _remove_redundant_operations
+from ..utils import (
+    clear_onnx_docstring,
+    get_initializers,
+    get_input_nodes,
+    get_output_nodes,
+)
 
 
 def optimize_onnx(
@@ -43,83 +52,99 @@ def optimize_onnx(
     has_batch_dim: bool = True,
     verbose: bool = False,
 ) -> ModelProto:
-    utils.VERBOSE = verbose
+    """Optimize ONNX model with various fusion and simplification passes.
 
+    :param model: Input ONNX model
+    :param constant_to_initializer: Convert constant nodes to initializers
+    :param fuse_constant_nodes: Fold constant operations
+    :param fuse_matmul_add: Fuse MatMul + Add to Gemm
+    :param fuse_gemm_reshape_bn: Fuse Gemm-Reshape-BatchNorm
+    :param fuse_bn_reshape_gemm: Fuse BatchNorm-Reshape-Gemm
+    :param fuse_bn_gemm: Fuse BatchNorm-Gemm
+    :param fuse_transpose_bn_transpose: Fuse Transpose-BN-Transpose
+    :param fuse_gemm_gemm: Fuse consecutive Gemm nodes
+    :param fuse_conv_bn: Fuse Conv-BatchNorm
+    :param fuse_bn_conv: Fuse BatchNorm-Conv
+    :param fuse_convtransposed_bn: Fuse ConvTranspose-BatchNorm
+    :param fuse_bn_convtransposed: Fuse BatchNorm-ConvTranspose
+    :param simplify_conv_to_flatten_gemm: Convert Conv to Flatten-Gemm
+    :param simplify_gemm: Normalize Gemm attributes
+    :param remove_redundant_operations: Remove no-op nodes
+    :param reorder_by_strict_topological_order: Topological sort
+    :param simplify_node_name: Rename nodes sequentially
+    :param has_batch_dim: Whether model has batch dimension
+    :param verbose: Print progress messages
+    :return: Optimized ONNX model
+    """
     graph_name = model.graph.name + "_slimmed"
 
-    clear_onnx_docstring(model)
-    initializers = get_initializers(model)
-    input_nodes = get_input_nodes(model, initializers, has_batch_dim)
-    output_nodes = get_output_nodes(model, has_batch_dim)
+    clear_onnx_docstring(model, verbose)
+    initializers = get_initializers(model, verbose)
+    input_nodes = get_input_nodes(model, initializers, has_batch_dim, verbose)
+    output_nodes = get_output_nodes(model, has_batch_dim, verbose)
 
     nodes = list(model.graph.node)
 
-    # DEBUG
-    # if simplify_node_name:
-    #     # The name is ordered.
-    #     nodes, initializers = _simplify_names(
-    #         input_nodes, output_nodes, nodes, initializers
-    #     )
+    nodes = _constant_to_initializer(nodes, initializers, verbose)
 
-    # NOTE: Some operations need calculating the shape of nodes.
-    # To avoid some operations has changed the shape of nodes, we need to calculate
-    # again the shape of nodes before the operations.
-    if constant_to_initializer:
-        nodes = _constant_to_initializer(nodes, initializers)
     if fuse_constant_nodes:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
-        nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
+        nodes, initializers = _fuse_constant_nodes(
+            nodes, initializers, data_shapes, verbose
+        )
     if remove_redundant_operations:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
-        # We need the correct order to check the redundant operations.
         nodes = _reorder_by_strict_topological_order(nodes)
         nodes = _remove_redundant_operations(
-            nodes, initializers, data_shapes, output_nodes
+            nodes, initializers, data_shapes, output_nodes, verbose
         )
     if simplify_conv_to_flatten_gemm:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
-        nodes = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+        nodes = _simplify_conv_to_flatten_gemm(
+            nodes, initializers, data_shapes, verbose
+        )
     if fuse_matmul_add:
-        nodes = _fuse_matmul_add(nodes, initializers)
+        nodes = _fuse_matmul_add(nodes, initializers, verbose)
     if fuse_gemm_reshape_bn:
-        nodes = _fuse_gemm_reshape_bn(nodes, initializers)
+        nodes = _fuse_gemm_reshape_bn(nodes, initializers, verbose)
     if fuse_bn_reshape_gemm:
-        nodes = _fuse_bn_reshape_gemm(nodes, initializers)
+        nodes = _fuse_bn_reshape_gemm(nodes, initializers, verbose)
     if fuse_bn_gemm:
-        nodes = _fuse_bn_gemm(nodes, initializers)
+        nodes = _fuse_bn_gemm(nodes, initializers, verbose)
     if fuse_transpose_bn_transpose:
-        nodes = _fuse_transpose_batchnorm_transpose(nodes, initializers)
+        nodes = _fuse_transpose_batchnorm_transpose(nodes, initializers, verbose)
     if simplify_gemm:
-        nodes = _simplify_gemm(nodes, initializers)
+        nodes = _simplify_gemm(nodes, initializers, verbose)
     if fuse_gemm_gemm:
-        # There may be multiple gemm nodes, so we need to fuse them multiple times.
-        nodes = _fuse_gemm_gemm(nodes, initializers)
-        nodes = _fuse_gemm_gemm(nodes, initializers)
+        nodes = _fuse_gemm_gemm(nodes, initializers, verbose)
+        nodes = _fuse_gemm_gemm(nodes, initializers, verbose)
 
     if fuse_conv_bn:
-        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers)
+        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, verbose=verbose)
     if fuse_bn_conv:
-        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
+        nodes = _fuse_conv_bn_or_bn_conv(
+            nodes, initializers, is_conv_bn=False, verbose=verbose
+        )
     if fuse_convtransposed_bn:
-        nodes = _fuse_convtranspose_bn_or_bn_convtranspose(nodes, initializers)
+        nodes = _fuse_convtranspose_bn_or_bn_convtranspose(
+            nodes, initializers, verbose=verbose
+        )
     if fuse_bn_convtransposed:
         nodes = _fuse_convtranspose_bn_or_bn_convtranspose(
-            nodes, initializers, is_convtranspose_bn=False
+            nodes, initializers, is_convtranspose_bn=False, verbose=verbose
         )
     if reorder_by_strict_topological_order:
-        # There maybe repeated named nodes, so we need to simplify the names first
         nodes, initializers = _simplify_names(
             input_nodes, output_nodes, nodes, initializers
         )
         nodes = _reorder_by_strict_topological_order(nodes)
     if simplify_node_name:
-        # The name is ordered.
         nodes, initializers = _simplify_names(
             input_nodes, output_nodes, nodes, initializers
         )

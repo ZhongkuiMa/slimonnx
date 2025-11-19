@@ -64,7 +64,8 @@ def _get_attrs_of_avgpool(
     }
     attrs = _scan_attrs(attrs, node.attribute)
 
-    assert attrs["kernel_shape"] is not None
+    if attrs["kernel_shape"] is None:
+        raise ValueError("AvgPool node requires kernel_shape attribute.")
 
     if attrs["auto_pad"] != "NOTSET":
         raise ValueError(
@@ -114,7 +115,8 @@ def _get_attrs_of_cast(
     attrs = {"saturate": 1, "to": None}
     attrs = _scan_attrs(attrs, node.attribute)
 
-    assert attrs["to"] is not None
+    if attrs["to"] is None:
+        raise ValueError("Cast node requires 'to' attribute.")
 
     if attrs["saturate"] != 1:
         raise ValueError(
@@ -131,7 +133,8 @@ def _get_attrs_of_concat(
     attrs = {"axis": None}
     attrs = _scan_attrs(attrs, node.attribute)
 
-    assert attrs["axis"] is not None
+    if attrs["axis"] is None:
+        raise ValueError("Concat node requires 'axis' attribute.")
 
     return attrs
 
@@ -236,7 +239,8 @@ def _get_attrs_of_constantofshape(
     attrs = {"value": None}
     attrs = _scan_attrs(attrs, node.attribute)
 
-    assert attrs["value"] is not None
+    if attrs["value"] is None:
+        raise ValueError("ConstantOfShape node requires 'value' attribute.")
 
     return attrs
 
@@ -320,8 +324,6 @@ def _get_attrs_of_maxpool(
         "strides": None,
     }
     attrs = _scan_attrs(attrs, node.attribute)
-
-    assert attrs["storage_order"] == 0
 
     if attrs["auto_pad"] != "NOTSET":
         raise ValueError(
@@ -509,7 +511,8 @@ def _get_attrs_of_transpose(
     attrs = {"perm": None}
     attrs = _scan_attrs(attrs, node.attribute)
 
-    assert attrs["perm"] is not None
+    if attrs["perm"] is None:
+        raise ValueError("Transpose node requires 'perm' attribute.")
 
     return attrs
 

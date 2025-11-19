@@ -16,6 +16,7 @@ __all__ = [
     "infer_shape",
     "load_vnnlib_inputs",
     "compare_onnx_outputs",
+    "load_test_data_from_file",
 ]
 
 import os
@@ -56,9 +57,10 @@ def find_onnx_folders(benchmark_dirs):
 def find_all_onnx_files(benchmark_dirs, num_limit: int = 20):
     """Find all ONNX files in benchmark directories.
 
-    Works with both structures:
-    - benchmarks/benchmark_name/*.onnx (new structure)
-    - benchmarks/benchmark_name/onnx/*.onnx (old structure)
+    Works with multiple structures:
+    - Uses instances.csv if available to find ONNX files in subdirectories
+    - benchmarks/benchmark_name/*.onnx (direct structure)
+    - benchmarks/benchmark_name/onnx/*.onnx (onnx subdirectory)
 
     :param benchmark_dirs: List of benchmark directory paths
     :param num_limit: Maximum ONNX files per benchmark directory
@@ -66,17 +68,42 @@ def find_all_onnx_files(benchmark_dirs, num_limit: int = 20):
     """
     onnx_files = []
     for bdir in benchmark_dirs:
-        # Try new structure first (ONNX files directly in benchmark dir)
         i = 0
-        for entry in os.listdir(bdir):
-            if entry.endswith(".onnx"):
-                onnx_path = os.path.normpath(os.path.join(bdir, entry))
-                onnx_files.append(onnx_path)
-                i += 1
-                if i >= num_limit:
-                    break
+        found_files = set()
 
-        # If no ONNX files found, try old structure (onnx subdirectory)
+        # Try to use instances.csv first
+        instances_csv = os.path.join(bdir, "instances.csv")
+        if os.path.exists(instances_csv):
+            try:
+                with open(instances_csv) as f:
+                    lines = f.readlines()[1:]
+                    for line in lines:
+                        parts = line.strip().split(",")
+                        if parts:
+                            model_path = parts[0]
+                            onnx_path = os.path.normpath(os.path.join(bdir, model_path))
+                            if onnx_path not in found_files and os.path.exists(
+                                onnx_path
+                            ):
+                                found_files.add(onnx_path)
+                                onnx_files.append(onnx_path)
+                                i += 1
+                                if i >= num_limit:
+                                    break
+            except Exception:
+                pass
+
+        # If instances.csv didn't provide files, try direct search
+        if i == 0:
+            for entry in os.listdir(bdir):
+                if entry.endswith(".onnx"):
+                    onnx_path = os.path.normpath(os.path.join(bdir, entry))
+                    onnx_files.append(onnx_path)
+                    i += 1
+                    if i >= num_limit:
+                        break
+
+        # If no ONNX files found, try onnx subdirectory
         if i == 0:
             onnx_subdir = os.path.join(bdir, "onnx")
             if os.path.isdir(onnx_subdir):
@@ -389,3 +416,116 @@ def compare_onnx_outputs(
             )
 
     return len(mismatches) == 0, mismatches
+
+
+def load_test_data_from_file(data_path: str) -> list[dict[str, np.ndarray]]:
+    """Load test input-output data from .pth, .npy, or .npz file.
+
+    :param data_path: Path to test data file
+    :return: List of input dictionaries
+    """
+    if not os.path.exists(data_path):
+        raise FileNotFoundError(f"Test data file not found: {data_path}")
+
+    if data_path.endswith(".pth"):
+        # Load PyTorch file
+        try:
+            import torch
+
+            data = torch.load(data_path, map_location="cpu")
+
+            # Extract inputs from the data structure
+            # Common formats: dict with 'inputs', 'X', or direct tensor
+            # Also handles nested structure with property IDs
+            inputs_list = []
+
+            if isinstance(data, dict):
+                # Check for nested property structure (e.g., cifar100, cgan)
+                # Format: {'prop_id': {'lower': {'inputs': [tensor]}, 'upper': {...}}}
+                first_value = next(iter(data.values()), None)
+                if (
+                    isinstance(first_value, dict)
+                    and "lower" in first_value
+                    and isinstance(first_value["lower"], dict)
+                    and "inputs" in first_value["lower"]
+                ):
+                    # Extract inputs from all properties (use 'lower' bounds)
+                    for prop_dict in data.values():
+                        lower_inputs = prop_dict["lower"]["inputs"]
+                        if isinstance(lower_inputs, list):
+                            for inp in lower_inputs:
+                                if isinstance(inp, torch.Tensor):
+                                    inputs_list.append({"input": inp.numpy()})
+                        elif isinstance(lower_inputs, torch.Tensor):
+                            inputs_list.append({"input": lower_inputs.numpy()})
+                elif "inputs" in data:
+                    # Format: {'inputs': tensor or list of tensors}
+                    inputs_data = data["inputs"]
+                    if isinstance(inputs_data, torch.Tensor):
+                        inputs_list = [
+                            {"input": inputs_data[i].numpy()}
+                            for i in range(inputs_data.shape[0])
+                        ]
+                    elif isinstance(inputs_data, list):
+                        inputs_list = [{"input": inp.numpy()} for inp in inputs_data]
+                elif "X" in data:
+                    # Format: {'X': tensor}
+                    X = data["X"]
+                    if isinstance(X, torch.Tensor):
+                        inputs_list = [
+                            {"input": X[i].numpy()} for i in range(X.shape[0])
+                        ]
+                else:
+                    # Try to find tensor values
+                    for key, value in data.items():
+                        if isinstance(value, torch.Tensor) and len(value.shape) >= 2:
+                            inputs_list = [
+                                {"input": value[i].numpy()}
+                                for i in range(value.shape[0])
+                            ]
+                            break
+            elif isinstance(data, torch.Tensor):
+                # Direct tensor
+                inputs_list = [{"input": data[i].numpy()} for i in range(data.shape[0])]
+            elif isinstance(data, list):
+                # List of tensors
+                inputs_list = [
+                    {"input": item.numpy() if isinstance(item, torch.Tensor) else item}
+                    for item in data
+                ]
+
+            return inputs_list
+
+        except ImportError:
+            raise ImportError(
+                "PyTorch is required to load .pth files. Install with: pip install torch"
+            )
+
+    elif data_path.endswith(".npy"):
+        # Load numpy array
+        data = np.load(data_path)
+        if len(data.shape) == 1:
+            # Single input
+            return [{"input": data}]
+        else:
+            # Multiple inputs (first dimension is batch)
+            return [{"input": data[i]} for i in range(data.shape[0])]
+
+    elif data_path.endswith(".npz"):
+        # Load numpy archive
+        data = np.load(data_path)
+        # Try to find inputs
+        if "inputs" in data:
+            inputs_data = data["inputs"]
+            return [{"input": inputs_data[i]} for i in range(inputs_data.shape[0])]
+        elif "X" in data:
+            X = data["X"]
+            return [{"input": X[i]} for i in range(X.shape[0])]
+        else:
+            # Use first array found
+            key = list(data.keys())[0]
+            arr = data[key]
+            return [{"input": arr[i]} for i in range(arr.shape[0])]
+
+    else:
+        raise ValueError(f"Unsupported file format: {data_path}")

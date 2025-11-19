@@ -1,4 +1,4 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_simplify_names"]
 
 import onnx

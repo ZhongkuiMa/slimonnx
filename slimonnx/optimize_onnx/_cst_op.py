@@ -1,11 +1,10 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = ["_fuse_constant_nodes"]
 
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
 from ..onnx_attrs import get_onnx_attrs
 
 
@@ -280,7 +279,7 @@ def _fuse_constant_nodes(
         if verbose:
             print(f"\tDelete node: {node.name}")
 
-    if utils.VERBOSE or verbose:
+    if verbose:
         print(f"Remove {len(nodes_to_delete)} nodes for fusing constant nodes.")
 
     new_nodes = []

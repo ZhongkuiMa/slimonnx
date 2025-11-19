@@ -1,4 +1,4 @@
-__docformat__ = ["restructuredtext"]
+__docformat__ = "restructuredtext"
 __all__ = [
     "_fuse_gemm_reshape_bn",
     "_fuse_bn_reshape_gemm",
@@ -9,13 +9,19 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from .. import utils
-from ._utils import *
+
+from ._utils import (
+    _is_only_next_node,
+    _get_gemm_params,
+    _get_batchnorm_params,
+    compute_batchnorm_fusion_params,
+)
 
 
 def _fuse_gemm_reshape_bn(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape
@@ -52,7 +58,10 @@ def _fuse_gemm_reshape_bn(
                 .astype(int)
                 .tolist()
             )
-            assert transA == 0
+            if transA != 0:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for Gemm-Reshape-BN fusion."
+                )
             n = bias.shape[0]
             weight = weight.T if transB == 1 else weight
 
@@ -76,8 +85,9 @@ def _fuse_gemm_reshape_bn(
             """
             weight = weight.reshape(-1, *reshape_shape[1:])
             bias = bias.reshape(*reshape_shape[1:])
-            bn_weight = scale / np.sqrt(var + epsilon)
-            bn_bias = b - mean * bn_weight
+            bn_weight, bn_bias = compute_batchnorm_fusion_params(
+                epsilon, scale, b, mean, var
+            )
             new_weight = weight * bn_weight.reshape(1, -1, 1, 1)
             new_bias = bias + bn_bias.reshape(-1, 1, 1)
             new_weight = new_weight.reshape((-1, n)).T
@@ -121,7 +131,7 @@ def _fuse_gemm_reshape_bn(
         pre_pre_node = pre_node
         pre_node = node
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {count} Gemm-Reshape-BN.")
 
     return new_nodes
@@ -130,6 +140,7 @@ def _fuse_gemm_reshape_bn(
 def _fuse_bn_reshape_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm
@@ -162,7 +173,10 @@ def _fuse_bn_reshape_gemm(
             # reshape_shape = onnx.numpy_helper.to_array(
             # initializers[reshape_node.input[1]])
             # reshape_shape = reshape_shape.tolist()
-            assert transA == 0
+            if transA != 0:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for BN-Reshape-Gemm fusion."
+                )
             weight = weight.T if transB == 1 else weight
 
             """
@@ -185,10 +199,11 @@ def _fuse_bn_reshape_gemm(
             """
             bn_shape = scale.shape
             gemm_shape = weight.shape
-            bn_weight = gemm_shape[0] // bn_shape[0]
-            weight = weight.reshape(-1, bn_weight, gemm_shape[1])
-            bn_weight = scale / np.sqrt(var + epsilon)
-            bn_bias = b - mean * bn_weight
+            bn_weight_shape = gemm_shape[0] // bn_shape[0]
+            weight = weight.reshape(-1, bn_weight_shape, gemm_shape[1])
+            bn_weight, bn_bias = compute_batchnorm_fusion_params(
+                epsilon, scale, b, mean, var
+            )
             new_weight = bn_weight.reshape(-1, 1, 1) * weight
             new_bias = bias + np.sum(bn_bias.reshape(-1, 1, 1) * weight, axis=(0, 1))
             new_weight = new_weight.reshape(*gemm_shape).T
@@ -230,7 +245,7 @@ def _fuse_bn_reshape_gemm(
         pre_pre_node = pre_node
         pre_node = node
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {count} BN-Reshape-Gemm.")
 
     return new_nodes
@@ -239,6 +254,7 @@ def _fuse_bn_reshape_gemm(
 def _fuse_bn_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Fuse a BatchNormalization and a Gemm node into a Gemm node.
@@ -265,7 +281,10 @@ def _fuse_bn_gemm(
             epsilon, scale, b, mean, var = _get_batchnorm_params(
                 bn_node, initializers, True
             )
-            assert transA == 0
+            if transA != 0:
+                raise ValueError(
+                    f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for BN-Gemm fusion."
+                )
             weight = weight.T if transB == 1 else weight
 
             """
@@ -280,8 +299,9 @@ def _fuse_bn_gemm(
                 weight (K, N) = (K, N) * (K, 1)
                 bias (N,) = (N,) - ((K, 1) * (K, N)).sum(axis=0)
             """
-            bn_weight = scale / np.sqrt(var + epsilon)
-            bn_bias = b - mean * bn_weight
+            bn_weight, bn_bias = compute_batchnorm_fusion_params(
+                epsilon, scale, b, mean, var
+            )
             new_weight = bn_weight.reshape(-1, 1) * weight
             new_bias = bias + np.sum(bn_bias.reshape(-1, 1) * weight, axis=0)
 
@@ -308,7 +328,7 @@ def _fuse_bn_gemm(
         new_nodes.append(new_node)
         pre_node = node
 
-    if utils.VERBOSE:
+    if verbose:
         print(f"Fused {count} BN-Gemm.")
 
     return new_nodes

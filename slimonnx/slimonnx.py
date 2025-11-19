@@ -37,7 +37,14 @@ class SlimONNX:
         reorder_by_strict_topological_order: bool = True,
         validate_model: bool = True,
         has_batch_dim: bool = True,
-    ):
+        validate_outputs: bool = False,
+        validation_input_bounds: tuple[list[float], list[float]] | None = None,
+        validation_test_data_path: str | None = None,
+        num_validation_samples: int = 5,
+        validation_rtol: float = 1e-5,
+        validation_atol: float = 1e-6,
+        return_report: bool = False,
+    ) -> dict | None:
         """
         Simplify the ONNX model by fusing some nodes.
 
@@ -72,13 +79,23 @@ class SlimONNX:
         :param simplify_node_name: Simplify the node name by topological order.
         :param reorder_by_strict_topological_order: Reorder the nodes by topological
             order and simplify their names.
+        :param validate_outputs: Whether to validate optimized outputs match original.
+        :param validation_input_bounds: Input bounds (lower, upper) for validation.
+        :param validation_test_data_path: Path to test data file (.pth, .npy, .npz).
+        :param num_validation_samples: Number of validation samples to generate.
+        :param validation_rtol: Relative tolerance for output validation.
+        :param validation_atol: Absolute tolerance for output validation.
+        :param return_report: Whether to return optimization report dict.
 
-        :return: The simplified ONNX model.
+        :return: Report dict if return_report=True, else None.
         """
         t = time.perf_counter()
         if self.verbose:
             print(f"Load ONNX model from {onnx_path}...")
         model = onnx.load(onnx_path)
+
+        # Convert to ONNX version 21 for compatibility with shapeonnx
+        model = onnx.version_converter.convert_version(model, target_version=21)
 
         if self.verbose:
             print(f"Slim ONNX model...")
@@ -111,7 +128,76 @@ class SlimONNX:
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
+
+        # Downgrade model version if validation is requested for ONNX Runtime compatibility
+        if validate_outputs:
+            current_opset = (
+                new_model.opset_import[0].version if new_model.opset_import else 0
+            )
+            # Downgrade to Opset 17 (widely supported) if current > 17
+            if current_opset > 17:
+                if self.verbose:
+                    print(
+                        f"Downgrading model from Opset {current_opset}/IR {new_model.ir_version} "
+                        f"to Opset 17/IR 8 for ONNX Runtime compatibility..."
+                    )
+                import onnx.version_converter as version_converter
+
+                new_model = version_converter.convert_version(new_model, 17)
+                new_model.ir_version = 8
+
         onnx.save(new_model, target_path)
 
         if self.verbose:
             print(f"Slimmed ONNX model saved to {target_path}")
+
+        # Optional: Validate outputs
+        validation_result = None
+        if validate_outputs:
+            if self.verbose:
+                print("Validating optimized outputs...")
+
+            from .model_validate import compare_model_outputs
+
+            validation_result = compare_model_outputs(
+                onnx_path,
+                target_path,
+                input_bounds=validation_input_bounds,
+                test_data_path=validation_test_data_path,
+                num_samples=num_validation_samples,
+                rtol=validation_rtol,
+                atol=validation_atol,
+            )
+
+            if validation_result["all_match"]:
+                if self.verbose:
+                    print(f"Validation PASSED ({validation_result['num_tests']} tests)")
+            else:
+                print(
+                    f"WARNING: Validation FAILED! "
+                    f"{validation_result['failed']}/{validation_result['num_tests']} tests failed, "
+                    f"max_diff={validation_result['max_diff']:.2e}"
+                )
+
+        # Optional: Return report
+        if return_report or validate_outputs:
+            original_node_count = len(model.graph.node)
+            optimized_node_count = len(new_model.graph.node)
+            reduction = original_node_count - optimized_node_count
+            reduction_pct = (
+                (reduction / original_node_count * 100)
+                if original_node_count > 0
+                else 0
+            )
+
+            return {
+                "original_nodes": original_node_count,
+                "optimized_nodes": optimized_node_count,
+                "reduction": reduction,
+                "reduction_pct": reduction_pct,
+                "optimization_time": t,
+                "validation": validation_result,
+                "output_path": target_path,
+            }
+
+        return None
