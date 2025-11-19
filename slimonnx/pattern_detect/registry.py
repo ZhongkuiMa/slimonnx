@@ -6,11 +6,73 @@ __all__ = ["PATTERNS", "detect_all_patterns"]
 from onnx import NodeProto, TensorProto
 
 PATTERNS = {
+    # Fusion patterns
     "matmul_add": {
         "description": "MatMul + Add to Gemm fusion",
         "category": "fusion",
         "severity": "optimization",
     },
+    "conv_bn": {
+        "description": "Conv + BatchNorm fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "bn_conv": {
+        "description": "BatchNorm + Conv fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "convtranspose_bn": {
+        "description": "ConvTranspose + BatchNorm fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "bn_convtranspose": {
+        "description": "BatchNorm + ConvTranspose fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "depthwise_conv": {
+        "description": "Depthwise convolution detection",
+        "category": "fusion",
+        "severity": "info",
+    },
+    "depthwise_conv_bn": {
+        "description": "Depthwise Conv + BatchNorm fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "bn_depthwise_conv": {
+        "description": "BatchNorm + Depthwise Conv fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "gemm_reshape_bn": {
+        "description": "Gemm + Reshape + BatchNorm fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "bn_reshape_gemm": {
+        "description": "BatchNorm + Reshape + Gemm fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "bn_gemm": {
+        "description": "BatchNorm + Gemm fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "transpose_bn_transpose": {
+        "description": "Transpose + BatchNorm + Transpose fusion",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    "gemm_gemm": {
+        "description": "Consecutive Gemm chain fusion (linear merging)",
+        "category": "fusion",
+        "severity": "optimization",
+    },
+    # Redundant operation removal
     "consecutive_reshape": {
         "description": "Reshape to Reshape chain",
         "category": "redundant",
@@ -21,8 +83,18 @@ PATTERNS = {
         "category": "redundant",
         "severity": "redundant",
     },
+    "sub_zero": {
+        "description": "Sub with zero constant",
+        "category": "redundant",
+        "severity": "redundant",
+    },
     "mul_one": {
         "description": "Mul with one constant",
+        "category": "redundant",
+        "severity": "redundant",
+    },
+    "div_one": {
+        "description": "Div with one constant",
         "category": "redundant",
         "severity": "redundant",
     },
@@ -35,6 +107,18 @@ PATTERNS = {
         "description": "Reshape with same input/output shape",
         "category": "redundant",
         "severity": "redundant",
+    },
+    # Inference optimizations
+    "dropout": {
+        "description": "Dropout nodes (training-only, should be removed for inference)",
+        "category": "inference",
+        "severity": "optimization",
+    },
+    # Constant folding
+    "constant_foldable": {
+        "description": "Operations with all-constant inputs (can be pre-computed)",
+        "category": "constant_folding",
+        "severity": "optimization",
     },
 }
 
@@ -51,18 +135,41 @@ def detect_all_patterns(
     :param data_shapes: Inferred shapes
     :return: Detection results per pattern
     """
+    # Import all detectors
     from .matmul_add import detect_matmul_add
+    from .conv_bn import (
+        detect_conv_bn,
+        detect_bn_conv,
+        detect_convtranspose_bn,
+        detect_bn_convtranspose,
+    )
+    from .depthwise_conv import (
+        detect_depthwise_conv,
+        detect_depthwise_conv_bn,
+        detect_bn_depthwise_conv,
+    )
+    from .gemm_bn import (
+        detect_gemm_reshape_bn,
+        detect_bn_reshape_gemm,
+        detect_bn_gemm,
+    )
+    from .transpose_bn import detect_transpose_bn_transpose
+    from .gemm_chains import detect_gemm_gemm
     from .redundant_ops import (
         detect_add_zero,
+        detect_sub_zero,
         detect_mul_one,
+        detect_div_one,
         detect_pad_zero,
         detect_identity_reshape,
     )
     from .reshape_chains import detect_consecutive_reshape
+    from .dropout import detect_dropout
+    from .constant_ops import detect_constant_foldable
 
     results = {}
 
-    # Detect MatMul+Add
+    # Detect fusion patterns
     matmul_add_instances = detect_matmul_add(nodes, initializers)
     results["matmul_add"] = {
         **PATTERNS["matmul_add"],
@@ -70,15 +177,108 @@ def detect_all_patterns(
         "instances": matmul_add_instances,
     }
 
-    # Detect consecutive reshape
-    reshape_instances = detect_consecutive_reshape(nodes)
-    results["consecutive_reshape"] = {
-        **PATTERNS["consecutive_reshape"],
-        "count": len(reshape_instances),
-        "instances": reshape_instances,
+    conv_bn_instances = detect_conv_bn(nodes, initializers, data_shapes)
+    results["conv_bn"] = {
+        **PATTERNS["conv_bn"],
+        "count": len(conv_bn_instances),
+        "instances": conv_bn_instances,
+    }
+
+    bn_conv_instances = detect_bn_conv(nodes, initializers, data_shapes)
+    results["bn_conv"] = {
+        **PATTERNS["bn_conv"],
+        "count": len(bn_conv_instances),
+        "instances": bn_conv_instances,
+    }
+
+    convtranspose_bn_instances = detect_convtranspose_bn(
+        nodes, initializers, data_shapes
+    )
+    results["convtranspose_bn"] = {
+        **PATTERNS["convtranspose_bn"],
+        "count": len(convtranspose_bn_instances),
+        "instances": convtranspose_bn_instances,
+    }
+
+    bn_convtranspose_instances = detect_bn_convtranspose(
+        nodes, initializers, data_shapes
+    )
+    results["bn_convtranspose"] = {
+        **PATTERNS["bn_convtranspose"],
+        "count": len(bn_convtranspose_instances),
+        "instances": bn_convtranspose_instances,
+    }
+
+    depthwise_conv_instances = detect_depthwise_conv(nodes, initializers, data_shapes)
+    results["depthwise_conv"] = {
+        **PATTERNS["depthwise_conv"],
+        "count": len(depthwise_conv_instances),
+        "instances": depthwise_conv_instances,
+    }
+
+    depthwise_conv_bn_instances = detect_depthwise_conv_bn(
+        nodes, initializers, data_shapes
+    )
+    results["depthwise_conv_bn"] = {
+        **PATTERNS["depthwise_conv_bn"],
+        "count": len(depthwise_conv_bn_instances),
+        "instances": depthwise_conv_bn_instances,
+    }
+
+    bn_depthwise_conv_instances = detect_bn_depthwise_conv(
+        nodes, initializers, data_shapes
+    )
+    results["bn_depthwise_conv"] = {
+        **PATTERNS["bn_depthwise_conv"],
+        "count": len(bn_depthwise_conv_instances),
+        "instances": bn_depthwise_conv_instances,
+    }
+
+    gemm_reshape_bn_instances = detect_gemm_reshape_bn(nodes, initializers, data_shapes)
+    results["gemm_reshape_bn"] = {
+        **PATTERNS["gemm_reshape_bn"],
+        "count": len(gemm_reshape_bn_instances),
+        "instances": gemm_reshape_bn_instances,
+    }
+
+    bn_reshape_gemm_instances = detect_bn_reshape_gemm(nodes, initializers, data_shapes)
+    results["bn_reshape_gemm"] = {
+        **PATTERNS["bn_reshape_gemm"],
+        "count": len(bn_reshape_gemm_instances),
+        "instances": bn_reshape_gemm_instances,
+    }
+
+    bn_gemm_instances = detect_bn_gemm(nodes, initializers, data_shapes)
+    results["bn_gemm"] = {
+        **PATTERNS["bn_gemm"],
+        "count": len(bn_gemm_instances),
+        "instances": bn_gemm_instances,
+    }
+
+    transpose_bn_transpose_instances = detect_transpose_bn_transpose(
+        nodes, initializers, data_shapes
+    )
+    results["transpose_bn_transpose"] = {
+        **PATTERNS["transpose_bn_transpose"],
+        "count": len(transpose_bn_transpose_instances),
+        "instances": transpose_bn_transpose_instances,
+    }
+
+    gemm_gemm_instances = detect_gemm_gemm(nodes, initializers, data_shapes)
+    results["gemm_gemm"] = {
+        **PATTERNS["gemm_gemm"],
+        "count": len(gemm_gemm_instances),
+        "instances": gemm_gemm_instances,
     }
 
     # Detect redundant operations
+    consecutive_reshape_instances = detect_consecutive_reshape(nodes)
+    results["consecutive_reshape"] = {
+        **PATTERNS["consecutive_reshape"],
+        "count": len(consecutive_reshape_instances),
+        "instances": consecutive_reshape_instances,
+    }
+
     add_zero_instances = detect_add_zero(nodes, initializers)
     results["add_zero"] = {
         **PATTERNS["add_zero"],
@@ -86,11 +286,25 @@ def detect_all_patterns(
         "instances": add_zero_instances,
     }
 
+    sub_zero_instances = detect_sub_zero(nodes, initializers)
+    results["sub_zero"] = {
+        **PATTERNS["sub_zero"],
+        "count": len(sub_zero_instances),
+        "instances": sub_zero_instances,
+    }
+
     mul_one_instances = detect_mul_one(nodes, initializers)
     results["mul_one"] = {
         **PATTERNS["mul_one"],
         "count": len(mul_one_instances),
         "instances": mul_one_instances,
+    }
+
+    div_one_instances = detect_div_one(nodes, initializers)
+    results["div_one"] = {
+        **PATTERNS["div_one"],
+        "count": len(div_one_instances),
+        "instances": div_one_instances,
     }
 
     pad_zero_instances = detect_pad_zero(nodes, initializers)
@@ -114,5 +328,23 @@ def detect_all_patterns(
             "count": 0,
             "instances": [],
         }
+
+    # Detect inference optimizations
+    dropout_instances = detect_dropout(nodes, initializers, data_shapes)
+    results["dropout"] = {
+        **PATTERNS["dropout"],
+        "count": len(dropout_instances),
+        "instances": dropout_instances,
+    }
+
+    # Detect constant folding opportunities
+    constant_foldable_instances = detect_constant_foldable(
+        nodes, initializers, data_shapes
+    )
+    results["constant_foldable"] = {
+        **PATTERNS["constant_foldable"],
+        "count": len(constant_foldable_instances),
+        "instances": constant_foldable_instances,
+    }
 
     return results

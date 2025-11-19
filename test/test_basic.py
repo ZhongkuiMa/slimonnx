@@ -13,7 +13,7 @@ import onnxruntime as ort
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from slimonnx import SlimONNX
+from slimonnx import SlimONNX, OptimizationConfig
 
 
 def create_test_model() -> onnx.ModelProto:
@@ -129,15 +129,13 @@ def test_basic_optimization() -> bool:
         print(f"Saved original model: {original_path}")
 
         print("Running SlimONNX optimization...")
-        slimonnx = SlimONNX(verbose=True)
-        slimonnx.slim(
-            original_path,
-            optimized_path,
+        config = OptimizationConfig(
             has_batch_dim=True,
             fuse_conv_bn=False,
             simplify_node_name=True,
-            reorder_by_strict_topological_order=True,
         )
+        slimonnx = SlimONNX(verbose=True)
+        slimonnx.slim(original_path, optimized_path, config=config)
 
         assert os.path.exists(optimized_path), "Optimized model not created"
         print("OK: Optimized model created")
@@ -198,15 +196,13 @@ def test_conv_bn_fusion() -> bool:
         print(f"Original model: {original_node_count} nodes")
 
         print("Running SlimONNX with Conv-BN fusion...")
-        slimonnx = SlimONNX(verbose=True)
-        slimonnx.slim(
-            original_path,
-            optimized_path,
+        config = OptimizationConfig(
             has_batch_dim=True,
             fuse_conv_bn=True,
             simplify_node_name=True,
-            reorder_by_strict_topological_order=True,
         )
+        slimonnx = SlimONNX(verbose=True)
+        slimonnx.slim(original_path, optimized_path, config=config)
 
         _prepare_optimized_model(optimized_path)
 

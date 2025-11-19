@@ -4,10 +4,15 @@ __docformat__ = "restructuredtext"
 __all__ = [
     "load_and_preprocess",
     "convert_model_version",
-    "cleanup_model",
-    "clear_docstrings",
-    "mark_slimonnx_model",
+    "RECOMMENDED_OPSET",
+    "MAX_TESTED_OPSET",
+    "SLIMONNX_VERSION",
 ]
 
-from .version_converter import load_and_preprocess, convert_model_version
-from .cleanup import cleanup_model, clear_docstrings, mark_slimonnx_model
+from .version_converter import (
+    load_and_preprocess,
+    convert_model_version,
+    RECOMMENDED_OPSET,
+    MAX_TESTED_OPSET,
+    SLIMONNX_VERSION,
+)
