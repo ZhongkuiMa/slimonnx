@@ -53,6 +53,7 @@ def get_preset(benchmark_name: str) -> OptimizationConfig:
         ),
         "cctsdb_yolo_2023": OptimizationConfig(
             constant_folding=True,
+            has_batch_dim=False,
         ),
         "cifar100_2024": OptimizationConfig(
             fuse_conv_bn=True,
@@ -64,6 +65,7 @@ def get_preset(benchmark_name: str) -> OptimizationConfig:
             fuse_convtransposed_bn=True,
             constant_folding=True,
             remove_redundant_operations=True,
+            has_batch_dim=False,
         ),
         "collins_aerospace_benchmark": OptimizationConfig(),
         "collins_rul_cnn_2022": OptimizationConfig(
@@ -107,7 +109,7 @@ def get_preset(benchmark_name: str) -> OptimizationConfig:
             remove_redundant_operations=True,
         ),
         "yolo_2023": OptimizationConfig(),
-        "test": all_optimizations(),
+        "test": all_optimizations(has_batch_dim=False),
         "cersyve": OptimizationConfig(
             fuse_gemm_gemm=True,
         ),

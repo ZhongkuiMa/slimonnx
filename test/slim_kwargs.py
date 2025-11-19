@@ -31,7 +31,9 @@ acasxu_2023 = types.MappingProxyType(
         "remove_redundant_operations": True,
     }
 )
-cctsdb_yolo_2023 = types.MappingProxyType({"fuse_constant_nodes": True})
+cctsdb_yolo_2023 = types.MappingProxyType(
+    {"fuse_constant_nodes": True, "has_batch_dim": False}
+)
 cifar100_2024 = types.MappingProxyType(
     {
         "fuse_conv_bn": True,
@@ -83,6 +85,7 @@ test = types.MappingProxyType(
     {
         "fuse_matmul_add": True,
         "remove_redundant_operations": True,
+        "has_batch_dim": False,
     }
 )
 

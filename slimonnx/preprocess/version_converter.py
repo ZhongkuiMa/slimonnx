@@ -43,7 +43,15 @@ def convert_model_version(
 
     # Convert if different
     if current_opset != target_opset:
-        model = version_converter.convert_version(model, target_opset)
+        try:
+            model = version_converter.convert_version(model, target_opset)
+        except Exception as e:
+            warnings.warn(
+                f"Version conversion failed from opset {current_opset} to {target_opset}: {e}. "
+                f"Keeping original opset version.",
+                UserWarning,
+                stacklevel=2,
+            )
 
     return model
 
