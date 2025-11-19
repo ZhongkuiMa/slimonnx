@@ -4,6 +4,7 @@ __all__ = ["SLIM_KWARGS", "ALL_TRUE_SLIM_KWARGS"]
 import types
 from collections import defaultdict
 
+
 ALL_TRUE_SLIM_KWARGS = types.MappingProxyType(
     {
         "constant_to_initializer": True,

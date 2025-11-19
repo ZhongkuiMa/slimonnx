@@ -16,11 +16,6 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 
-# Add parent directories to path
-sys.path.insert(
-    0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-)
-
 from slimonnx import SlimONNX, OptimizationConfig
 
 

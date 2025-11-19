@@ -6,18 +6,12 @@ __all__ = ["generate_baseline", "main"]
 import os
 import shutil
 import sys
-import time
 from pathlib import Path
 
-import onnx
-
-# Add parent directory to path for imports
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from slimonnx import SlimONNX
-from slimonnx.analyze_structure import analyze_model
-from slim_kwargs import SLIM_KWARGS
 from benchmark_config import get_test_data_path
+from slim_kwargs import SLIM_KWARGS
+from slimonnx import SlimONNX
+from slimonnx.slimonnx.analyze_structure import analyze_model
 from utils import (
     find_all_onnx_files,
     find_benchmarks_folders,

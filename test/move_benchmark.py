@@ -8,7 +8,6 @@ containing only the copied file pairs.
 __docformat__ = "restructuredtext"
 __all__ = ["parse_instances_csv", "copy_benchmark_files", "main"]
 
-import os
 import shutil
 from pathlib import Path
 
