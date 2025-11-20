@@ -13,8 +13,6 @@ def _simplify_conv_to_flatten_gemm(
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, list[int]],
 ) -> list[NodeProto]:
-    count = 0
-
     pre_conv_node = None
     conv_nodes_to_replaced_names = []
     conv_nodes_to_replaced_args = {}
@@ -82,7 +80,6 @@ def _simplify_conv_to_flatten_gemm(
                 raise ValueError(
                     f"Conv simplification invalid: {pre_node.name} has multiple successors."
                 )
-            count += 1
 
             kernel_shape, pads, strides, dilations, group, auto_pad, weight, bias = (
                 conv_nodes_to_replaced_args[pre_node.name]

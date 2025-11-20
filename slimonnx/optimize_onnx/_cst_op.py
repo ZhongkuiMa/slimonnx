@@ -6,6 +6,7 @@ import onnx
 from onnx import NodeProto, TensorProto
 
 from ..onnx_attrs import get_onnx_attrs
+from .constants import ONNX_DTYPE_TO_NUMPY
 
 
 def _fuse_constant_nodes(
@@ -186,41 +187,11 @@ def _fuse_constant_nodes(
                 value = np.power(tensor1, tensor2)
 
         elif op_type == "Cast":
-
             to = get_onnx_attrs(node, initializers)["to"]
             value = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            if to == 1:  # float
-                value = value.astype(np.float32)
-            elif to == 2:  # uint8
-                value = value.astype(np.uint8)
-            elif to == 3:  # int8
-                value = value.astype(np.int8)
-            elif to == 4:  # uint16
-                value = value.astype(np.uint16)
-            elif to == 5:  # int16
-                value = value.astype(np.int16)
-            elif to == 6:  # int32
-                value = value.astype(np.int32)
-            elif to == 7:  # int64
-                value = value.astype(np.int64)
-            elif to == 8:  # string
-                value = value.astype(np.str_)
-            elif to == 9:  # bool
-                value = value.astype(np.bool_)
-            elif to == 10:  # float16
-                value = value.astype(np.float16)
-            elif to == 11:  # double
-                value = value.astype(np.float64)
-            elif to == 12:  # uint32
-                value = value.astype(np.uint32)
-            elif to == 13:  # uint64
-                value = value.astype(np.uint64)
-            elif to == 14:  # complex64
-                value = value.astype(np.complex64)
-            elif to == 15:  # complex128
-                value = value.astype(np.complex128)
-            else:
-                raise NotImplementedError(f"Not supported cast type: {to}.")
+            if to not in ONNX_DTYPE_TO_NUMPY:
+                raise ValueError(f"Unsupported Cast dtype: {to}")
+            value = value.astype(ONNX_DTYPE_TO_NUMPY[to])
 
         elif op_type == "Equal":
 

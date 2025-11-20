@@ -26,8 +26,6 @@ def _fuse_gemm_reshape_bn(
     Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape
     node.
     """
-    count = 0
-
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -45,7 +43,6 @@ def _fuse_gemm_reshape_bn(
             new_nodes.pop()
 
             bn_node, reshape_node, gemm_node = node, pre_node, pre_pre_node
-            data_type = initializers[gemm_node.input[1]].data_type
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
@@ -129,8 +126,6 @@ def _fuse_gemm_reshape_bn(
             new_nodes.append(new_gemm_node)
             new_nodes.append(new_reshape_node)
 
-            count += 1
-
         else:
             new_nodes.append(node)
 
@@ -148,7 +143,6 @@ def _fuse_bn_reshape_gemm(
     Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm
     node.
     """
-    count = 0
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -165,7 +159,6 @@ def _fuse_bn_reshape_gemm(
             new_nodes.pop()
             new_nodes.pop()
             bn_node, reshape_node, gemm_node = pre_pre_node, pre_node, node
-            data_type = initializers[gemm_node.input[1]].data_type
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
@@ -246,8 +239,6 @@ def _fuse_bn_reshape_gemm(
             new_nodes.append(new_reshape_node)
             new_nodes.append(new_gemm_node)
 
-            count += 1
-
         else:
             new_nodes.append(node)
 
@@ -264,8 +255,6 @@ def _fuse_bn_gemm(
     """
     Fuse a BatchNormalization and a Gemm node into a Gemm node.
     """
-    count = 0
-
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -279,7 +268,6 @@ def _fuse_bn_gemm(
             new_nodes.pop()
 
             gemm_node, bn_node = node, pre_node
-            data_type = initializers[gemm_node.input[1]].data_type
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
@@ -333,8 +321,6 @@ def _fuse_bn_gemm(
                 alpha=alpha,
                 beta=beta,
             )
-
-            count += 1
 
         new_nodes.append(new_node)
         pre_node = node

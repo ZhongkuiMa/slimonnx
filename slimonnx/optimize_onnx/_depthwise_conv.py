@@ -86,7 +86,6 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
     :param verbose: Print progress
     :return: Optimized nodes
     """
-    count = 0
     new_nodes = []
     pre_node = None
 
@@ -186,7 +185,6 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
             auto_pad=attrs["auto_pad"],
         )
 
-        count += 1
         new_nodes.append(new_node)
         pre_node = node
 

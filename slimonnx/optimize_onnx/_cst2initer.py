@@ -9,8 +9,6 @@ from onnx import NodeProto, TensorProto
 def _constant_to_initializer(
     nodes: list[NodeProto], initializers: dict[str, TensorProto]
 ) -> list[NodeProto]:
-    count = 0
-
     new_nodes = []
     for node in nodes:
         if node.op_type == "Constant":
@@ -18,7 +16,6 @@ def _constant_to_initializer(
             initializer = onnx.numpy_helper.from_array(np_array, node.output[0])
             initializers[node.output[0]] = initializer
 
-            count += 1
             continue
 
         new_nodes.append(node)

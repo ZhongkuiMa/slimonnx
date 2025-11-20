@@ -1,113 +1,188 @@
+"""Gemm node simplification and normalization."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_simplify_gemm"]
 
+import numpy as np
 import onnx.numpy_helper
 from onnx import NodeProto, TensorProto
 
 from ..onnx_attrs import get_onnx_attrs
+from .constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
+
+
+def _normalize_gemm_matrix_input(
+    input_name: str,
+    scale: float,
+    should_transpose: bool,
+    initializers: dict[str, TensorProto],
+    unique_suffix: str,
+) -> tuple[str, float, int]:
+    """Normalize a single Gemm matrix input (weight or variable).
+
+    Apply transpose and scaling to create a new initializer if needed.
+
+    :param input_name: Name of the input tensor
+    :param scale: Scaling factor (alpha for weight, beta for bias)
+    :param should_transpose: Whether to transpose the matrix
+    :param initializers: Dictionary of initializers (modified in-place)
+    :param unique_suffix: Unique suffix for new initializer name
+    :return: Tuple of (new_input_name, new_scale, new_transpose_flag)
+    """
+    if input_name not in initializers:
+        return input_name, scale, 1 if should_transpose else 0
+
+    initializer = initializers[input_name]
+    array = onnx.numpy_helper.to_array(initializer)
+
+    if should_transpose:
+        array = array.copy().T
+
+    if scale != 1.0:
+        array = array * scale
+        scale = 1.0
+
+    new_name = f"{input_name}_{unique_suffix}"
+    new_initializer = onnx.numpy_helper.from_array(array, new_name)
+    initializers[new_name] = new_initializer
+
+    return new_name, scale, 0
+
+
+def _normalize_gemm_bias_input(
+    input_name: str,
+    beta: float,
+    initializers: dict[str, TensorProto],
+    unique_suffix: str,
+) -> tuple[str, float]:
+    """Normalize Gemm bias input.
+
+    :param input_name: Name of the bias tensor
+    :param beta: Beta scaling factor
+    :param initializers: Dictionary of initializers (modified in-place)
+    :param unique_suffix: Unique suffix for new initializer name
+    :return: Tuple of (new_input_name, new_beta)
+    """
+    if input_name not in initializers:
+        return input_name, beta
+
+    initializer = initializers[input_name]
+    array = onnx.numpy_helper.to_array(initializer)
+
+    if beta != 1.0:
+        array = array * beta
+        beta = 1.0
+
+    new_name = f"{input_name}_{unique_suffix}"
+    new_initializer = onnx.numpy_helper.from_array(array, new_name)
+    initializers[new_name] = new_initializer
+
+    return new_name, beta
+
+
+def _swap_gemm_inputs_if_needed(
+    var_name: str,
+    weight_name: str,
+    initializers: dict[str, TensorProto],
+) -> tuple[str, str]:
+    """Ensure variable is first input, weight is second.
+
+    If both are initializers or both are variables, keep original order.
+    If only one is initializer, make the variable be the first input.
+
+    :param var_name: First input name
+    :param weight_name: Second input name
+    :param initializers: Dictionary of initializers (modified in-place)
+    :return: Tuple of (new_var_name, new_weight_name)
+    """
+    var_is_init = var_name in initializers
+    weight_is_init = weight_name in initializers
+
+    # If var is initializer but weight is not, swap them
+    if var_is_init and not weight_is_init:
+        var_name, weight_name = weight_name, var_name
+        # Transpose the weight matrix
+        weight_tensor = initializers[weight_name]
+        weight_array = onnx.numpy_helper.to_array(weight_tensor)
+        weight_array = weight_array.copy().T
+        initializers[weight_name] = onnx.numpy_helper.from_array(
+            weight_array, weight_name
+        )
+
+    return var_name, weight_name
 
 
 def _simplify_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
-    count = 0
+    """Simplify Gemm nodes by normalizing attributes and creating copies of shared initializers.
+
+    This function:
+    1. Absorbs alpha/beta/transA/transB into initializer values
+    2. Creates unique copies of initializers for each Gemm (avoids shared state)
+    3. Swaps inputs to ensure variable is first, weight is second
+    4. Removes default attributes
+    5. Cleans up unused initializers
+
+    :param nodes: List of nodes
+    :param initializers: Dictionary of initializers (modified in-place)
+    :return: Simplified list of nodes
+    """
     new_nodes = []
-    # Here we encounter a problem:
-    # Several Gemm nodes use the same initializer and if we change the initializer
-    # it will change the value of the other Gemm nodes.
-    # So we need to create a new copy of the initializer for each Gemm node.
+    gemm_count = 0
+
     for node in nodes:
-        if node.op_type == "Gemm":
-            attrs = get_onnx_attrs(node, initializers)
-            alpha = attrs["alpha"]
-            beta = attrs["beta"]
-            transA = attrs["transA"]
-            transB = attrs["transB"]
-            if node.input[0] in initializers:
-                initializer = initializers[node.input[0]]
-                array = onnx.numpy_helper.to_array(initializer)
-                if transA == 1:
-                    array = array.copy().T
-                    transA = 0
-                if alpha != 1.0:
-                    array = array * alpha
-                    alpha = 1.0
-                new_initer_name = node.input[0] + "_" + str(count)
-                new_initer = onnx.numpy_helper.from_array(array, new_initer_name)
-                initializers[new_initer_name] = new_initer
-                node.input[0] = new_initer_name
+        if node.op_type != "Gemm":
+            new_nodes.append(node)
+            continue
 
-            if node.input[1] in initializers:
-                initializer = initializers[node.input[1]]
-                array = onnx.numpy_helper.to_array(initializer)
-                if transB == 1:
-                    array = array.copy().T
-                    transB = 0
-                if alpha != 1.0:
-                    array = array * alpha
-                    alpha = 1.0
-                new_initer_name = node.input[1] + "_" + str(count)
-                new_initer = onnx.numpy_helper.from_array(array, new_initer_name)
-                initializers[new_initer_name] = new_initer
-                node.input[1] = new_initer_name
+        attrs = get_onnx_attrs(node, initializers)
+        alpha = attrs.get("alpha", DEFAULT_GEMM_ALPHA)
+        beta = attrs.get("beta", DEFAULT_GEMM_BETA)
+        trans_a = attrs.get("transA", 0)
+        trans_b = attrs.get("transB", 0)
 
-            if node.input[2] in initializers:
-                initializer = initializers[node.input[2]]
-                array = onnx.numpy_helper.to_array(initializer)
-                if beta != 1.0:
-                    array = array * beta
-                    beta = 1.0
-                new_initer_name = node.input[2] + "_" + str(count)
-                new_initer = onnx.numpy_helper.from_array(array, new_initer_name)
-                initializers[new_initer_name] = new_initer
-                node.input[2] = new_initer_name
+        unique_suffix = str(gemm_count)
 
-            # Change the attributes of the node
-            for i, attr in enumerate(node.attribute):
-                if attr.name == "alpha":
-                    node.attribute[i].f = alpha
-                elif attr.name == "beta":
-                    node.attribute[i].f = beta
-                elif attr.name == "transA":
-                    node.attribute[i].i = transA
-                elif attr.name == "transB":
-                    node.attribute[i].i = transB
+        # Normalize each input
+        input_0, alpha, trans_a = _normalize_gemm_matrix_input(
+            node.input[0], alpha, trans_a == 1, initializers, unique_suffix
+        )
 
-            # Create a new gemm node to make the following conditions:
-            # 1. If there is only one variable in the input, make it be the first input
-            # 2. Remove all defalt values of the attributes
-            var_name = node.input[0]
-            weight_name = node.input[1]
-            if var_name in initializers and weight_name not in initializers:
-                var_name, weight_name = weight_name, var_name
-                # We need to transpose the weight if it is a matrix
-                weight = initializers[weight_name]
-                weight = onnx.numpy_helper.to_array(weight)
-                weight = weight.copy().T
-                initializers[weight_name] = onnx.numpy_helper.from_array(
-                    weight, weight_name
-                )
+        input_1, alpha, trans_b = _normalize_gemm_matrix_input(
+            node.input[1], alpha, trans_b == 1, initializers, unique_suffix
+        )
 
-            input_names = [var_name, weight_name]
-            if len(node.input) == 3:
-                input_names.append(node.input[2])
-            node = NodeProto(
-                name=node.name,
-                op_type="Gemm",
-                input=input_names,
-                output=node.output,
-            )
+        input_2, beta = (
+            _normalize_gemm_bias_input(node.input[2], beta, initializers, unique_suffix)
+            if len(node.input) > 2
+            else (None, beta)
+        )
 
-            count += 1
-        new_nodes.append(node)
-    nodes = new_nodes
+        # Swap inputs if needed (variable first, weight second)
+        input_0, input_1 = _swap_gemm_inputs_if_needed(input_0, input_1, initializers)
 
-    # Remove the unused initializers because we create copy of the initializers in the
-    # above loop
-    all_input_names = [input_name for node in nodes for input_name in node.input]
+        # Build new input list
+        input_names = [input_0, input_1]
+        if input_2 is not None:
+            input_names.append(input_2)
+
+        # Create simplified Gemm node with minimal attributes
+        new_node = NodeProto(
+            name=node.name,
+            op_type="Gemm",
+            input=input_names,
+            output=node.output,
+        )
+
+        new_nodes.append(new_node)
+        gemm_count += 1
+
+    # Cleanup: Remove unused initializers
+    all_input_names = {input_name for node in new_nodes for input_name in node.input}
     for name in list(initializers.keys()):
         if name not in all_input_names:
             del initializers[name]
 
-    return nodes
+    return new_nodes
