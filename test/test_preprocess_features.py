@@ -25,7 +25,7 @@ def test_version_conversion():
         print(f"Test model not found: {test_model}")
         return False
 
-    slimonnx = SlimONNX(verbose=False)
+    slimonnx = SlimONNX()
 
     # Test 1: Convert to recommended version
     print(f"\n1. Convert to recommended opset {RECOMMENDED_OPSET}")
@@ -82,7 +82,7 @@ def test_docstring_clearing():
         print(f"Test model not found: {test_model}")
         return False
 
-    slimonnx = SlimONNX(verbose=False)
+    slimonnx = SlimONNX()
 
     # Test 1: Without clearing
     print("\n1. Load without clearing docstrings")
@@ -112,7 +112,7 @@ def test_slimonnx_marking():
         print(f"Test model not found: {test_model}")
         return False
 
-    slimonnx = SlimONNX(verbose=False)
+    slimonnx = SlimONNX()
 
     # Test 1: Without marking
     print("\n1. Load without SlimONNX marking")
@@ -143,7 +143,7 @@ def test_all_features():
         print(f"Test model not found: {test_model}")
         return False
 
-    slimonnx = SlimONNX(verbose=False)
+    slimonnx = SlimONNX()
 
     # Test all features enabled
     print(f"\nPreprocess with all features enabled:")

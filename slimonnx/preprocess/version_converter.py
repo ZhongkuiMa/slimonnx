@@ -11,7 +11,7 @@ from onnx import ModelProto, version_converter
 from .. import utils
 
 # Recommended opset range based on shapeonnx compatibility testing
-RECOMMENDED_OPSET = 21
+RECOMMENDED_OPSET = 20
 MIN_TESTED_OPSET = 17  # Lowest working version for maximum compatibility
 MAX_TESTED_OPSET = 21  # Highest tested working version
 SLIMONNX_VERSION = "1.0.0"
