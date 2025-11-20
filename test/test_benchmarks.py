@@ -20,8 +20,8 @@ import onnx
 from slimonnx import SlimONNX, get_preset
 from slimonnx.slimonnx.analyze_structure import analyze_model
 from slimonnx.test.utils import (
-    find_all_onnx_files,
-    find_benchmarks_folders,
+    find_onnx_files_from_instances,
+    find_benchmark_folders,
     get_benchmark_name,
     load_onnx_model,
 )
@@ -186,8 +186,10 @@ def test_all_benchmarks(
     :param max_per_benchmark: Maximum models per benchmark
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmarks_folders(benchmark_dir)
-    onnx_files = find_all_onnx_files(benchmark_dirs, num_limit=max_per_benchmark)
+    benchmark_dirs = find_benchmark_folders(benchmark_dir)
+    onnx_files = find_onnx_files_from_instances(
+        benchmark_dirs, num_limit=max_per_benchmark
+    )
 
     print(f"Testing {len(onnx_files)} models, saving to {output_dir}/")
     print("=" * 70)

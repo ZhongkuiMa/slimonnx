@@ -19,8 +19,8 @@ from collections import defaultdict
 
 from slimonnx import SlimONNX, OptimizationConfig
 from slimonnx.test.utils import (
-    find_all_onnx_files,
-    find_benchmarks_folders,
+    find_onnx_files_from_instances,
+    find_benchmark_folders,
     get_benchmark_name,
     if_has_batch_dim,
 )
@@ -97,8 +97,10 @@ def test_all_preprocess(
     :param target_opset: Target opset version (None = keep original)
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmarks_folders(benchmark_dir)
-    onnx_files = find_all_onnx_files(benchmark_dirs, num_limit=max_per_benchmark)
+    benchmark_dirs = find_benchmark_folders(benchmark_dir)
+    onnx_files = find_onnx_files_from_instances(
+        benchmark_dirs, num_limit=max_per_benchmark
+    )
 
     print(f"Testing preprocessing on {len(onnx_files)} models")
     print("=" * 70)
@@ -208,8 +210,10 @@ def test_all_validation(
     :param max_per_benchmark: Maximum models per benchmark
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmarks_folders(benchmark_dir)
-    onnx_files = find_all_onnx_files(benchmark_dirs, num_limit=max_per_benchmark)
+    benchmark_dirs = find_benchmark_folders(benchmark_dir)
+    onnx_files = find_onnx_files_from_instances(
+        benchmark_dirs, num_limit=max_per_benchmark
+    )
 
     print(f"Testing validation on {len(onnx_files)} models")
     print("=" * 70)

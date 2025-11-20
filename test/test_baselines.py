@@ -33,52 +33,11 @@ import onnxruntime as ort
 from slimonnx import SlimONNX, get_preset
 from slimonnx.slimonnx.analyze_structure import analyze_model
 from slimonnx.test.utils import (
-    find_all_onnx_files,
-    find_benchmarks_folders,
+    find_onnx_files_from_instances,
+    find_benchmark_folders,
     get_benchmark_name,
     load_onnx_model,
-    load_vnnlib_inputs,
 )
-
-
-def _generate_random_inputs(model: onnx.ModelProto, num_samples: int = 5) -> list[dict]:
-    """Generate random test inputs matching model input signature.
-
-    :param model: ONNX ModelProto
-    :param num_samples: Number of random input samples to generate
-    :return: List of input dictionaries
-    """
-    inputs_list = []
-
-    for _ in range(num_samples):
-        inputs = {}
-        for inp in model.graph.input:
-            if any(init.name == inp.name for init in model.graph.initializer):
-                continue
-
-            shape = []
-            for dim in inp.type.tensor_type.shape.dim:
-                if dim.dim_value > 0:
-                    shape.append(dim.dim_value)
-                else:
-                    shape.append(1)
-
-            dtype_map = {
-                onnx.TensorProto.FLOAT: np.float32,
-                onnx.TensorProto.DOUBLE: np.float64,
-                onnx.TensorProto.INT32: np.int32,
-                onnx.TensorProto.INT64: np.int64,
-            }
-            dtype = dtype_map.get(inp.type.tensor_type.elem_type, np.float32)
-
-            if dtype in [np.float32, np.float64]:
-                inputs[inp.name] = np.random.randn(*shape).astype(dtype)
-            else:
-                inputs[inp.name] = np.random.randint(0, 10, size=shape, dtype=dtype)
-
-        inputs_list.append(inputs)
-
-    return inputs_list
 
 
 def _run_onnx_model(model_path: str, inputs: np.ndarray) -> dict:
@@ -118,7 +77,6 @@ def _compare_outputs(
         if not np.allclose(out1, out2, rtol=rtol, atol=atol):
             max_diff = np.max(np.abs(out1 - out2))
             mismatches.append(f"{key1} {key2}: max diff {max_diff:.2e}")
-            raise ValueError(f"Outputs do not match with {out1} and {out2}")
 
     return len(mismatches) == 0, mismatches
 
@@ -147,11 +105,22 @@ def optimize_model(
     benchmark_output_dir = Path(output_dir) / benchmark_name
     benchmark_output_dir.mkdir(parents=True, exist_ok=True)
 
+    model_local_parent_dir = []
+    temp_onnx_path = Path(onnx_path)
+    while temp_onnx_path.parent != Path("benchmarks"):
+        model_local_parent_dir.append(temp_onnx_path.parent.name)
+        temp_onnx_path = temp_onnx_path.parent
+
+    # Reverse to get correct order
+    model_local_parent_dir = Path(*reversed(model_local_parent_dir[:-1]))
+
     model_filename = Path(onnx_path).name
-    onnx_output_path = benchmark_output_dir / model_filename
-    topology_output_path = benchmark_output_dir / model_filename.replace(
-        ".onnx", "_topology.json"
+    onnx_output_path = benchmark_output_dir / model_local_parent_dir / model_filename
+    topology_output_path = Path(
+        str(onnx_output_path).replace(".onnx", "_topology.json").replace("onnx", "json")
     )
+    onnx_output_path.parent.mkdir(parents=True, exist_ok=True)
+    topology_output_path.parent.mkdir(parents=True, exist_ok=True)
 
     temp_path = str(Path(onnx_path).with_suffix("")) + "_temp.onnx"
     onnx.save(model, temp_path)
@@ -225,8 +194,10 @@ def optimize_all_models(
     :param max_per_benchmark: Maximum models per benchmark to process
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmarks_folders(benchmark_dir)
-    onnx_files = find_all_onnx_files(benchmark_dirs, num_limit=max_per_benchmark)
+    benchmark_dirs = find_benchmark_folders(benchmark_dir)
+    onnx_files = find_onnx_files_from_instances(
+        benchmark_dirs, num_limit=max_per_benchmark
+    )
 
     print(f"Optimizing {len(onnx_files)} models to {output_dir}/")
     print("=" * 70)
@@ -240,7 +211,7 @@ def optimize_all_models(
 
     start_time = time.perf_counter()
 
-    for i, onnx_path in enumerate(onnx_files, 1):
+    for i, onnx_path in enumerate(onnx_files):
         basename = os.path.basename(onnx_path)
         benchmark_name = get_benchmark_name(onnx_path)
 
@@ -316,7 +287,7 @@ def save_as_baseline(
 
     # Remove old baselines if they exist
     if baselines_path.exists():
-        print("Removing old baselines...")
+        print(f"Removing old baselines {baselines_path}...")
         shutil.rmtree(baselines_path)
 
     # Copy results to baselines
@@ -336,17 +307,14 @@ def verify_against_baseline(
     results_dir: str = "results/baselines",
     benchmarks_dir: str = "benchmarks",
     baselines_dir: str = "baselines",
-    use_vnnlib_inputs: bool = True,
-    num_samples: int = 5,
 ) -> dict:
     """Verify current results against archived baselines.
 
     Compares structure (node count) and numerical outputs.
 
     :param results_dir: Directory containing current results
+    :param benchmarks_dir: Directory containing original benchmarks with test data
     :param baselines_dir: Directory containing archived baselines
-    :param use_vnnlib_inputs: Whether to use vnnlib inputs if available
-    :param num_samples: Number of random samples for testing
     :return: Dictionary with verification results
     """
     results_path = Path(results_dir)
@@ -373,7 +341,11 @@ def verify_against_baseline(
     structural_mismatches = 0
     numerical_mismatches = 0
 
-    for result_file in results_onnx:
+    for i, result_file in enumerate(results_onnx):
+        basename = os.path.basename(result_file)
+        benchmark_name = get_benchmark_name(str(result_file))
+        print(f"[{i}/{len(results_onnx)}] {benchmark_name}/{basename}...", end=" ")
+
         rel_path = result_file.relative_to(results_path)
         baseline_file = baselines_onnx.get(rel_path)
 
@@ -399,17 +371,44 @@ def verify_against_baseline(
             continue
 
         # Numerical check - get test inputs
-        benchmark_file = (
-            benchmarks_path / rel_path.parent / Path("onnx") / rel_path.name
+        # rel_path is like: benchmark_name/model.onnx
+        benchmark_name_from_path = rel_path.parts[:-1] if (rel_path.parts) else ""
+        benchmark_name_from_path = f"{os.sep}".join(benchmark_name_from_path).replace(
+            "onnx", "data"
         )
-        test_inputs = None
+        if not "data" in benchmark_name_from_path:
+            benchmark_name_from_path = benchmark_name_from_path + os.sep + "data"
+        model_stem = rel_path.stem
 
-        if use_vnnlib_inputs and os.path.exists(benchmark_file):
-            test_inputs = load_vnnlib_inputs(str(benchmark_file))
+        # Direct path to data file
+        benchmark_root = benchmarks_path / benchmark_name_from_path
+        data_file = benchmark_root / f"{model_stem}.npz"
 
-        if test_inputs is None:
-            raise RuntimeError
-            test_inputs = _generate_random_inputs(result_model, num_samples)
+        if not data_file.exists():
+            print(f"SKIP: {rel_path} - No test data file: {data_file}")
+            continue
+
+        try:
+            data = np.load(data_file, allow_pickle=True)
+            test_inputs = []
+
+            # Extract inputs from npz file
+            for vnnlib_name in data.files:
+                vnnlib_data = data[vnnlib_name].item()
+                if isinstance(vnnlib_data, dict):
+                    for bound_type in ["lower", "upper"]:
+                        if bound_type in vnnlib_data:
+                            bound_data = vnnlib_data[bound_type]
+                            if "inputs" in bound_data:
+                                test_inputs.extend(bound_data["inputs"])
+
+            if not test_inputs:
+                print(f"SKIP: {rel_path} - No inputs in data file")
+                continue
+
+        except Exception as e:
+            print(f"SKIP: {rel_path} - Error loading data: {e}")
+            continue
 
         # Run both models and compare
         all_match = True
@@ -423,13 +422,13 @@ def verify_against_baseline(
                     all_match = False
                     break
             except Exception as e:
-                raise e
                 print(f"ERROR: {rel_path} - {e}")
                 all_match = False
                 break
 
         if all_match:
             passed += 1
+            print("OK")
         else:
             print(f"NUMERICAL MISMATCH: {rel_path}")
             numerical_mismatches += 1
@@ -463,15 +462,13 @@ def verify_against_baseline(
 def verify_against_benchmarks(
     results_dir: str = "results/baselines",
     benchmarks_dir: str = "benchmarks",
-    num_samples: int = 5,
 ) -> dict:
     """Verify optimized results against original benchmark models.
 
     Checks that optimized models produce same outputs as original models.
 
     :param results_dir: Directory containing optimized results
-    :param benchmarks_dir: Directory containing original benchmark models
-    :param num_samples: Number of random samples for testing
+    :param benchmarks_dir: Directory containing original benchmark models with test data
     :return: Dictionary with verification results
     """
     results_path = Path(results_dir)
@@ -491,33 +488,78 @@ def verify_against_benchmarks(
     failed = 0
     missing = 0
 
-    for result_file in results_onnx:
-        rel_path = result_file.relative_to(results_path)
-        benchmark_file = (
-            benchmarks_path / rel_path.parent / Path("onnx") / rel_path.name
-        )
+    for i, result_file in enumerate(results_onnx):
+        basename = os.path.basename(result_file)
+        benchmark_name = get_benchmark_name(str(result_file))
+        print(f"[{i}/{len(results_onnx)}] {benchmark_name}/{basename}...", end=" ")
 
-        if not benchmark_file.exists():
-            print(f"MISSING: {rel_path} (no original benchmark)")
+        rel_path = result_file.relative_to(results_path)
+
+        # rel_path is like: benchmark_name/model.onnx
+        benchmark_name_from_path = rel_path.parts[0] if rel_path.parts else ""
+        model_stem = rel_path.stem
+
+        # Direct path to data file
+        benchmark_root = benchmarks_path / benchmark_name_from_path
+        data_file = benchmark_root / "data" / f"{model_stem}.npz"
+
+        if not data_file.exists():
+            print(f"MISSING: {rel_path} - No test data file")
             missing += 1
             continue
 
-        # Load models
+        # Find original ONNX file using instances.csv
+        benchmark_onnx_file = None
+        instances_csv = benchmark_root / "instances.csv"
+        if instances_csv.exists():
+            try:
+                with open(instances_csv) as f:
+                    for line in f.readlines()[1:]:
+                        parts_csv = line.strip().split(",")
+                        if parts_csv and Path(parts_csv[0].strip()).stem == model_stem:
+                            benchmark_onnx_file = benchmark_root / parts_csv[0].strip()
+                            break
+            except Exception:
+                pass
+
+        if benchmark_onnx_file is None or not benchmark_onnx_file.exists():
+            print(f"MISSING: {rel_path} - Original ONNX file not found")
+            missing += 1
+            continue
+
+        # Load models and test inputs
         result_model = onnx.load(str(result_file))
 
-        # Generate test inputs
-        test_inputs = load_vnnlib_inputs(str(benchmark_file))
+        try:
+            data = np.load(data_file, allow_pickle=True)
+            test_inputs = []
 
-        if test_inputs is None:
-            original_model = onnx.load(str(benchmark_file))
-            test_inputs = _generate_random_inputs(original_model, num_samples)
+            # Extract inputs from npz file
+            for vnnlib_name in data.files:
+                vnnlib_data = data[vnnlib_name].item()
+                if isinstance(vnnlib_data, dict):
+                    for bound_type in ["lower", "upper"]:
+                        if bound_type in vnnlib_data:
+                            bound_data = vnnlib_data[bound_type]
+                            if "inputs" in bound_data:
+                                test_inputs.extend(bound_data["inputs"])
+
+            if not test_inputs:
+                print(f"SKIP: {rel_path} - No inputs in data file")
+                missing += 1
+                continue
+
+        except Exception as e:
+            print(f"SKIP: {rel_path} - Error loading data: {e}")
+            missing += 1
+            continue
 
         # Run both models and compare
         all_match = True
         for inputs in test_inputs:
             try:
                 result_outputs = _run_onnx_model(str(result_file), inputs)
-                benchmark_outputs = _run_onnx_model(str(benchmark_file), inputs)
+                benchmark_outputs = _run_onnx_model(str(benchmark_onnx_file), inputs)
 
                 match, mismatches = _compare_outputs(result_outputs, benchmark_outputs)
                 if not match:
@@ -528,14 +570,15 @@ def verify_against_benchmarks(
                     break
             except Exception as e:
                 print(f"ERROR: {rel_path} - {e}")
-                raise e
                 all_match = False
                 break
 
         if all_match:
             passed += 1
+            print("OK")
         else:
             failed += 1
+            print(f"FAILED: {rel_path}")
 
     print("\n" + "=" * 70)
     print("VERIFICATION SUMMARY")

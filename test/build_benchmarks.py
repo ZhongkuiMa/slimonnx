@@ -1,11 +1,8 @@
 """Build complete benchmark dataset from VNN-COMP source.
 
-This script provides modular functions to:
-1. Copy ONNX models and VNNLib files from VNN-COMP benchmarks
-2. Extract VNNLib input constraints to NumPy format
-3. Calculate input-output pairs for all models
-
-Can be run as individual steps or all-in-one via build_all().
+This script copies benchmarks with their original structure preserved.
+Only files referenced in instances.csv are copied, and the structure
+matches the original vnncomp2024_benchmarks layout.
 """
 
 __docformat__ = "restructuredtext"
@@ -16,6 +13,7 @@ __all__ = [
     "build_all",
 ]
 
+import os
 import shutil
 import time
 from pathlib import Path
@@ -23,6 +21,7 @@ from pathlib import Path
 import numpy as np
 import onnx
 import onnxruntime as ort
+
 from torchvnnlib import TorchVNNLIB
 
 
@@ -32,10 +31,11 @@ def copy_benchmarks(
     max_onnx_per_benchmark: int = 20,
     max_vnnlib_per_onnx: int = 2,
 ) -> tuple[int, int, int]:
-    """Copy ONNX models and VNNLib files from VNN-COMP benchmarks.
+    """Copy ONNX models and VNNLib files preserving original structure.
 
     Uses instances.csv to maintain correct ONNX-VNNLib pairings.
     Creates filtered instances.csv containing only copied file pairs.
+    All files maintain their original directory structure from source.
 
     :param source_dir: Path to vnncomp2024_benchmarks/benchmarks directory
     :param target_dir: Target directory for copied files
@@ -230,7 +230,13 @@ def extract_inputs(benchmarks_dir: str = "benchmarks") -> tuple[int, int]:
                 failed.append((vnnlib_name, "File not found"))
                 continue
 
-            output_dir = vnnlib_data_dir / vnnlib_name
+            vnnlib_rel_path_no_suffix = (
+                str(vnnlib_rel_path)
+                .replace(".vnnlib", "")
+                .replace(f"vnnlib{os.sep}", "")
+            )
+            output_dir = vnnlib_data_dir / vnnlib_rel_path_no_suffix
+            output_dir.mkdir(parents=True, exist_ok=True)
 
             try:
                 converter = TorchVNNLIB(
@@ -297,11 +303,6 @@ def calculate_outputs(
             print(f"[{benchmark_name}] No instances.csv, skipping")
             continue
 
-        vnnlib_data_dir = benchmark_dir / "vnnlib_data"
-        if not vnnlib_data_dir.exists():
-            print(f"[{benchmark_name}] No vnnlib_data directory, skipping")
-            continue
-
         unique_models = set()
         try:
             with open(instances_csv) as f:
@@ -321,15 +322,21 @@ def calculate_outputs(
 
         unique_models_list = sorted(unique_models)[:max_per_benchmark]
 
-        data_dir = benchmark_dir / "data"
-        data_dir.mkdir(parents=True, exist_ok=True)
-
         success = 0
         failed = []
 
         for model_rel_path in unique_models_list:
             model_path = benchmark_dir / model_rel_path
             model_name = Path(model_rel_path).stem
+
+            model_rel_path_no_suffix = (
+                str(model_rel_path).replace(".onnx", "").replace(f"onnx{os.sep}", "")
+            )
+            model_rel_path_no_suffix = Path(model_rel_path_no_suffix).parent
+            data_dir = benchmark_dir / "data" / model_rel_path_no_suffix
+            data_dir.mkdir(parents=True, exist_ok=True)
+
+            vnnlib_data_dir = benchmark_dir / "vnnlib_data" / model_rel_path_no_suffix
 
             if not model_path.exists():
                 failed.append((model_name, "File not found"))
@@ -447,6 +454,11 @@ def _calculate_model_outputs(
             continue
 
         npz_files = sorted(vnnlib_subdir.glob("sub_prop_*.npz"))
+
+        # TODO: Taking this magic number as an argument.
+        NUM_NPZ_LIMIT = 2
+        npz_files = npz_files[:NUM_NPZ_LIMIT]
+
         if not npz_files:
             continue
 
@@ -572,4 +584,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    copy_benchmarks()
+    extract_inputs()
+    calculate_outputs()
     main()

@@ -23,8 +23,8 @@ import onnx
 from slimonnx import SlimONNX, OptimizationConfig
 from slimonnx.slimonnx.structure_analysis.topology import build_topology
 from slimonnx.test.utils import (
-    find_all_onnx_files,
-    find_benchmarks_folders,
+    find_onnx_files_from_instances,
+    find_benchmark_folders,
     get_benchmark_name,
     if_has_batch_dim,
 )
@@ -88,8 +88,10 @@ def test_all_pattern_detection(
     :param max_per_benchmark: Maximum models per benchmark
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmarks_folders(benchmark_dir)
-    onnx_files = find_all_onnx_files(benchmark_dirs, num_limit=max_per_benchmark)
+    benchmark_dirs = find_benchmark_folders(benchmark_dir)
+    onnx_files = find_onnx_files_from_instances(
+        benchmark_dirs, num_limit=max_per_benchmark
+    )
 
     print(f"Testing pattern detection on {len(onnx_files)} models")
     print("=" * 70)
@@ -285,8 +287,10 @@ def test_all_structure_analysis(
     :param max_per_benchmark: Maximum models per benchmark
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmarks_folders(benchmark_dir)
-    onnx_files = find_all_onnx_files(benchmark_dirs, num_limit=max_per_benchmark)
+    benchmark_dirs = find_benchmark_folders(benchmark_dir)
+    onnx_files = find_onnx_files_from_instances(
+        benchmark_dirs, num_limit=max_per_benchmark
+    )
 
     print(f"Testing structure analysis on {len(onnx_files)} models")
     print("=" * 70)

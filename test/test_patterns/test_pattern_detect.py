@@ -21,7 +21,7 @@ def test_single_pattern(onnx_path: str, expected_pattern: str) -> bool:
     :return: True if pattern detected correctly
     """
     config = OptimizationConfig(has_batch_dim=True)
-    slimonnx = SlimONNX(verbose=False)
+    slimonnx = SlimONNX()
 
     try:
         patterns = slimonnx.detect_patterns(onnx_path, config=config)
