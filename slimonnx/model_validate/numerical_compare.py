@@ -163,8 +163,6 @@ def compare_model_outputs(
                     test_inputs = test_inputs[:num_samples]
 
             except Exception as e:
-                print(f"Warning: Could not load test data from {test_data_path}: {e}")
-                print("Falling back to random input generation")
                 test_data_path = None
                 test_inputs = None
 

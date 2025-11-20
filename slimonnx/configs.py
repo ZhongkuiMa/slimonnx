@@ -23,6 +23,7 @@ class OptimizationConfig:
     fuse_matmul_add: bool = False
     fuse_conv_bn: bool = False
     fuse_bn_conv: bool = False
+    fuse_bn_conv_with_padding: bool = False
     fuse_convtransposed_bn: bool = False
     fuse_bn_convtransposed: bool = False
     fuse_depthwise_conv_bn: bool = False
@@ -44,7 +45,7 @@ class OptimizationConfig:
     constant_folding: bool = False
 
     # Postprocessing
-    simplify_node_name: bool = True
+    simplify_node_name: bool = False
 
     # Model properties
     has_batch_dim: bool = True

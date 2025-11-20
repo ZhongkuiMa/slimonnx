@@ -10,7 +10,6 @@ from ..onnx_attrs import get_onnx_attrs
 def _simplify_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
     new_nodes = []
@@ -110,8 +109,5 @@ def _simplify_gemm(
     for name in list(initializers.keys()):
         if name not in all_input_names:
             del initializers[name]
-
-    if verbose:
-        print(f"Simplify {count} Gemm nodes.")
 
     return nodes

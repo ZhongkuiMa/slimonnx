@@ -21,7 +21,6 @@ from ._utils import (
 def _fuse_gemm_reshape_bn(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape
@@ -85,11 +84,18 @@ def _fuse_gemm_reshape_bn(
             """
             weight = weight.reshape(-1, *reshape_shape[1:])
             bias = bias.reshape(*reshape_shape[1:])
+
+            # Preserve dtype from weight tensor to avoid float32/float64 mismatch
+            target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var
+                epsilon, scale, b, mean, var, target_dtype
             )
-            new_weight = weight * bn_weight.reshape(1, -1, 1, 1)
-            new_bias = bias + bn_bias.reshape(-1, 1, 1)
+            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (bias + bn_bias.reshape(-1, 1, 1)).astype(
+                target_dtype, copy=False
+            )
             new_weight = new_weight.reshape((-1, n)).T
             new_bias = new_bias.reshape((n,))
 
@@ -131,16 +137,12 @@ def _fuse_gemm_reshape_bn(
         pre_pre_node = pre_node
         pre_node = node
 
-    if verbose:
-        print(f"Fused {count} Gemm-Reshape-BN.")
-
     return new_nodes
 
 
 def _fuse_bn_reshape_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm
@@ -201,11 +203,18 @@ def _fuse_bn_reshape_gemm(
             gemm_shape = weight.shape
             bn_weight_shape = gemm_shape[0] // bn_shape[0]
             weight = weight.reshape(-1, bn_weight_shape, gemm_shape[1])
+
+            # Preserve dtype from weight tensor to avoid float32/float64 mismatch
+            target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var
+                epsilon, scale, b, mean, var, target_dtype
             )
-            new_weight = bn_weight.reshape(-1, 1, 1) * weight
-            new_bias = bias + np.sum(bn_bias.reshape(-1, 1, 1) * weight, axis=(0, 1))
+            new_weight = (bn_weight.reshape(-1, 1, 1) * weight).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (
+                bias + np.sum(bn_bias.reshape(-1, 1, 1) * weight, axis=(0, 1))
+            ).astype(target_dtype, copy=False)
             new_weight = new_weight.reshape(*gemm_shape).T
 
             new_weight_name = gemm_node.input[1]
@@ -245,16 +254,12 @@ def _fuse_bn_reshape_gemm(
         pre_pre_node = pre_node
         pre_node = node
 
-    if verbose:
-        print(f"Fused {count} BN-Reshape-Gemm.")
-
     return new_nodes
 
 
 def _fuse_bn_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Fuse a BatchNormalization and a Gemm node into a Gemm node.
@@ -299,11 +304,17 @@ def _fuse_bn_gemm(
                 weight (K, N) = (K, N) * (K, 1)
                 bias (N,) = (N,) - ((K, 1) * (K, N)).sum(axis=0)
             """
+            # Preserve dtype from weight tensor to avoid float32/float64 mismatch
+            target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var
+                epsilon, scale, b, mean, var, target_dtype
             )
-            new_weight = bn_weight.reshape(-1, 1) * weight
-            new_bias = bias + np.sum(bn_bias.reshape(-1, 1) * weight, axis=0)
+            new_weight = (bn_weight.reshape(-1, 1) * weight).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (bias + np.sum(bn_bias.reshape(-1, 1) * weight, axis=0)).astype(
+                target_dtype, copy=False
+            )
 
             new_weight_name = gemm_node.input[1]
             new_bias_name = gemm_node.input[2]
@@ -327,8 +338,5 @@ def _fuse_bn_gemm(
 
         new_nodes.append(new_node)
         pre_node = node
-
-    if verbose:
-        print(f"Fused {count} BN-Gemm.")
 
     return new_nodes

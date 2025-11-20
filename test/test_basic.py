@@ -105,9 +105,10 @@ def _prepare_optimized_model(model_path: str) -> None:
 
     :param model_path: Path to ONNX model to modify in-place
     """
+    from slimonnx.slimonnx.preprocess import convert_model_version
+
     model = onnx.load(model_path)
-    model = onnx.version_converter.convert_version(model, 17)
-    model.ir_version = 8
+    model = convert_model_version(model, target_opset=17, warn_on_diff=False)
     onnx.save(model, model_path)
 
 

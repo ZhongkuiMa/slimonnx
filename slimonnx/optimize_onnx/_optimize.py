@@ -11,6 +11,7 @@ from ._bn_conv import (
     _fuse_conv_bn_or_bn_conv,
     _fuse_convtranspose_bn_or_bn_convtranspose,
 )
+from ._bn_conv_with_padding import _fuse_bn_conv_with_padding
 from ._depthwise_conv import _fuse_depthwise_conv_bn_or_bn_depthwise_conv
 from ._bn_gemm import _fuse_gemm_reshape_bn, _fuse_bn_reshape_gemm, _fuse_bn_gemm
 from ._bn_transpose import _fuse_transpose_batchnorm_transpose
@@ -44,6 +45,7 @@ def optimize_onnx(
     fuse_gemm_gemm: bool = False,
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
+    fuse_bn_conv_with_padding: bool = False,
     fuse_convtransposed_bn: bool = False,
     fuse_bn_convtransposed: bool = False,
     fuse_depthwise_conv_bn: bool = False,
@@ -55,7 +57,6 @@ def optimize_onnx(
     reorder_by_strict_topological_order: bool = False,
     simplify_node_name: bool = False,
     has_batch_dim: bool = True,
-    verbose: bool = False,
 ) -> ModelProto:
     """Optimize ONNX model with various fusion and simplification passes.
 
@@ -69,7 +70,8 @@ def optimize_onnx(
     :param fuse_transpose_bn_transpose: Fuse Transpose-BN-Transpose
     :param fuse_gemm_gemm: Fuse consecutive Gemm nodes
     :param fuse_conv_bn: Fuse Conv-BatchNorm
-    :param fuse_bn_conv: Fuse BatchNorm-Conv
+    :param fuse_bn_conv: Fuse BatchNorm-Conv (skips cases with padding)
+    :param fuse_bn_conv_with_padding: Fuse BatchNorm-Conv with padding by inserting Pad node
     :param fuse_convtransposed_bn: Fuse ConvTranspose-BatchNorm
     :param fuse_bn_convtransposed: Fuse BatchNorm-ConvTranspose
     :param fuse_depthwise_conv_bn: Fuse Depthwise Conv-BatchNorm
@@ -81,7 +83,6 @@ def optimize_onnx(
     :param reorder_by_strict_topological_order: Topological sort
     :param simplify_node_name: Rename nodes sequentially
     :param has_batch_dim: Whether model has batch dimension
-    :param verbose: Print progress messages
     :return: Optimized ONNX model
     """
     graph_name = model.graph.name + "_slimmed"
@@ -89,14 +90,14 @@ def optimize_onnx(
     model = clear_onnx_docstring(model)
 
     # TODO: Here, we can use extract_nodes()
-    initializers = get_initializers(model, verbose)
-    input_nodes = get_input_nodes(model, initializers, has_batch_dim, verbose)
-    output_nodes = get_output_nodes(model, has_batch_dim, verbose)
+    initializers = get_initializers(model)
+    input_nodes = get_input_nodes(model, initializers, has_batch_dim)
+    output_nodes = get_output_nodes(model, has_batch_dim)
 
     nodes = list(model.graph.node)
 
     if constant_to_initializer:
-        nodes = _constant_to_initializer(nodes, initializers, verbose)
+        nodes = _constant_to_initializer(nodes, initializers)
 
     # Update model with converted constants before any shape inference
     if constant_to_initializer:
@@ -106,8 +107,7 @@ def optimize_onnx(
         model.graph.initializer.extend(list(initializers.values()))
 
     if remove_dropout:
-        if verbose:
-            print("Removing Dropout nodes...")
+
         model = _remove_dropout(model)
         nodes = list(model.graph.node)
 
@@ -115,61 +115,61 @@ def optimize_onnx(
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
-        nodes, initializers = _fuse_constant_nodes(
-            nodes, initializers, data_shapes, verbose
-        )
+        nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
     if remove_redundant_operations:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
         nodes = _reorder_by_strict_topological_order(nodes)
         nodes = _remove_redundant_operations(
-            nodes, initializers, data_shapes, output_nodes, verbose
+            nodes, initializers, data_shapes, output_nodes
         )
     if simplify_conv_to_flatten_gemm:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
-        nodes = _simplify_conv_to_flatten_gemm(
-            nodes, initializers, data_shapes, verbose
-        )
+        nodes = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
     if fuse_matmul_add:
-        nodes = _fuse_matmul_add(nodes, initializers, verbose)
+        # Infer shapes to check tensor ranks before fusion (Gemm requires rank 2)
+        data_shapes = infer_onnx_shape(
+            input_nodes, output_nodes, nodes, initializers, has_batch_dim
+        )
+        nodes = _fuse_matmul_add(nodes, initializers, input_nodes, data_shapes)
     if fuse_gemm_reshape_bn:
-        nodes = _fuse_gemm_reshape_bn(nodes, initializers, verbose)
+        nodes = _fuse_gemm_reshape_bn(nodes, initializers)
     if fuse_bn_reshape_gemm:
-        nodes = _fuse_bn_reshape_gemm(nodes, initializers, verbose)
+        nodes = _fuse_bn_reshape_gemm(nodes, initializers)
     if fuse_bn_gemm:
-        nodes = _fuse_bn_gemm(nodes, initializers, verbose)
+        nodes = _fuse_bn_gemm(nodes, initializers)
     if fuse_transpose_bn_transpose:
-        nodes = _fuse_transpose_batchnorm_transpose(nodes, initializers, verbose)
+        # Infer shapes to check tensor ranks before fusion (Gemm requires rank 2)
+        data_shapes = infer_onnx_shape(
+            input_nodes, output_nodes, nodes, initializers, has_batch_dim
+        )
+        nodes = _fuse_transpose_batchnorm_transpose(nodes, initializers, input_nodes, data_shapes)
     if simplify_gemm:
-        nodes = _simplify_gemm(nodes, initializers, verbose)
+        nodes = _simplify_gemm(nodes, initializers)
     if fuse_gemm_gemm:
-        nodes = _fuse_gemm_gemm(nodes, initializers, verbose)
-        nodes = _fuse_gemm_gemm(nodes, initializers, verbose)
+        nodes = _fuse_gemm_gemm(nodes, initializers)
+        nodes = _fuse_gemm_gemm(nodes, initializers)
 
     if fuse_conv_bn:
-        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, verbose=verbose)
+        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers)
     if fuse_bn_conv:
-        nodes = _fuse_conv_bn_or_bn_conv(
-            nodes, initializers, is_conv_bn=False, verbose=verbose
-        )
+        nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
+    if fuse_bn_conv_with_padding:
+        nodes = _fuse_bn_conv_with_padding(nodes, initializers)
     if fuse_convtransposed_bn:
-        nodes = _fuse_convtranspose_bn_or_bn_convtranspose(
-            nodes, initializers, verbose=verbose
-        )
+        nodes = _fuse_convtranspose_bn_or_bn_convtranspose(nodes, initializers)
     if fuse_bn_convtransposed:
         nodes = _fuse_convtranspose_bn_or_bn_convtranspose(
-            nodes, initializers, is_convtranspose_bn=False, verbose=verbose
+            nodes, initializers, is_convtranspose_bn=False
         )
     if fuse_depthwise_conv_bn:
-        nodes = _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
-            nodes, initializers, verbose=verbose
-        )
+        nodes = _fuse_depthwise_conv_bn_or_bn_depthwise_conv(nodes, initializers)
     if fuse_bn_depthwise_conv:
         nodes = _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
-            nodes, initializers, is_conv_bn=False, verbose=verbose
+            nodes, initializers, is_conv_bn=False
         )
     if reorder_by_strict_topological_order:
         nodes, initializers = _simplify_names(
@@ -181,8 +181,6 @@ def optimize_onnx(
             input_nodes, output_nodes, nodes, initializers
         )
 
-    if verbose:
-        print("Assembly new model...")
     new_model = onnx.helper.make_model(
         onnx.helper.make_graph(
             nodes,

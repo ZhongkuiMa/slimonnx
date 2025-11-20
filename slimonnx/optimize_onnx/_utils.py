@@ -141,7 +141,12 @@ def _get_convtranspose_params(
 
 
 def compute_batchnorm_fusion_params(
-    epsilon: float, scale: np.ndarray, b: np.ndarray, mean: np.ndarray, var: np.ndarray
+    epsilon: float,
+    scale: np.ndarray,
+    b: np.ndarray,
+    mean: np.ndarray,
+    var: np.ndarray,
+    target_dtype: np.dtype = np.float32,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute fused BatchNorm weight and bias for fusion operations.
 
@@ -152,8 +157,16 @@ def compute_batchnorm_fusion_params(
     :param b: BatchNorm bias parameter
     :param mean: BatchNorm mean parameter
     :param var: BatchNorm variance parameter
+    :param target_dtype: Target dtype to preserve precision (default: float32)
     :return: Tuple of (bn_weight, bn_bias) for fusion
     """
-    bn_weight = scale / np.sqrt(var + epsilon)
+    # Cast all inputs to target dtype to avoid float32/float64 mismatch
+    scale = scale.astype(target_dtype, copy=False)
+    b = b.astype(target_dtype, copy=False)
+    mean = mean.astype(target_dtype, copy=False)
+    var = var.astype(target_dtype, copy=False)
+
+    # Perform computation in target dtype
+    bn_weight = scale / np.sqrt(var + target_dtype.type(epsilon))
     bn_bias = b - mean * bn_weight
     return bn_weight, bn_bias

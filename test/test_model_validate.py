@@ -12,7 +12,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from slimonnx import SlimONNX, OptimizationConfig
-from utils import (
+from slimonnx.test.utils import (
     find_all_onnx_files,
     find_benchmarks_folders,
     get_benchmark_name,
@@ -20,21 +20,17 @@ from utils import (
 )
 
 
-def test_one_model_validate(
-    onnx_path: str,
-    verbose: bool = False,
-) -> dict:
+def test_one_model_validate(onnx_path: str) -> dict:
     """Test validation on a single ONNX model.
 
     :param onnx_path: Path to ONNX model file
-    :param verbose: Print detailed output
     :return: Validation test result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
     has_batch_dim = if_has_batch_dim(onnx_path)
 
     config = OptimizationConfig(has_batch_dim=has_batch_dim)
-    slimonnx = SlimONNX(verbose=verbose)
+    slimonnx = SlimONNX()
 
     try:
         # Validate model
@@ -73,14 +69,12 @@ def test_one_model_validate(
 def test_all_model_validate(
     benchmark_dir: str = "benchmarks",
     max_per_benchmark: int = 20,
-    verbose: bool = False,
     results_dir: str = "results/model_validate",
 ) -> bool:
     """Test validation on all benchmark models.
 
     :param benchmark_dir: Root directory of benchmarks
     :param max_per_benchmark: Maximum models per benchmark to process
-    :param verbose: Print detailed output
     :param results_dir: Directory to save test results
     :return: True if all tests passed, False otherwise
     """
@@ -115,7 +109,7 @@ def test_all_model_validate(
         basename = os.path.basename(onnx_path)
         print(f"[{i}/{len(onnx_files)}] {basename}...", end=" ")
 
-        result = test_one_model_validate(onnx_path, verbose=verbose)
+        result = test_one_model_validate(onnx_path)
 
         benchmark = result["benchmark"]
         stats = benchmark_stats[benchmark]
@@ -209,6 +203,5 @@ if __name__ == "__main__":
     success = test_all_model_validate(
         benchmark_dir="benchmarks",
         max_per_benchmark=20,
-        verbose=False,
     )
     sys.exit(0 if success else 1)

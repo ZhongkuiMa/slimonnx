@@ -46,7 +46,7 @@ def validate_model(
     from .. import utils
 
     nodes = list(model.graph.node)
-    initializers = utils.get_initializers(model, verbose=False)
+    initializers = utils.get_initializers(model)
     inputs = list(model.graph.input)
     outputs = list(model.graph.output)
 

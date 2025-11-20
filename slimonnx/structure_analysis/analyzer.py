@@ -75,7 +75,7 @@ def analyze_structure(
 
     from .. import utils
 
-    initializers = utils.get_initializers(model, verbose=False)
+    initializers = utils.get_initializers(model)
 
     return {
         "node_count": len(nodes),
