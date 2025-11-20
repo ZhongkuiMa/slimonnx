@@ -5,13 +5,13 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-
 from ._utils import (
     _is_only_next_node,
     _get_batchnorm_params,
     compute_batchnorm_fusion_params,
 )
 from ..onnx_attrs import get_onnx_attrs
+from .constants import TRANSPOSE_CHW_TO_CWH, GEMM_REQUIRED_RANK
 
 
 def _fuse_transpose_batchnorm_transpose(
@@ -31,8 +31,6 @@ def _fuse_transpose_batchnorm_transpose(
     :param data_shapes: Dictionary of tensor shapes (optional)
     :return: Optimized list of nodes
     """
-    count = 0
-
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -51,18 +49,16 @@ def _fuse_transpose_batchnorm_transpose(
             new_nodes.pop()
             new_nodes.pop()
             tp_node1, bn_node, tp_node2 = pre_pre_node, pre_node, node
-            data_type = initializers[bn_node.input[2]].data_type
 
             perm1 = get_onnx_attrs(tp_node1, initializers)["perm"]
             perm2 = get_onnx_attrs(tp_node2, initializers)["perm"]
-            _mode = (0, 2, 1)
-            if not all(p_i == p_j for p_i, p_j in zip(perm1, _mode)):
+            if not all(p_i == p_j for p_i, p_j in zip(perm1, TRANSPOSE_CHW_TO_CWH)):
                 raise ValueError(
-                    f"First Transpose node {tp_node1.name} has unsupported perm={perm1}. Expected {_mode}."
+                    f"First Transpose node {tp_node1.name} has unsupported perm={perm1}. Expected {TRANSPOSE_CHW_TO_CWH}."
                 )
-            if not all(p_i == p_j for p_i, p_j in zip(perm2, _mode)):
+            if not all(p_i == p_j for p_i, p_j in zip(perm2, TRANSPOSE_CHW_TO_CWH)):
                 raise ValueError(
-                    f"Second Transpose node {tp_node2.name} has unsupported perm={perm2}. Expected {_mode}."
+                    f"Second Transpose node {tp_node2.name} has unsupported perm={perm2}. Expected {TRANSPOSE_CHW_TO_CWH}."
                 )
 
             epsilon, scale, b, mean, var = _get_batchnorm_params(
@@ -111,7 +107,6 @@ def _fuse_transpose_batchnorm_transpose(
                     name=bn_node.name + "_gemm",
                 )
 
-                count += 1
             else:
                 # Non-rank-2 input: convert to MatMul+Add
                 weight_name = bn_node.input[1] + "_matmul"
@@ -140,8 +135,6 @@ def _fuse_transpose_batchnorm_transpose(
                     outputs=tp_node2.output,
                     name=bn_node.name + "_add",
                 )
-
-                count += 1
 
         new_nodes.append(new_node)
         pre_pre_node = pre_node

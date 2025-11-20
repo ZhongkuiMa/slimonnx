@@ -15,8 +15,6 @@ def _remove_redundant_operations(
     """
     Remove zero adding, subtracting, multiplying, dividing operations.
     """
-    count = 0
-
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -40,7 +38,6 @@ def _remove_redundant_operations(
             for i, output_name in enumerate(pre_pre_node.output):
                 if output_name == pre_node.input[0]:
                     node.input[0] = output_name
-            count += 1
             new_nodes.pop()
 
         pre_pre_node = pre_node
@@ -71,7 +68,6 @@ def _remove_redundant_operations(
                 if node.op_type == "Reshape":
                     del initializers[node.input[1]]
                 skip_node(node)
-                count += 1
                 continue
 
         elif node.op_type in {"Add", "Sub", "Mul", "Div"}:
@@ -94,7 +90,6 @@ def _remove_redundant_operations(
             if redundant:
                 del initializers[initializer_name]
                 skip_node(node)
-                count += 1
                 continue
 
         elif node.op_type in {"Pad"}:
@@ -104,7 +99,6 @@ def _remove_redundant_operations(
             if np.all(array == 0):
                 del initializers[node.input[1]]
                 skip_node(node)
-                count += 1
                 continue
 
         new_nodes.append(node)

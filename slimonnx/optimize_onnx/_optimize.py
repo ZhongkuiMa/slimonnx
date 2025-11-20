@@ -89,7 +89,9 @@ def optimize_onnx(
 
     model = clear_onnx_docstring(model)
 
-    # TODO: Here, we can use extract_nodes()
+    # Cannot use extract_nodes() here because it always converts constants to initializers,
+    # but we need to respect the constant_to_initializer flag for backward compatibility.
+    # TODO: Remove the constant_to_initializer flag and always convert it.
     initializers = get_initializers(model)
     input_nodes = get_input_nodes(model, initializers, has_batch_dim)
     output_nodes = get_output_nodes(model, has_batch_dim)

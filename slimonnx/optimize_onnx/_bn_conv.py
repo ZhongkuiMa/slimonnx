@@ -19,8 +19,6 @@ def _fuse_conv_bn_or_bn_conv(
     initializers: dict[str, TensorProto],
     is_conv_bn: bool = True,
 ) -> list[NodeProto]:
-    count = 0
-
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -117,7 +115,6 @@ def _fuse_conv_bn_or_bn_conv(
             group=attrs["group"],
             auto_pad=attrs["auto_pad"],
         )
-        count += 1
 
         new_nodes.append(new_node)
         pre_node = node
@@ -130,8 +127,6 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
     initializers: dict[str, TensorProto],
     is_convtranspose_bn: bool = True,
 ) -> list[NodeProto]:
-    count = 0
-
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -196,7 +191,7 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
         if len(conv_node.input) > 2:
             new_bias_name = conv_node.input[2]
         else:
-            new_bias_name = conv_node.input[2] + "_bias"
+            new_bias_name = conv_node.input[1] + "_bias"
         new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
         new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
         initializers[new_weight_name] = new_weight
@@ -223,8 +218,6 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
             group=attrs["group"],
             auto_pad=attrs["auto_pad"],
         )
-
-        count += 1
 
         new_nodes.append(new_node)
         pre_node = node
