@@ -18,7 +18,6 @@ __all__ = [
     "optimize_all_models",
     "save_as_baseline",
     "verify_against_baseline",
-    "verify_against_benchmarks",
 ]
 
 import os
