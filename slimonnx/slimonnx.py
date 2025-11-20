@@ -54,7 +54,7 @@ class SlimONNX:
         # Preprocess model (load, convert to opset 21, clear docs, mark SlimONNX)
         model = self.preprocess(
             onnx_path,
-            target_opset=21,
+            target_opset=17,
             infer_shapes=False,
             clear_docstrings=True,
             mark_slimonnx=True,
@@ -92,19 +92,6 @@ class SlimONNX:
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
         os.makedirs(os.path.dirname(target_path), exist_ok=True)
-
-        # Downgrade for ONNX Runtime compatibility if validation requested
-        if validation.validate_outputs:
-            current_opset = (
-                new_model.opset_import[0].version if new_model.opset_import else 0
-            )
-            if current_opset > 17:
-                from .preprocess import convert_model_version
-
-                new_model = convert_model_version(
-                    new_model, target_opset=17, warn_on_diff=False
-                )
-
         onnx.save(new_model, target_path)
 
         # Validate outputs if requested
@@ -378,7 +365,7 @@ class SlimONNX:
 
         model = self.preprocess(
             onnx_path,
-            target_opset=21,
+            target_opset=17,
             infer_shapes=True,
             clear_docstrings=False,
             mark_slimonnx=False,
@@ -427,7 +414,7 @@ class SlimONNX:
 
         model = self.preprocess(
             onnx_path,
-            target_opset=21,
+            target_opset=17,
             infer_shapes=True,
             clear_docstrings=False,
             mark_slimonnx=False,

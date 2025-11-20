@@ -23,11 +23,6 @@ def generate_inputs_from_bounds(
     :param input_shape: Shape of input tensor
     :param num_samples: Number of input samples to generate
     :return: List of input dictionaries
-
-    Example:
-        lower = [0.0, 0.0, 0.0]
-        upper = [1.0, 1.0, 1.0]
-        inputs = generate_inputs_from_bounds((lower, upper), (1, 3), num_samples=5)
     """
     lower_bounds, upper_bounds = input_bounds
 
@@ -36,7 +31,6 @@ def generate_inputs_from_bounds(
 
     inputs = []
     for _ in range(num_samples):
-        # Generate random values within bounds for each dimension
         sample = np.random.uniform(
             low=lower_bounds, high=upper_bounds, size=input_shape
         ).astype(np.float32)
@@ -58,20 +52,16 @@ def run_onnx_inference(
     """
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
 
-    # Get input/output names
     input_names = [inp.name for inp in session.get_inputs()]
     output_names = [out.name for out in session.get_outputs()]
 
-    # Prepare inputs (handle single input case)
     if len(input_names) == 1 and "input" in inputs:
         feed_dict = {input_names[0]: inputs["input"]}
     else:
         feed_dict = inputs
 
-    # Run inference
     outputs = session.run(output_names, feed_dict)
 
-    # Return as dictionary
     return {name: output for name, output in zip(output_names, outputs)}
 
 
@@ -91,101 +81,71 @@ def compare_model_outputs(
     :param model2_path: Path to second model (e.g., optimized)
     :param input_bounds: Tuple of (lower_bounds, upper_bounds) for input generation
     :param test_inputs: Pre-generated inputs (if bounds not provided)
-    :param test_data_path: Path to test data file (.pth, .npy, .npz)
+    :param test_data_path: Path to test data file (.npy, .npz)
     :param num_samples: Number of random samples if generating inputs
     :param rtol: Relative tolerance for comparison
     :param atol: Absolute tolerance for comparison
     :return: Comparison report dictionary
-
-    Returns:
-        {
-            'all_match': bool,
-            'num_tests': int,
-            'passed': int,
-            'failed': int,
-            'max_diff': float,
-            'mismatches': list[str],
-        }
-
-    Usage:
-        # With bounds
-        compare_model_outputs(
-            'original.onnx',
-            'optimized.onnx',
-            input_bounds=([0.0, 0.0], [1.0, 1.0])
-        )
-
-        # With pre-generated inputs
-        compare_model_outputs(
-            'original.onnx',
-            'optimized.onnx',
-            test_inputs=[{'input': array(...)}, ...]
-        )
     """
-    # 1. Generate or use provided inputs
     if test_inputs is None:
-        # Priority: test_data_path > input_bounds > random
         if test_data_path is not None:
-            # Load from test data file
             try:
-                # Try to import from test utils
                 try:
                     from slimonnx.test.utils import load_test_data_from_file
 
                     test_inputs = load_test_data_from_file(test_data_path)
-                except ImportError as ie:
-                    # Fallback: load manually
-                    if test_data_path.endswith(".pth"):
-                        import torch
-
-                        data = torch.load(test_data_path, map_location="cpu")
-                        if isinstance(data, dict) and "inputs" in data:
-                            inputs_data = data["inputs"]
-                            if isinstance(inputs_data, torch.Tensor):
-                                test_inputs = [
-                                    {"input": inputs_data[i].numpy()}
-                                    for i in range(
-                                        min(num_samples, inputs_data.shape[0])
-                                    )
-                                ]
-                        elif isinstance(data, torch.Tensor):
+                except ImportError:
+                    if test_data_path.endswith(".npy"):
+                        data = np.load(test_data_path)
+                        if len(data.shape) == 1:
+                            test_inputs = [{"input": data}]
+                        else:
                             test_inputs = [
-                                {"input": data[i].numpy()}
+                                {"input": data[i]}
                                 for i in range(min(num_samples, data.shape[0]))
+                            ]
+                    elif test_data_path.endswith(".npz"):
+                        data = np.load(test_data_path)
+                        if "inputs" in data:
+                            inputs_data = data["inputs"]
+                            test_inputs = [
+                                {"input": inputs_data[i]}
+                                for i in range(min(num_samples, inputs_data.shape[0]))
+                            ]
+                        elif "X" in data:
+                            X = data["X"]
+                            test_inputs = [
+                                {"input": X[i]}
+                                for i in range(min(num_samples, X.shape[0]))
                             ]
                     else:
                         raise ValueError(
                             f"Unsupported test data format: {test_data_path}"
                         )
 
-                # Limit to num_samples
                 if test_inputs is not None and len(test_inputs) > num_samples:
                     test_inputs = test_inputs[:num_samples]
 
-            except Exception as e:
+            except Exception:
                 test_data_path = None
                 test_inputs = None
 
         if test_inputs is None and input_bounds is not None:
-            # Get input shape from model
             model = onnx.load(model1_path)
             input_shape = tuple(
                 d.dim_value for d in model.graph.input[0].type.tensor_type.shape.dim
             )
 
-            # Generate from bounds
             test_inputs = generate_inputs_from_bounds(
                 input_bounds, input_shape, num_samples
             )
 
         if test_inputs is None:
-            # Generate random inputs
             from .. import utils
 
             model = onnx.load(model1_path)
             test_inputs = utils.generate_random_inputs(model, num_samples)
 
-    # 2. Get model sessions to check input/output names
     session1 = ort.InferenceSession(model1_path, providers=["CPUExecutionProvider"])
     session2 = ort.InferenceSession(model2_path, providers=["CPUExecutionProvider"])
 
@@ -194,19 +154,15 @@ def compare_model_outputs(
     input_names2 = [inp.name for inp in session2.get_inputs()]
     output_names2 = [out.name for out in session2.get_outputs()]
 
-    # 3. Run both models on all inputs
     passed = 0
     failed = 0
     max_diff = 0.0
     mismatches = []
 
     for i, inputs in enumerate(test_inputs):
-        # Run model1 with original inputs
         outputs1 = run_onnx_inference(model1_path, inputs)
 
-        # Map inputs for model2 if names differ (assume same order)
         if input_names1 != input_names2:
-            # Create new input dict with model2's input names but model1's data
             inputs2 = {}
             for name1, name2 in zip(input_names1, input_names2):
                 if name1 in inputs:
@@ -218,7 +174,6 @@ def compare_model_outputs(
 
         outputs2 = run_onnx_inference(model2_path, inputs2)
 
-        # Compare outputs (map output names if needed, assume same order)
         match = True
         for idx, (out1_name, out2_name) in enumerate(zip(output_names1, output_names2)):
             if out1_name not in outputs1 or out2_name not in outputs2:

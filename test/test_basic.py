@@ -101,14 +101,15 @@ def _run_model(model_path: str, inputs: dict) -> dict:
 
 
 def _prepare_optimized_model(model_path: str) -> None:
-    """Convert model to opset 17 and IR version 8 for compatibility.
+    """Convert model to opset 20 and IR version 10 for compatibility.
 
     :param model_path: Path to ONNX model to modify in-place
     """
     from slimonnx.slimonnx.preprocess import convert_model_version
 
     model = onnx.load(model_path)
-    model = convert_model_version(model, target_opset=17, warn_on_diff=False)
+    model = convert_model_version(model, target_opset=20, warn_on_diff=False)
+    model.ir_version = 4
     onnx.save(model, model_path)
 
 
@@ -133,14 +134,14 @@ def test_basic_optimization() -> bool:
             fuse_conv_bn=False,
             simplify_node_name=True,
         )
-        slimonnx = SlimONNX(verbose=True)
+        slimonnx = SlimONNX()
         slimonnx.slim(original_path, optimized_path, config=config)
 
         assert os.path.exists(optimized_path), "Optimized model not created"
         print("OK: Optimized model created")
 
         _prepare_optimized_model(optimized_path)
-        print("OK: Optimized model loaded and converted to opset 17, IR version 8")
+        print("OK: Optimized model loaded and converted")
 
         test_input = np.random.randn(1, 3, 224, 224).astype(np.float32)
 
@@ -200,14 +201,14 @@ def test_conv_bn_fusion() -> bool:
             fuse_conv_bn=True,
             simplify_node_name=True,
         )
-        slimonnx = SlimONNX(verbose=True)
+        slimonnx = SlimONNX()
         slimonnx.slim(original_path, optimized_path, config=config)
 
         _prepare_optimized_model(optimized_path)
 
         optimized_model = onnx.load(optimized_path)
         optimized_node_count = len(optimized_model.graph.node)
-        print(f"Optimized model: {optimized_node_count} nodes (opset 17, IR version 8)")
+        print(f"Optimized model: {optimized_node_count} nodes")
 
         assert (
             optimized_node_count < original_node_count

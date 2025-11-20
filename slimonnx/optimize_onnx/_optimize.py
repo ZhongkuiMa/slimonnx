@@ -12,12 +12,12 @@ from ._bn_conv import (
     _fuse_convtranspose_bn_or_bn_convtranspose,
 )
 from ._bn_conv_with_padding import _fuse_bn_conv_with_padding
-from ._depthwise_conv import _fuse_depthwise_conv_bn_or_bn_depthwise_conv
 from ._bn_gemm import _fuse_gemm_reshape_bn, _fuse_bn_reshape_gemm, _fuse_bn_gemm
 from ._bn_transpose import _fuse_transpose_batchnorm_transpose
 from ._conv import _simplify_conv_to_flatten_gemm
 from ._cst2initer import _constant_to_initializer
 from ._cst_op import _fuse_constant_nodes
+from ._depthwise_conv import _fuse_depthwise_conv_bn_or_bn_depthwise_conv
 from ._dropout import remove_dropout as _remove_dropout
 from ._gemm import _simplify_gemm
 from ._gemm_gemm import _fuse_gemm_gemm
@@ -107,7 +107,6 @@ def optimize_onnx(
         model.graph.initializer.extend(list(initializers.values()))
 
     if remove_dropout:
-
         model = _remove_dropout(model)
         nodes = list(model.graph.node)
 
@@ -146,7 +145,9 @@ def optimize_onnx(
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
-        nodes = _fuse_transpose_batchnorm_transpose(nodes, initializers, input_nodes, data_shapes)
+        nodes = _fuse_transpose_batchnorm_transpose(
+            nodes, initializers, input_nodes, data_shapes
+        )
     if simplify_gemm:
         nodes = _simplify_gemm(nodes, initializers)
     if fuse_gemm_gemm:
@@ -181,6 +182,7 @@ def optimize_onnx(
             input_nodes, output_nodes, nodes, initializers
         )
 
+    # Set the opset version not too high to ensure compatibility
     new_model = onnx.helper.make_model(
         onnx.helper.make_graph(
             nodes,
@@ -188,7 +190,8 @@ def optimize_onnx(
             input_nodes,
             output_nodes,
             list(initializers.values()),
-        )
+        ),
+        opset_imports=model.opset_import,  # Hold original opset versions
     )
 
     return new_model
