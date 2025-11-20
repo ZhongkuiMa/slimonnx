@@ -175,9 +175,10 @@ def load_onnx_model(onnx_path: str):
     :return: ONNX ModelProto converted to version 21
     """
     import onnx
+    from slimonnx.preprocess import convert_model_version
 
     model = onnx.load(onnx_path)
-    model = onnx.version_converter.convert_version(model, target_version=21)
+    model = convert_model_version(model, target_opset=21, warn_on_diff=False)
     return model
 
 
@@ -343,7 +344,7 @@ def load_vnnlib_inputs(
     if not pth_files:
         return None
 
-    # Load ONNX model to get input name
+    # Load ONNX model to get input name and shape
     model = onnx.load(onnx_path)
     input_names = [
         inp.name
@@ -355,6 +356,13 @@ def load_vnnlib_inputs(
         return None
 
     input_name = input_names[0]
+
+    # Get input shape specification from model
+    input_dims = None
+    for inp in model.graph.input:
+        if inp.name == input_name:
+            input_dims = inp.type.tensor_type.shape.dim
+            break
 
     # Load inputs from all .pth files
     inputs_list = []
@@ -369,11 +377,27 @@ def load_vnnlib_inputs(
             upper = input_bounds[:, 1]
             midpoint = (lower + upper) / 2
 
-            # Convert to numpy and reshape for ONNX Runtime
+            # Convert to numpy
             arr = midpoint.numpy().astype(np.float32)
-            inputs_list.append(
-                {input_name: arr.reshape(1, -1) if arr.ndim == 1 else arr}
-            )
+
+            # Reshape to match model's expected input shape
+            if input_dims is not None:
+                # Build target shape: use fixed dims where specified, infer others from data
+                target_shape = []
+                remaining_size = len(arr)
+
+                for d in input_dims:
+                    if d.dim_value > 0:
+                        target_shape.append(d.dim_value)
+                        remaining_size //= d.dim_value
+
+                # If there are dynamic dimensions, add them at the beginning
+                if len(target_shape) < len(input_dims):
+                    target_shape.insert(0, remaining_size)
+
+                arr = arr.reshape(target_shape)
+
+            inputs_list.append({input_name: arr})
         except Exception:
             continue
 

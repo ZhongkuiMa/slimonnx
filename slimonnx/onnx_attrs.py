@@ -574,18 +574,13 @@ _EXTRACT_ATTRS_MAP = {
 def get_onnx_attrs(
     node: NodeProto, initializers: dict[str, TensorProto]
 ) -> dict[str, Any]:
+    """Get attributes of the ONNX node.
+
+    :param node: The ONNX node
+    :param initializers: The initializers of the ONNX model
+    :return: Dictionary of attributes with key as the name of the attribute
     """
-    Get attributes of the ONNX node.
-
-    :param node: The ONNX node.
-    :param initializers: The initializers of the ONNX model.
-
-    :return: A dictionary of attributes with key is the name of the attribute.
-    """
-
     _get_attrs = _EXTRACT_ATTRS_MAP.get(node.op_type)
     if _get_attrs is None:
         raise NotImplementedError(f"Unsupported operator: {node.op_type}")
-    attrs = _get_attrs(node, initializers)
-
-    return attrs
+    return _get_attrs(node, initializers)

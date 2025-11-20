@@ -65,7 +65,6 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     is_conv_bn: bool = True,
-    verbose: bool = False,
 ) -> list[NodeProto]:
     """Fuse depthwise Conv + BatchNormalization or BatchNormalization + depthwise Conv.
 
@@ -131,9 +130,10 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         # Get Conv parameters
         weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
 
-        # Compute BN fusion parameters
+        # Preserve dtype from weight tensor to avoid float32/float64 mismatch
+        target_dtype = weight.dtype
         bn_weight, bn_bias = compute_batchnorm_fusion_params(
-            epsilon, scale, b, mean, var
+            epsilon, scale, b, mean, var, target_dtype
         )
 
         # Fuse parameters
@@ -141,13 +141,17 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         # BN parameters are [C]
         if is_conv_bn:
             # DepthwiseConv + BN
-            new_weight = weight * bn_weight.reshape(-1, 1, 1, 1)
-            new_bias = bias * bn_weight + bn_bias
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (bias * bn_weight + bn_bias).astype(target_dtype, copy=False)
         else:
             # BN + DepthwiseConv
             # For depthwise, each channel is independent
-            new_weight = weight * bn_weight.reshape(-1, 1, 1, 1)
-            new_bias = bias + bn_bias
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (bias + bn_bias).astype(target_dtype, copy=False)
 
         # Update initializers
         new_weight_name = conv_node.input[1]
@@ -185,9 +189,5 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         count += 1
         new_nodes.append(new_node)
         pre_node = node
-
-    if verbose:
-        direction = "DepthwiseConv-BN" if is_conv_bn else "BN-DepthwiseConv"
-        print(f"Fused {count} {direction}.")
 
     return new_nodes

@@ -16,26 +16,25 @@ import onnx
 import onnxruntime as ort
 
 from slimonnx import SlimONNX, get_preset
-from utils import (
+from slimonnx.test.utils import (
     find_all_onnx_files,
     find_benchmarks_folders,
     get_benchmark_name,
-    load_onnx_model,
     load_vnnlib_inputs,
 )
 
 
-def generate_random_inputs(model: onnx.ModelProto, num_samples: int = 3) -> list[dict]:
+def generate_random_inputs(model: onnx.ModelProto, num_samples: int = 3) -> list[list]:
     """Generate random test inputs for a model.
 
     :param model: ONNX ModelProto
     :param num_samples: Number of random samples to generate
-    :return: List of input dictionaries
+    :return: List of lists of input arrays (positional order)
     """
     inputs_list = []
 
     for _ in range(num_samples):
-        inputs = {}
+        inputs = []
         for inp in model.graph.input:
             # Skip initializers
             if any(init.name == inp.name for init in model.graph.initializer):
@@ -62,58 +61,54 @@ def generate_random_inputs(model: onnx.ModelProto, num_samples: int = 3) -> list
 
             # Generate random input
             if dtype in [np.float32, np.float64]:
-                inputs[inp.name] = np.random.randn(*shape).astype(dtype)
+                inputs.append(np.random.randn(*shape).astype(dtype))
             else:
-                inputs[inp.name] = np.random.randint(0, 10, size=shape, dtype=dtype)
+                inputs.append(np.random.randint(0, 10, size=shape, dtype=dtype))
 
         inputs_list.append(inputs)
 
     return inputs_list
 
 
-def run_model(model_path: str, inputs: dict) -> dict:
+def run_model(model_path: str, inputs: list) -> list:
     """Run ONNX model and return outputs.
 
     :param model_path: Path to ONNX model file
-    :param inputs: Dictionary of input arrays
-    :return: Dictionary of output arrays
+    :param inputs: List of input arrays (positional order)
+    :return: List of output arrays
     """
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-    outputs = session.run(None, inputs)
-    output_names = [out.name for out in session.get_outputs()]
-    return {name: output for name, output in zip(output_names, outputs)}
+    input_names = [inp.name for inp in session.get_inputs()]
+    input_dict = {name: inp for name, inp in zip(input_names, inputs)}
+    outputs = session.run(None, input_dict)
+    return outputs
 
 
 def compare_outputs(
-    outputs1: dict, outputs2: dict, rtol: float = 1e-5, atol: float = 1e-6
+    outputs1: list, outputs2: list, rtol: float = 1e-5, atol: float = 1e-6
 ) -> tuple[bool, list[str]]:
     """Compare outputs from two models.
 
-    :param outputs1: First model outputs
-    :param outputs2: Second model outputs
+    :param outputs1: First model outputs (list)
+    :param outputs2: Second model outputs (list)
     :param rtol: Relative tolerance
     :param atol: Absolute tolerance
     :return: Tuple of (all_match, mismatch_messages)
     """
-    if set(outputs1.keys()) != set(outputs2.keys()):
-        return False, [
-            f"Output keys mismatch: {set(outputs1.keys())} vs {set(outputs2.keys())}"
-        ]
+    if len(outputs1) != len(outputs2):
+        return False, [f"Output count mismatch: {len(outputs1)} vs {len(outputs2)}"]
 
     mismatches = []
-    for key in outputs1.keys():
-        out1 = outputs1[key]
-        out2 = outputs2[key]
-
+    for idx, (out1, out2) in enumerate(zip(outputs1, outputs2)):
         if out1.shape != out2.shape:
-            mismatches.append(f"  {key}: shape {out1.shape} vs {out2.shape}")
+            mismatches.append(f"  Output {idx}: shape {out1.shape} vs {out2.shape}")
             continue
 
         if not np.allclose(out1, out2, rtol=rtol, atol=atol):
             max_diff = np.max(np.abs(out1 - out2))
             mean_diff = np.mean(np.abs(out1 - out2))
             mismatches.append(
-                f"  {key}: max diff {max_diff:.2e}, mean diff {mean_diff:.2e}"
+                f"  Output {idx}: max diff {max_diff:.2e}, mean diff {mean_diff:.2e}"
             )
 
     return len(mismatches) == 0, mismatches
@@ -123,21 +118,20 @@ def test_model_correctness(
     onnx_path: str,
     use_vnnlib_inputs: bool = True,
     num_random_samples: int = 3,
-    verbose: bool = False,
 ) -> dict:
     """Test correctness of optimization for a single model.
 
     :param onnx_path: Path to ONNX model file
     :param use_vnnlib_inputs: Whether to use torchvnnlib-extracted inputs
     :param num_random_samples: Number of random samples if torchvnnlib inputs not found
-    :param verbose: Whether to print verbose output
     :return: Dictionary with test results
     """
     benchmark_name = get_benchmark_name(onnx_path)
-    config = get_preset(benchmark_name)
+    model_name = os.path.basename(onnx_path)
+    config = get_preset(benchmark_name, model_name)
 
     # Load original model
-    original_model = load_onnx_model(onnx_path)
+    original_model = onnx.load(onnx_path)
     original_node_count = len(original_model.graph.node)
 
     # Create temp paths
@@ -163,7 +157,7 @@ def test_model_correctness(
         onnx.save(original_model, temp_v22_path)
 
         # Run optimization
-        slimonnx = SlimONNX(verbose=verbose)
+        slimonnx = SlimONNX()
         slimonnx.slim(temp_v22_path, temp_optimized_path, config=config)
 
         # Load optimized model
@@ -177,8 +171,18 @@ def test_model_correctness(
         # Get test inputs
         test_inputs = None
         if use_vnnlib_inputs:
-            test_inputs = load_vnnlib_inputs(onnx_path)
-            if test_inputs:
+            vnnlib_inputs = load_vnnlib_inputs(onnx_path)
+            if vnnlib_inputs:
+                # Convert dict inputs to list inputs (positional order)
+                test_inputs = []
+                for inp_dict in vnnlib_inputs:
+                    inp_list = [
+                        inp_dict[inp.name]
+                        for inp in original_model.graph.input
+                        if inp.name
+                        not in {init.name for init in original_model.graph.initializer}
+                    ]
+                    test_inputs.append(inp_list)
                 result["input_source"] = "torchvnnlib"
 
         if test_inputs is None:
@@ -226,14 +230,12 @@ def test_all_correctness(
     benchmark_dir: str = "benchmarks",
     max_per_benchmark: int = 20,
     use_vnnlib_inputs: bool = True,
-    verbose: bool = False,
 ) -> bool:
     """Test correctness for all benchmark models.
 
     :param benchmark_dir: Root directory of benchmarks
     :param max_per_benchmark: Maximum models per benchmark to test
     :param use_vnnlib_inputs: Whether to use torchvnnlib-extracted inputs
-    :param verbose: Whether to print verbose output
     :return: True if all tests passed, False otherwise
     """
     benchmark_dirs = find_benchmarks_folders(benchmark_dir)
@@ -254,7 +256,7 @@ def test_all_correctness(
         basename = os.path.basename(onnx_path)
         print(f"[{i}/{len(onnx_files)}] {basename}...", end=" ")
 
-        result = test_model_correctness(onnx_path, use_vnnlib_inputs, verbose=verbose)
+        result = test_model_correctness(onnx_path, use_vnnlib_inputs)
 
         if result["success"]:
             print(
@@ -303,7 +305,5 @@ def test_all_correctness(
 
 
 if __name__ == "__main__":
-    success = test_all_correctness(
-        use_vnnlib_inputs=True, max_per_benchmark=20, verbose=False
-    )
+    success = test_all_correctness(use_vnnlib_inputs=True, max_per_benchmark=20)
     sys.exit(0 if success else 1)

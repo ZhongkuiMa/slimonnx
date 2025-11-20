@@ -11,7 +11,6 @@ def _remove_redundant_operations(
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, list[int]],
     output_nodes: list[ValueInfoProto],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     """
     Remove zero adding, subtracting, multiplying, dividing operations.
@@ -109,8 +108,5 @@ def _remove_redundant_operations(
                 continue
 
         new_nodes.append(node)
-
-    if verbose:
-        print(f"Remove {count} redundant operations.")
 
     return new_nodes

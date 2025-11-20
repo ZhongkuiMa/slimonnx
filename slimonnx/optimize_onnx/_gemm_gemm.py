@@ -11,7 +11,6 @@ from ._utils import _get_gemm_params
 def _fuse_gemm_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     # Get all gemm nodes
     # Remove those gemm nodes that has multiple pre/post nodes
@@ -136,8 +135,5 @@ def _fuse_gemm_gemm(
         )
 
         new_nodes.append(new_gemm_node)
-
-    if verbose:
-        print(f"Fused {len(fused_gemm_groups)} Gemm-Gemm groups.")
 
     return new_nodes

@@ -7,7 +7,7 @@ from onnx import NodeProto, TensorProto
 
 
 def _constant_to_initializer(
-    nodes: list[NodeProto], initializers: dict[str, TensorProto], verbose: bool = False
+    nodes: list[NodeProto], initializers: dict[str, TensorProto]
 ) -> list[NodeProto]:
     count = 0
 
@@ -22,8 +22,5 @@ def _constant_to_initializer(
             continue
 
         new_nodes.append(node)
-
-    if verbose:
-        print(f"Convert {count} constant nodes to initializers.")
 
     return new_nodes

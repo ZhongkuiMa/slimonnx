@@ -18,7 +18,6 @@ def _fuse_conv_bn_or_bn_conv(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     is_conv_bn: bool = True,
-    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
 
@@ -52,24 +51,42 @@ def _fuse_conv_bn_or_bn_conv(
         else:
             conv_node, bn_node = node, pre_node
 
+        # Check if Conv has padding BEFORE calling _get_*_params to avoid modifying initializers
+        _, _, attrs = _get_conv_params(conv_node, initializers, False)
+
+        # Skip fusion if Conv has padding (fusion is incorrect with padding when bn_bias != 0)
+        if not is_conv_bn and any(p != 0 for p in attrs["pads"]):
+            # Restore the nodes and skip fusion
+            new_nodes.append(pre_node)
+            new_nodes.append(node)
+            pre_node = node
+            continue
+
+        # Now get params with get_from_initializers=True
         epsilon, scale, b, mean, var = _get_batchnorm_params(
             bn_node, initializers, True
         )
         weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
 
+        # Preserve dtype from weight tensor to avoid float32/float64 mismatch
+        target_dtype = weight.dtype
         bn_weight, bn_bias = compute_batchnorm_fusion_params(
-            epsilon, scale, b, mean, var
+            epsilon, scale, b, mean, var, target_dtype
         )
 
         # If the bias is None, we have create a zero tensor in the above functions.
         if is_conv_bn:
-            new_weight = weight * bn_weight.reshape(-1, 1, 1, 1)
-            new_bias = bias * bn_weight + bn_bias
-        else:
-            new_weight = weight * bn_weight.reshape(1, -1, 1, 1)
-            new_bias = bias + (
-                np.sum(weight * bn_bias.reshape(1, -1, 1, 1), axis=(1, 2, 3))
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
+                target_dtype, copy=False
             )
+            new_bias = (bias * bn_weight + bn_bias).astype(target_dtype, copy=False)
+        else:
+            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (
+                bias + np.sum(weight * bn_bias.reshape(1, -1, 1, 1), axis=(1, 2, 3))
+            ).astype(target_dtype, copy=False)
 
         new_weight_name = conv_node.input[1]
         if len(conv_node.input) > 2:
@@ -105,9 +122,6 @@ def _fuse_conv_bn_or_bn_conv(
         new_nodes.append(new_node)
         pre_node = node
 
-    if verbose:
-        print(f"Fused {count} Conv-BN or BN-Conv.")
-
     return new_nodes
 
 
@@ -115,7 +129,6 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     is_convtranspose_bn: bool = True,
-    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
 
@@ -160,18 +173,24 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
         )
         weight, bias, attrs = _get_convtranspose_params(conv_node, initializers, True)
 
+        # Preserve dtype from weight tensor to avoid float32/float64 mismatch
+        target_dtype = weight.dtype
         bn_weight, bn_bias = compute_batchnorm_fusion_params(
-            epsilon, scale, b, mean, var
+            epsilon, scale, b, mean, var, target_dtype
         )
 
         if is_convtranspose_bn:
-            new_weight = weight * bn_weight.reshape(1, -1, 1, 1)
-            new_bias = bias * bn_weight + bn_bias
-        else:
-            new_weight = weight * bn_weight.reshape(-1, 1, 1, 1)
-            new_bias = bias + (
-                np.sum(weight * bn_bias.reshape(-1, 1, 1, 1), axis=(0, 2, 3))
+            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
+                target_dtype, copy=False
             )
+            new_bias = (bias * bn_weight + bn_bias).astype(target_dtype, copy=False)
+        else:
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
+                target_dtype, copy=False
+            )
+            new_bias = (
+                bias + np.sum(weight * bn_bias.reshape(-1, 1, 1, 1), axis=(0, 2, 3))
+            ).astype(target_dtype, copy=False)
 
         new_weight_name = conv_node.input[1]
         if len(conv_node.input) > 2:
@@ -209,8 +228,5 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
 
         new_nodes.append(new_node)
         pre_node = node
-
-    if verbose:
-        print(f"Fused {count} ConvTranspose-BN.")
 
     return new_nodes

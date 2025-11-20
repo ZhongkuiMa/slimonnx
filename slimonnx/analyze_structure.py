@@ -3,30 +3,28 @@
 __docformat__ = "restructuredtext"
 __all__ = ["analyze_model", "compare_models"]
 
-import sys
 import os
+import sys
 
 # Add parent to path for shapeonnx import
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+
 from . import utils
-from .preprocess import load_and_preprocess, cleanup_model
 from .model_validate import validate_model
 from .pattern_detect import detect_all_patterns
+from .preprocess import load_and_preprocess
 from .structure_analysis import (
     analyze_structure,
     export_topology_json,
-    generate_text_report,
     generate_json_report,
-    print_node_graph,
 )
-from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 
 
 def analyze_model(
     onnx_path: str,
     target_opset: int | None = None,
-    verbose: bool = True,
     export_json: bool = False,
     json_output_path: str | None = None,
     export_topology: bool = False,
@@ -36,8 +34,7 @@ def analyze_model(
     """Complete model analysis pipeline.
 
     :param onnx_path: Path to ONNX model
-    :param target_opset: Target opset for conversion (None = keep original, IR auto-updated)
-    :param verbose: Print detailed output
+    :param target_opset: Target opset for conversion (None = keep original)
     :param export_json: Export full analysis as JSON
     :param json_output_path: JSON output path
     :param export_topology: Export topology as JSON
@@ -45,13 +42,7 @@ def analyze_model(
     :param has_batch_dim: Whether model has batch dimension
     :return: Complete analysis report dictionary
     """
-    if verbose:
-        print(f"Analyzing model: {onnx_path}")
-        print("=" * 80)
-
-    # 1. Preprocess
-    if verbose:
-        print("\n[1/5] Preprocessing...")
+    # Preprocess
     model = load_and_preprocess(
         onnx_path,
         target_opset=target_opset,
@@ -62,17 +53,12 @@ def analyze_model(
     original_opset = model.opset_import[0].version if model.opset_import else 0
     original_ir = model.ir_version
 
-    # 2. Infer shapes using shapeonnx
-    if verbose:
-        print("[2/5] Inferring shapes...")
-
-    initializers = utils.get_initializers(model, verbose=False)
+    # Infer shapes using shapeonnx
+    initializers = utils.get_initializers(model)
     input_nodes = utils.get_input_nodes(
-        model, initializers, has_batch_dim=has_batch_dim, verbose=False
+        model, initializers, has_batch_dim=has_batch_dim
     )
-    output_nodes = utils.get_output_nodes(
-        model, has_batch_dim=has_batch_dim, verbose=False
-    )
+    output_nodes = utils.get_output_nodes(model, has_batch_dim=has_batch_dim)
     nodes = list(model.graph.node)
 
     try:
@@ -80,25 +66,17 @@ def analyze_model(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim=has_batch_dim
         )
         shape_inference_success = True
-    except Exception as e:
-        if verbose:
-            print(f"Warning: Shape inference failed: {e}")
+    except Exception:
         data_shapes = None
         shape_inference_success = False
 
-    # 3. Validate
-    if verbose:
-        print("[3/5] Validating...")
+    # Validate
     validation = validate_model(model, data_shapes=data_shapes)
 
-    # 4. Detect patterns
-    if verbose:
-        print("[4/5] Detecting patterns...")
+    # Detect patterns
     patterns = detect_all_patterns(nodes, initializers, data_shapes)
 
-    # 5. Analyze structure
-    if verbose:
-        print("[5/5] Analyzing structure...")
+    # Analyze structure
     structure = analyze_structure(model, data_shapes)
 
     # Calculate optimization opportunities
@@ -127,23 +105,15 @@ def analyze_model(
         },
     }
 
-    # Print text report
-    if verbose:
-        print("\n" + generate_text_report(report))
-
     # Export topology JSON if requested
     if export_topology:
         topo_path = topology_output_path or onnx_path.replace(".onnx", "_topology.json")
         export_topology_json(nodes, topo_path, data_shapes)
-        if verbose:
-            print(f"\nTopology exported to: {topo_path}")
 
     # Export full analysis JSON if requested
     if export_json:
         json_path = json_output_path or onnx_path.replace(".onnx", "_analysis.json")
         generate_json_report(report, json_path)
-        if verbose:
-            print(f"Analysis exported to: {json_path}")
 
     return report
 
@@ -151,24 +121,16 @@ def analyze_model(
 def compare_models(
     original_path: str,
     optimized_path: str,
-    verbose: bool = True,
 ) -> dict:
     """Compare original and optimized models.
 
     :param original_path: Original model path
     :param optimized_path: Optimized model path
-    :param verbose: Print detailed output
     :return: Comparison report dictionary
     """
-    if verbose:
-        print("Comparing models:")
-        print(f"  Original: {original_path}")
-        print(f"  Optimized: {optimized_path}")
-        print("=" * 80)
-
     # Analyze both models
-    original_report = analyze_model(original_path, verbose=False)
-    optimized_report = analyze_model(optimized_path, verbose=False)
+    original_report = analyze_model(original_path)
+    optimized_report = analyze_model(optimized_path)
 
     # Calculate differences
     original_patterns = original_report["patterns"]
@@ -194,7 +156,7 @@ def compare_models(
         (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
     )
 
-    comparison = {
+    return {
         "original": original_report,
         "optimized": optimized_report,
         "changes": {
@@ -203,17 +165,3 @@ def compare_models(
             "patterns_resolved": patterns_resolved,
         },
     }
-
-    # Print comparison
-    if verbose:
-        print("\nCOMPARISON RESULTS:")
-        print(
-            f"  Nodes: {original_nodes} -> {optimized_nodes} ({node_reduction_pct:.1f}% reduction)"
-        )
-        print("\n  Patterns Resolved:")
-        for pattern_name, counts in patterns_resolved.items():
-            print(
-                f"    {pattern_name}: {counts['original']} -> {counts['optimized']} ({counts['resolved']} resolved)"
-            )
-
-    return comparison

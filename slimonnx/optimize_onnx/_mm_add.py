@@ -8,10 +8,21 @@ from ._utils import _is_only_next_node
 
 
 def _fuse_matmul_add(
-    nodes: list[NodeProto], initializers: dict[str, TensorProto], verbose: bool = False
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    input_nodes: list = None,
+    data_shapes: dict = None,
 ) -> list[NodeProto]:
-    """
-    Fuse a MatMul and an Add node into a single Gemm node.
+    """Fuse a MatMul and an Add node into a single Gemm node.
+
+    Note: Gemm requires exactly rank 2 inputs, so we check tensor shapes to avoid
+    fusing MatMul with non-rank-2 inputs.
+
+    :param nodes: List of nodes in the graph
+    :param initializers: Dictionary of initializers
+    :param input_nodes: List of graph input nodes (optional)
+    :param data_shapes: Dictionary of tensor shapes (optional)
+    :return: Optimized list of nodes
     """
     count = 0
 
@@ -49,6 +60,20 @@ def _fuse_matmul_add(
             if bias_dim != 1:
                 can_fuse = False
 
+            # Check if input tensor has rank != 2 (Gemm requires exactly rank 2)
+            if can_fuse and data_shapes is not None and input_name in data_shapes:
+                input_shape = data_shapes[input_name]
+                if len(input_shape) != 2:
+                    can_fuse = False
+            # Fallback: check graph inputs if shapes not available
+            elif can_fuse and input_nodes is not None:
+                for graph_input in input_nodes:
+                    if graph_input.name == input_name:
+                        input_rank = len(graph_input.type.tensor_type.shape.dim)
+                        if input_rank != 2:
+                            can_fuse = False
+                        break
+
             if can_fuse:
                 new_nodes.pop()
                 inputs = (
@@ -62,8 +87,5 @@ def _fuse_matmul_add(
 
         new_nodes.append(new_node)
         pre_node = node
-
-    if verbose:
-        print(f"Fused {count} MatMul-Add nodes.")
 
     return new_nodes

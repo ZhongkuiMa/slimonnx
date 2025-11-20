@@ -12,7 +12,6 @@ def _fuse_constant_nodes(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     shapes: dict[str, list[int]],
-    verbose: bool = False,
 ) -> tuple[list[NodeProto], dict[str, TensorProto]]:
     """
     Trace the shape node and make it as a direct constant.
@@ -37,22 +36,16 @@ def _fuse_constant_nodes(
         op_type = node.op_type
 
         if op_type == "Shape":
-            if verbose:
-                print(f"Handle Shape node {node.name}")
 
-            value = np.array(shapes[node.output[0]])
+            value = np.array(shapes[node.output[0]], dtype=np.int64)
             if len(value) == 1 and value[0] == 0:
                 # This is a dynamic shape, we do not need to convert it to a constant.
-                if verbose:
-                    print(f"\tSkip dynamic shape for {node.output[0]}.")
+
                 continue
 
             initializer = onnx.numpy_helper.from_array(value, node.output[0])
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
-            if verbose:
-                print(f"\tSave initializer {node.output[0]}: {value}")
-                print(f"\tDelete node: {node.name}")
 
             continue
 
@@ -73,52 +66,48 @@ def _fuse_constant_nodes(
         """
 
         if op_type in {"Gather", "Slice", "Unsqueeze"}:
-            if verbose:
-                print(f"Handle {op_type} node {node.name}")
 
             pre_node_type = nodes_dict[node.input[0]].op_type
             if pre_node_type == "Shape":
-                value = np.array(shapes[node.output[0]])
+                value = np.array(shapes[node.output[0]], dtype=np.int64)
             else:
                 tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
                 if op_type == "Gather":
                     axis = get_onnx_attrs(node, initializers)["axis"]
                     indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
-                    indices += 1  # Ignore the batch dimension.
                     value = np.take(tensor, indices, axis=axis)
                 elif op_type == "Slice":
                     starts = onnx.numpy_helper.to_array(initializers[node.input[1]])
                     ends = onnx.numpy_helper.to_array(initializers[node.input[2]])
-                    axes = initializers.get(node.input[3])
-                    axes += 1  # Ignore the batch dimension.
+                    axes = (
+                        initializers.get(node.input[3]) if len(node.input) > 3 else None
+                    )
                     if axes is not None:
                         axes = onnx.numpy_helper.to_array(axes)
                     else:
                         axes = np.arange(len(starts))
-                    steps = initializers.get(node.input[4])
+                    steps = (
+                        initializers.get(node.input[4]) if len(node.input) > 4 else None
+                    )
                     if steps is not None:
                         steps = onnx.numpy_helper.to_array(steps)
                     else:
                         steps = np.ones_like(starts)
-                    slices = [slice(None)] * len(starts)
-                    for axis in axes:
-                        slices[axis] = slice(starts[axis], ends[axis], steps[axis])
+                    slices = [slice(None)] * len(tensor.shape)
+                    for i, axis in enumerate(axes):
+                        slices[axis] = slice(starts[i], ends[i], steps[i])
                     value = tensor[tuple(slices)]
                 elif op_type == "Unsqueeze":
                     axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
                     value = np.expand_dims(tensor, axis=tuple(axes))
 
         elif op_type == "Reshape":
-            if verbose:
-                print(f"Handle Reshape node {node.name}")
 
             data = onnx.numpy_helper.to_array(initializers[node.input[0]])
             shape = onnx.numpy_helper.to_array(initializers[node.input[1]])
             value = data.reshape(shape)
 
         elif op_type == "Range":
-            if verbose:
-                print(f"Handle Range node {node.name}")
 
             start = onnx.numpy_helper.to_array(initializers[node.input[0]])
             limit = onnx.numpy_helper.to_array(initializers[node.input[1]])
@@ -126,18 +115,12 @@ def _fuse_constant_nodes(
             value = np.arange(start, limit, delta)
 
         elif op_type == "ConstantOfShape":
-            if verbose:
-                print(f"Handle ConstantOfShape node {node.name}")
 
             shape = shapes[node.output[0]]
-            # Here we need to remove the redundant batch dimension.
-            shape = shape[1:] if len(shape) > 1 and shape[0] == 1 else shape
             value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
             value = np.full(shape, value, dtype=value.dtype)
 
         elif op_type == "ReduceSum":
-            if verbose:
-                print(f"Handle ReduceSum node {node.name}")
 
             tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
             attrs = get_onnx_attrs(node, initializers)
@@ -155,8 +138,6 @@ def _fuse_constant_nodes(
                     value = np.sum(tensor, axis=tuple(axes), keepdims=keepdims)
 
         elif op_type == "Concat":
-            if verbose:
-                print(f"Handle Concat node {node.name}")
 
             is_concat_shape = True
             for input_name in node.input:
@@ -165,7 +146,7 @@ def _fuse_constant_nodes(
                     break
 
             if is_concat_shape:
-                value = np.array(shapes[node.output[0]])
+                value = np.array(shapes[node.output[0]], dtype=np.int64)
             else:
                 tensor_list = []
                 for input_name in node.input:
@@ -175,8 +156,6 @@ def _fuse_constant_nodes(
                 value = np.concatenate(tensor_list, axis=axis)
 
         elif op_type in {"Relu", "Neg"}:
-            if verbose:
-                print(f"Handle {op_type} node {node.name}")
 
             tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
             if op_type == "Relu":
@@ -185,8 +164,6 @@ def _fuse_constant_nodes(
                 value = -tensor
 
         elif op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Pow"}:
-            if verbose:
-                print(f"Handle {op_type} node {node.name}")
 
             tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
             tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
@@ -197,15 +174,18 @@ def _fuse_constant_nodes(
             elif op_type == "Mul":
                 value = tensor1 * tensor2
             elif op_type == "Div":
-                value = tensor1 / tensor2
+                if np.issubdtype(tensor1.dtype, np.integer) and np.issubdtype(
+                    tensor2.dtype, np.integer
+                ):
+                    value = tensor1 // tensor2
+                else:
+                    value = tensor1 / tensor2
             elif op_type == "MatMul":
                 value = np.matmul(tensor1, tensor2)
             elif op_type == "Pow":
                 value = np.power(tensor1, tensor2)
 
         elif op_type == "Cast":
-            if verbose:
-                print(f"Handle Cast node {node.name}")
 
             to = get_onnx_attrs(node, initializers)["to"]
             value = onnx.numpy_helper.to_array(initializers[node.input[0]])
@@ -243,44 +223,27 @@ def _fuse_constant_nodes(
                 raise NotImplementedError(f"Not supported cast type: {to}.")
 
         elif op_type == "Equal":
-            if verbose:
-                print(f"Handle Equal node {node.name}")
 
             tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
             tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
             value = np.equal(tensor1, tensor2)
         elif op_type == "Where":
-            if verbose:
-                print(f"Handle Where node {node.name}")
 
             condition = onnx.numpy_helper.to_array(initializers[node.input[0]])
             x = onnx.numpy_helper.to_array(initializers[node.input[1]])
             y = onnx.numpy_helper.to_array(initializers[node.input[2]])
             value = np.where(condition, x, y)
         elif op_type == "Expand":
-            if verbose:
-                print(f"Handle Expand node {node.name}")
 
             ipt = onnx.numpy_helper.to_array(initializers[node.input[0]])
             shape = shapes[node.output[0]]
-            # Here we need to remove the redundant batch dimension.
-            shape = shape[1:] if len(shape) > 1 and shape[0] == 1 else shape
             value = np.broadcast_to(ipt, shape)
         else:
             raise NotImplementedError(f"Not supported node type: {op_type}.")
 
-        if verbose:
-            print(f"\tSave initializer {node.output[0]}: {value}")
-
         initializer = onnx.numpy_helper.from_array(value, node.output[0])
         initializers[node.output[0]] = initializer
         nodes_to_delete.append(node.output[0])
-
-        if verbose:
-            print(f"\tDelete node: {node.name}")
-
-    if verbose:
-        print(f"Remove {len(nodes_to_delete)} nodes for fusing constant nodes.")
 
     new_nodes = []
     for node in nodes:

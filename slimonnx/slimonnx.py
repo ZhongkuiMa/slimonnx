@@ -16,20 +16,12 @@ class SlimONNX:
     """ONNX model optimization and analysis toolkit.
 
     Provides methods for optimizing, analyzing, and validating ONNX models.
-    All methods are stateless except for the verbose flag.
 
     The following optimizations are always applied (hardcoded as True):
     - constant_to_initializer: Converts Constant nodes to initializers
     - simplify_gemm: Normalizes Gemm attributes (alpha=1, beta=1, trans=False)
     - reorder_by_strict_topological_order: Topological sorting of nodes
     """
-
-    def __init__(self, verbose: bool = False):
-        """Initialize SlimONNX.
-
-        :param verbose: Print detailed progress messages
-        """
-        self.verbose = verbose
 
     def slim(
         self,
@@ -58,8 +50,6 @@ class SlimONNX:
         validation = validation or ValidationConfig()
 
         t = time.perf_counter()
-        if self.verbose:
-            print(f"Load and preprocess ONNX model from {onnx_path}")
 
         # Preprocess model (load, convert to opset 21, clear docs, mark SlimONNX)
         model = self.preprocess(
@@ -69,9 +59,6 @@ class SlimONNX:
             clear_docstrings=True,
             mark_slimonnx=True,
         )
-
-        if self.verbose:
-            print("Optimize ONNX model")
 
         # Apply optimizations (constant_to_initializer, simplify_gemm, reorder always True)
         new_model = optimize_onnx(
@@ -91,15 +78,15 @@ class SlimONNX:
             simplify_conv_to_flatten_gemm=config.simplify_conv_to_flatten_gemm,
             simplify_gemm=True,  # Always True
             remove_redundant_operations=config.remove_redundant_operations,
+            remove_dropout=config.remove_dropout,
+            fuse_depthwise_conv_bn=config.fuse_depthwise_conv_bn,
+            fuse_bn_depthwise_conv=config.fuse_bn_depthwise_conv,
             reorder_by_strict_topological_order=True,  # Always True
             simplify_node_name=config.simplify_node_name,
             has_batch_dim=config.has_batch_dim,
-            verbose=self.verbose,
         )
 
         t = time.perf_counter() - t
-        if self.verbose:
-            print(f"Optimization completed in {t:.4f}s")
 
         # Determine save path
         if target_path is None:
@@ -112,18 +99,13 @@ class SlimONNX:
                 new_model.opset_import[0].version if new_model.opset_import else 0
             )
             if current_opset > 17:
-                if self.verbose:
-                    print(
-                        f"Downgrade model from Opset {current_opset}/IR {new_model.ir_version} "
-                        f"to Opset 17/IR 8 for ONNX Runtime compatibility"
-                    )
-                new_model = onnx.version_converter.convert_version(new_model, 17)
-                new_model.ir_version = 8
+                from .preprocess import convert_model_version
+
+                new_model = convert_model_version(
+                    new_model, target_opset=17, warn_on_diff=False
+                )
 
         onnx.save(new_model, target_path)
-
-        if self.verbose:
-            print(f"Optimized model saved to {target_path}")
 
         # Validate outputs if requested
         validation_result = None
@@ -132,14 +114,11 @@ class SlimONNX:
                 onnx_path, target_path, validation
             )
 
-            if validation_result["all_match"]:
-                if self.verbose:
-                    print(f"Validation PASSED ({validation_result['num_tests']} tests)")
-            else:
-                print(
-                    f"WARNING: Validation FAILED "
-                    f"({validation_result['failed']}/{validation_result['num_tests']} tests failed, "
-                    f"max_diff={validation_result['max_diff']:.2e})"
+            if not validation_result["all_match"]:
+                raise ValueError(
+                    f"Validation failed: "
+                    f"{validation_result['failed']}/{validation_result['num_tests']} tests failed, "
+                    f"max_diff={validation_result['max_diff']:.2e}"
                 )
 
         # Return report if validation was performed
@@ -182,13 +161,10 @@ class SlimONNX:
         :param onnx_path: Path to ONNX model
         :param config: Optimization configuration (for has_batch_dim)
         :param analysis: Analysis configuration (for exports)
-        :return: Comprehensive analysis report with redesigned structure
+        :return: Comprehensive analysis report
         """
         config = config or OptimizationConfig()
         analysis = analysis or AnalysisConfig()
-
-        if self.verbose:
-            print(f"Analyze model: {onnx_path}")
 
         # Preprocess model (keep original version for accurate analysis)
         model = self.preprocess(
@@ -206,7 +182,7 @@ class SlimONNX:
         from . import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
-            model, has_batch_dim=config.has_batch_dim, verbose=self.verbose
+            model, has_batch_dim=config.has_batch_dim
         )
 
         # Infer shapes using shapeonnx
@@ -221,29 +197,21 @@ class SlimONNX:
                 has_batch_dim=config.has_batch_dim,
             )
             shape_inference_success = True
-        except Exception as e:
-            if self.verbose:
-                print(f"Warning: Shape inference failed: {e}")
+        except Exception:
             data_shapes = None
             shape_inference_success = False
 
         # Validate model
-        if self.verbose:
-            print("Validate model")
         from .model_validate import validate_model
 
         validation = validate_model(model, data_shapes=data_shapes)
 
         # Detect patterns
-        if self.verbose:
-            print("Detect patterns")
         from .pattern_detect import detect_all_patterns
 
         patterns = detect_all_patterns(nodes, initializers, data_shapes)
 
         # Analyze structure
-        if self.verbose:
-            print("Analyze structure")
         from .structure_analysis import analyze_structure
 
         structure = analyze_structure(model, data_shapes)
@@ -256,7 +224,7 @@ class SlimONNX:
             p["count"] for p in patterns.values() if p["category"] == "redundant"
         )
 
-        # Build redesigned report structure
+        # Build report structure
         report = {
             "model": {
                 "path": onnx_path,
@@ -282,8 +250,6 @@ class SlimONNX:
                 ".onnx", "_topology.json"
             )
             export_topology_json(nodes, topo_path, data_shapes)
-            if self.verbose:
-                print(f"Topology exported to {topo_path}")
 
         # Export full analysis if requested
         if analysis.export_json:
@@ -293,8 +259,6 @@ class SlimONNX:
                 ".onnx", "_analysis.json"
             )
             generate_json_report(report, json_path)
-            if self.verbose:
-                print(f"Analysis exported to {json_path}")
 
         return report
 
@@ -309,19 +273,11 @@ class SlimONNX:
 
         :param original_path: Path to original model
         :param optimized_path: Path to optimized model
-        :return: Comparison report with redesigned structure
+        :return: Comparison report
         """
-        if self.verbose:
-            print(
-                f"Compare models:\n  Original: {original_path}\n  Optimized: {optimized_path}"
-            )
-
-        # Analyze both models (suppress verbose output)
-        original_verbose = self.verbose
-        self.verbose = False
+        # Analyze both models
         original_report = self.analyze(original_path)
         optimized_report = self.analyze(optimized_path)
-        self.verbose = original_verbose
 
         # Calculate pattern differences
         patterns_fixed = {}
@@ -344,7 +300,7 @@ class SlimONNX:
             (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
         )
 
-        # Build redesigned comparison structure
+        # Build comparison structure
         return {
             "original": original_report,
             "optimized": optimized_report,
@@ -431,7 +387,7 @@ class SlimONNX:
         from . import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
-            model, has_batch_dim=config.has_batch_dim, verbose=self.verbose
+            model, has_batch_dim=config.has_batch_dim
         )
 
         # Infer shapes
@@ -480,7 +436,7 @@ class SlimONNX:
         from . import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
-            model, has_batch_dim=config.has_batch_dim, verbose=self.verbose
+            model, has_batch_dim=config.has_batch_dim
         )
 
         # Infer shapes

@@ -25,6 +25,7 @@ PRESET_NAMES = [
     "metaroom_2023",
     "ml4acopf_2024",
     "nn4sys",
+    "nn4sys_2023",
     "relusplitter",
     "safenlp_2024",
     "sat_relu",
@@ -40,12 +41,23 @@ PRESET_NAMES = [
 
 
 @lru_cache(maxsize=128)
-def get_preset(benchmark_name: str) -> OptimizationConfig:
+def get_preset(
+    benchmark_name: str, model_name: str | None = None
+) -> OptimizationConfig:
     """Get preset optimization configuration for a benchmark.
 
     :param benchmark_name: Benchmark identifier (e.g., 'acasxu_2023', 'cgan_2023')
+    :param model_name: Optional model filename for per-model exceptions
     :return: Optimization configuration optimized for the benchmark
     """
+    # Model-specific exceptions for nn4sys_2023 (some have batch dim, some don't)
+    if benchmark_name == "nn4sys_2023" and model_name:
+        if "pensieve" in model_name and "parallel" in model_name:
+            return OptimizationConfig(
+                fuse_matmul_add=True,
+                has_batch_dim=False,
+            )
+
     presets = {
         "acasxu_2023": OptimizationConfig(
             fuse_matmul_add=True,
@@ -87,6 +99,9 @@ def get_preset(benchmark_name: str) -> OptimizationConfig:
             constant_folding=True,
         ),
         "nn4sys": OptimizationConfig(
+            fuse_matmul_add=True,
+        ),
+        "nn4sys_2023": OptimizationConfig(
             fuse_matmul_add=True,
         ),
         "safenlp_2024": OptimizationConfig(

@@ -12,7 +12,6 @@ def _simplify_conv_to_flatten_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, list[int]],
-    verbose: bool = False,
 ) -> list[NodeProto]:
     count = 0
 
@@ -122,8 +121,5 @@ def _simplify_conv_to_flatten_gemm(
         pre_pre_node = pre_node
         pre_node = node
         new_nodes.append(node)
-
-    if verbose:
-        print(f"Simplify {count} Conv to Flatten-Gemm nodes.")
 
     return new_nodes

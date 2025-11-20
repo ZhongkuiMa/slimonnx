@@ -62,14 +62,12 @@ def get_input_nodes(
     model: ModelProto,
     initializers: dict[str, TensorProto],
     has_batch_dim: bool = True,
-    verbose: bool = False,
 ) -> list[ValueInfoProto]:
     """Get input nodes from ONNX model.
 
     :param model: ONNX model
     :param initializers: Dictionary of initializers
     :param has_batch_dim: Whether the model has batch dimension
-    :param verbose: Whether to print progress messages
     :return: List of input nodes
     """
     # Exclude initializers from inputs because sometimes the initializers are also
@@ -78,8 +76,6 @@ def get_input_nodes(
     for input_i in model.graph.input:
         if input_i.name not in initializers:
             shape = reformat_io_shape(input_i, has_batch_dim)
-            if verbose:
-                print(f"Get input node {input_i.name} with shape {shape}.")
             node = onnx.helper.make_tensor_value_info(
                 name=input_i.name,
                 elem_type=input_i.type.tensor_type.elem_type,
@@ -91,20 +87,17 @@ def get_input_nodes(
 
 
 def get_output_nodes(
-    model: ModelProto, has_batch_dim: bool = True, verbose: bool = False
+    model: ModelProto, has_batch_dim: bool = True
 ) -> list[ValueInfoProto]:
     """Get output nodes from ONNX model.
 
     :param model: ONNX model
     :param has_batch_dim: Whether the model has batch dimension
-    :param verbose: Whether to print progress messages
     :return: List of output nodes
     """
     nodes = []
     for output_i in model.graph.output:
         shape = reformat_io_shape(output_i, has_batch_dim)
-        if verbose:
-            print(f"Get output node {output_i.name} with shape {shape}.")
         node = onnx.helper.make_tensor_value_info(
             name=output_i.name,
             elem_type=output_i.type.tensor_type.elem_type,
@@ -115,21 +108,13 @@ def get_output_nodes(
     return nodes
 
 
-def get_initializers(
-    model: ModelProto, verbose: bool = False
-) -> dict[str, TensorProto]:
+def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
     """Get initializers from ONNX model.
 
     :param model: ONNX model
-    :param verbose: Whether to print progress messages
     :return: Dictionary of initializers
     """
-    initializers = {
-        initializer.name: initializer for initializer in model.graph.initializer
-    }
-    if verbose:
-        print(f"Get {len(initializers)} initializers.")
-    return initializers
+    return {initializer.name: initializer for initializer in model.graph.initializer}
 
 
 def convert_constant_to_initializer(
@@ -159,7 +144,6 @@ def convert_constant_to_initializer(
 def extract_nodes(
     model: ModelProto,
     has_batch_dim: bool = True,
-    verbose: bool = False,
 ) -> tuple[
     list[ValueInfoProto], list[ValueInfoProto], list[NodeProto], dict[str, TensorProto]
 ]:
@@ -173,32 +157,27 @@ def extract_nodes(
 
     :param model: ONNX model
     :param has_batch_dim: Whether the model has batch dimension
-    :param verbose: Whether to print progress messages
     :return: Tuple of (input_nodes, output_nodes, nodes, initializers)
     """
     # Get initializers
-    initializers = get_initializers(model, verbose=verbose)
+    initializers = get_initializers(model)
 
     # Convert Constant nodes to initializers
     nodes = list(model.graph.node)
     nodes = convert_constant_to_initializer(nodes, initializers)
 
     # Get input and output nodes
-    input_nodes = get_input_nodes(model, initializers, has_batch_dim, verbose)
-    output_nodes = get_output_nodes(model, has_batch_dim, verbose)
-
-    if verbose:
-        print(
-            f"Extracted {len(input_nodes)} inputs, {len(output_nodes)} outputs, "
-            f"{len(nodes)} nodes, {len(initializers)} initializers"
-        )
+    input_nodes = get_input_nodes(model, initializers, has_batch_dim)
+    output_nodes = get_output_nodes(model, has_batch_dim)
 
     return input_nodes, output_nodes, nodes, initializers
 
 
 def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
-    """
-    Get the mapping from each node to its next nodes.
+    """Get the mapping from each node to its next nodes.
+
+    :param nodes: List of ONNX nodes
+    :return: Dictionary mapping node names to list of next node names
     """
     empty_name_counter = 0
     name_and_output_name_mapping = {}

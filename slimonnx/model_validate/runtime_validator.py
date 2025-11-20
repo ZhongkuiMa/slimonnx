@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["validate_with_onnxruntime"]
 
+import os
 import tempfile
 
 import numpy as np
@@ -30,10 +31,12 @@ def validate_with_onnxruntime(
         }
 
     # Try to load model
+    tmp_path = None
     try:
         with tempfile.NamedTemporaryFile(suffix=".onnx", delete=False) as tmp:
-            onnx.save(model, tmp.name)
-            session = ort.InferenceSession(tmp.name, providers=["CPUExecutionProvider"])
+            tmp_path = tmp.name
+        onnx.save(model, tmp_path)
+        session = ort.InferenceSession(tmp_path, providers=["CPUExecutionProvider"])
 
         result = {
             "can_load": True,
@@ -58,3 +61,10 @@ def validate_with_onnxruntime(
             "can_infer": False,
             "error": str(e),
         }
+    finally:
+        # Clean up temp file
+        if tmp_path and os.path.exists(tmp_path):
+            try:
+                os.unlink(tmp_path)
+            except Exception:
+                pass
