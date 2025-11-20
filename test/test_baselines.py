@@ -459,148 +459,6 @@ def verify_against_baseline(
     }
 
 
-def verify_against_benchmarks(
-    results_dir: str = "results/baselines",
-    benchmarks_dir: str = "benchmarks",
-) -> dict:
-    """Verify optimized results against original benchmark models.
-
-    Checks that optimized models produce same outputs as original models.
-
-    :param results_dir: Directory containing optimized results
-    :param benchmarks_dir: Directory containing original benchmark models with test data
-    :return: Dictionary with verification results
-    """
-    results_path = Path(results_dir)
-    benchmarks_path = Path(benchmarks_dir)
-
-    if not results_path.exists():
-        raise FileNotFoundError(f"Results directory not found: {results_dir}")
-    if not benchmarks_path.exists():
-        raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_dir}")
-
-    print(f"Verifying {results_dir}/ against original {benchmarks_dir}/")
-    print("=" * 70)
-
-    results_onnx = sorted(results_path.rglob("*.onnx"))
-
-    passed = 0
-    failed = 0
-    missing = 0
-
-    for i, result_file in enumerate(results_onnx):
-        basename = os.path.basename(result_file)
-        benchmark_name = get_benchmark_name(str(result_file))
-        print(f"[{i}/{len(results_onnx)}] {benchmark_name}/{basename}...", end=" ")
-
-        rel_path = result_file.relative_to(results_path)
-
-        # rel_path is like: benchmark_name/model.onnx
-        benchmark_name_from_path = rel_path.parts[0] if rel_path.parts else ""
-        model_stem = rel_path.stem
-
-        # Direct path to data file
-        benchmark_root = benchmarks_path / benchmark_name_from_path
-        data_file = benchmark_root / "data" / f"{model_stem}.npz"
-
-        if not data_file.exists():
-            print(f"MISSING: {rel_path} - No test data file")
-            missing += 1
-            continue
-
-        # Find original ONNX file using instances.csv
-        benchmark_onnx_file = None
-        instances_csv = benchmark_root / "instances.csv"
-        if instances_csv.exists():
-            try:
-                with open(instances_csv) as f:
-                    for line in f.readlines()[1:]:
-                        parts_csv = line.strip().split(",")
-                        if parts_csv and Path(parts_csv[0].strip()).stem == model_stem:
-                            benchmark_onnx_file = benchmark_root / parts_csv[0].strip()
-                            break
-            except Exception:
-                pass
-
-        if benchmark_onnx_file is None or not benchmark_onnx_file.exists():
-            print(f"MISSING: {rel_path} - Original ONNX file not found")
-            missing += 1
-            continue
-
-        # Load models and test inputs
-        result_model = onnx.load(str(result_file))
-
-        try:
-            data = np.load(data_file, allow_pickle=True)
-            test_inputs = []
-
-            # Extract inputs from npz file
-            for vnnlib_name in data.files:
-                vnnlib_data = data[vnnlib_name].item()
-                if isinstance(vnnlib_data, dict):
-                    for bound_type in ["lower", "upper"]:
-                        if bound_type in vnnlib_data:
-                            bound_data = vnnlib_data[bound_type]
-                            if "inputs" in bound_data:
-                                test_inputs.extend(bound_data["inputs"])
-
-            if not test_inputs:
-                print(f"SKIP: {rel_path} - No inputs in data file")
-                missing += 1
-                continue
-
-        except Exception as e:
-            print(f"SKIP: {rel_path} - Error loading data: {e}")
-            missing += 1
-            continue
-
-        # Run both models and compare
-        all_match = True
-        for inputs in test_inputs:
-            try:
-                result_outputs = _run_onnx_model(str(result_file), inputs)
-                benchmark_outputs = _run_onnx_model(str(benchmark_onnx_file), inputs)
-
-                match, mismatches = _compare_outputs(result_outputs, benchmark_outputs)
-                if not match:
-                    print(f"MISMATCH: {rel_path}")
-                    for msg in mismatches[:3]:
-                        print(f"  {msg}")
-                    all_match = False
-                    break
-            except Exception as e:
-                print(f"ERROR: {rel_path} - {e}")
-                all_match = False
-                break
-
-        if all_match:
-            passed += 1
-            print("OK")
-        else:
-            failed += 1
-            print(f"FAILED: {rel_path}")
-
-    print("\n" + "=" * 70)
-    print("VERIFICATION SUMMARY")
-    print("=" * 70)
-    print(f"Total files: {len(results_onnx)}")
-    print(f"Passed: {passed}")
-    print(f"Failed: {failed}")
-    print(f"Missing originals: {missing}")
-    print(
-        f"Pass rate: {passed/(len(results_onnx)-missing)*100:.1f}%"
-        if len(results_onnx) > missing
-        else "N/A"
-    )
-
-    return {
-        "total": len(results_onnx),
-        "passed": passed,
-        "failed": failed,
-        "missing": missing,
-    }
-
-
 def main() -> None:
     """Main entry point for script execution."""
     import sys
@@ -611,8 +469,7 @@ def main() -> None:
         save_as_baseline()
     elif "--verify" in sys.argv:
         verify_against_baseline()
-    elif "--verify-benchmarks" in sys.argv:
-        verify_against_benchmarks()
+
     else:
         print("Usage:")
         print("  python test_baselines.py --create              # Optimize to results/")
@@ -622,9 +479,7 @@ def main() -> None:
         print(
             "  python test_baselines.py --verify              # Verify results/ vs baselines/"
         )
-        print(
-            "  python test_baselines.py --verify-benchmarks   # Verify results/ vs benchmarks/"
-        )
+
         sys.exit(1)
 
 
@@ -632,5 +487,4 @@ if __name__ == "__main__":
     # optimize_all_models()
     # save_as_baseline()
     # verify_against_baseline()
-    verify_against_benchmarks()
-    # main()
+    main()
