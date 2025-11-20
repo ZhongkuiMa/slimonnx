@@ -57,7 +57,8 @@ def create_matmul_add_pattern(output_path: str) -> str:
         [weight_tensor, bias_tensor],
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -116,7 +117,8 @@ def create_conv_bn_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -172,7 +174,8 @@ def create_bn_conv_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -224,7 +227,8 @@ def create_convtranspose_bn_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -275,7 +279,8 @@ def create_bn_convtranspose_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -333,7 +338,8 @@ def create_depthwise_conv_bn_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -385,7 +391,8 @@ def create_gemm_reshape_bn_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -437,7 +444,8 @@ def create_bn_reshape_gemm_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -481,7 +489,8 @@ def create_bn_gemm_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -528,7 +537,8 @@ def create_transpose_bn_transpose_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -566,7 +576,8 @@ def create_gemm_gemm_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -586,7 +597,14 @@ def create_dropout_pattern(output_path: str) -> str:
     ]
 
     gemm_node = helper.make_node("Gemm", ["input", "weight", "bias"], ["gemm_out"])
-    dropout_node = helper.make_node("Dropout", ["gemm_out"], ["dropout_out"], ratio=0.5)
+    # Create an initializer for dropout ratio
+    dropout_ratio = 0.5
+    initializers.append(
+        helper.make_tensor("dropout_ratio", TensorProto.FLOAT, [], [dropout_ratio])
+    )
+    dropout_node = helper.make_node(
+        "Dropout", ["gemm_out", "dropout_ratio"], ["dropout_out"]
+    )
     relu_node = helper.make_node("Relu", ["dropout_out"], ["output"])
 
     graph = helper.make_graph(
@@ -597,7 +615,8 @@ def create_dropout_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -632,7 +651,8 @@ def create_redundant_ops_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 
@@ -671,7 +691,8 @@ def create_constant_folding_pattern(output_path: str) -> str:
         initializers,
     )
 
-    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 17)])
+    model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 20)])
+
     onnx.save(model, output_path)
     return output_path
 

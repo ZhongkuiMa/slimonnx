@@ -21,7 +21,8 @@ import tempfile
 import numpy as np
 import onnx
 import onnxruntime as ort
-from slimonnx.optimize_onnx._optimize import optimize_onnx
+
+from slimonnx.slimonnx.optimize_onnx._optimize import optimize_onnx
 
 
 def run_onnx_model(
@@ -107,7 +108,6 @@ def test_matmul_add_fusion() -> bool:
             fuse_matmul_add=True,
             simplify_gemm=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)
@@ -172,7 +172,6 @@ def test_conv_bn_fusion() -> bool:
             original_model,
             fuse_conv_bn=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)
@@ -237,7 +236,6 @@ def test_dropout_removal() -> bool:
             original_model,
             remove_dropout=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)
@@ -302,7 +300,6 @@ def test_redundant_ops_removal() -> bool:
             original_model,
             remove_redundant_operations=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)
@@ -369,7 +366,6 @@ def test_constant_folding() -> bool:
             original_model,
             constant_folding=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)
@@ -436,7 +432,6 @@ def test_depthwise_conv_bn_fusion() -> bool:
             original_model,
             fuse_depthwise_conv_bn=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)
@@ -502,7 +497,6 @@ def test_gemm_gemm_fusion() -> bool:
             fuse_gemm_gemm=True,
             simplify_gemm=True,
             has_batch_dim=True,
-            verbose=False,
         )
 
         optimized_nodes = len(optimized_model.graph.node)

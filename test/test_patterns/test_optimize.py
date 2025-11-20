@@ -19,7 +19,7 @@ import onnxruntime as ort
 from slimonnx import SlimONNX, OptimizationConfig
 
 
-def run_onnx_model(model_path: str, inputs: dict[str, np.ndarray]) -> list[np.ndarray]:
+def run_onnx_model(model_path: str, inputs: np.ndarray) -> list[np.ndarray]:
     """Run ONNX model with given inputs.
 
     :param model_path: Path to ONNX model
@@ -27,7 +27,8 @@ def run_onnx_model(model_path: str, inputs: dict[str, np.ndarray]) -> list[np.nd
     :return: List of output arrays
     """
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
-    outputs = session.run(None, inputs)
+    input_name = [inp.name for inp in session.get_inputs()][0]
+    outputs = session.run(None, {input_name: inputs})
     return outputs
 
 
@@ -74,7 +75,7 @@ def test_single_optimization(
     :param expected_node_reduction: Expected node count reduction (optional)
     :return: True if optimization succeeded and is correct
     """
-    slimonnx = SlimONNX(verbose=False)
+    slimonnx = SlimONNX()
 
     try:
         # Load original model
@@ -100,6 +101,8 @@ def test_single_optimization(
             name: np.random.randn(*shape).astype(np.float32)
             for name, shape in input_info.items()
         }
+        assert len(inputs) == 1
+        inputs = inputs[list(inputs.keys())[0]]
 
         # Run original model
         original_outputs = run_onnx_model(onnx_path, inputs)
