@@ -122,7 +122,7 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
             conv_node, bn_node = node, pre_node
 
         # Get BatchNorm parameters
-        epsilon, scale, b, mean, var = _get_batchnorm_params(
+        epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
             bn_node, initializers, True
         )
 
@@ -132,7 +132,7 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         # Preserve dtype from weight tensor to avoid float32/float64 mismatch
         target_dtype = weight.dtype
         bn_weight, bn_bias = compute_batchnorm_fusion_params(
-            epsilon, scale, b, mean, var, target_dtype
+            epsilon, scale, bn_param_bias, mean, var, target_dtype
         )
 
         # Fuse parameters
@@ -165,25 +165,17 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         initializers[new_bias_name] = new_bias_tensor
 
         # Create fused node
-        if is_conv_bn:
-            inputs = [conv_node.input[0], new_weight_name, new_bias_name]
-            outputs = bn_node.output
-        else:
-            inputs = [bn_node.input[0], new_weight_name, new_bias_name]
-            outputs = conv_node.output
+        new_node = onnx.NodeProto()
+        new_node.CopyFrom(conv_node)
+        new_node.ClearField("input")
+        new_node.ClearField("output")
 
-        new_node = onnx.helper.make_node(
-            op_type="Conv",
-            inputs=inputs,
-            outputs=outputs,
-            name=conv_node.name,
-            kernel_shape=attrs["kernel_shape"],
-            pads=attrs["pads"],
-            strides=attrs["strides"],
-            dilations=attrs["dilations"],
-            group=attrs["group"],
-            auto_pad=attrs["auto_pad"],
-        )
+        if is_conv_bn:
+            new_node.input.extend([conv_node.input[0], new_weight_name, new_bias_name])
+            new_node.output.extend(bn_node.output)
+        else:
+            new_node.input.extend([bn_node.input[0], new_weight_name, new_bias_name])
+            new_node.output.extend(conv_node.output)
 
         new_nodes.append(new_node)
         pre_node = node

@@ -61,15 +61,18 @@ def _fuse_conv_bn_or_bn_conv(
             continue
 
         # Now get params with get_from_initializers=True
-        epsilon, scale, b, mean, var = _get_batchnorm_params(
+        epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
             bn_node, initializers, True
         )
         weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
 
+        # TODO: Here if the batchnorm is before conv and conv has padding, we should
+        #  not fuse, adding a check above to skip fusion in that case.
+
         # Preserve dtype from weight tensor to avoid float32/float64 mismatch
         target_dtype = weight.dtype
         bn_weight, bn_bias = compute_batchnorm_fusion_params(
-            epsilon, scale, b, mean, var, target_dtype
+            epsilon, scale, bn_param_bias, mean, var, target_dtype
         )
 
         # If the bias is None, we have create a zero tensor in the above functions.
@@ -96,25 +99,17 @@ def _fuse_conv_bn_or_bn_conv(
         initializers[new_weight_name] = new_weight
         initializers[new_bias_name] = new_bias
 
-        if is_conv_bn:
-            inputs = [conv_node.input[0], new_weight_name, new_bias_name]
-            outputs = bn_node.output
-        else:
-            inputs = [bn_node.input[0], new_weight_name, new_bias_name]
-            outputs = conv_node.output
+        new_node = onnx.NodeProto()
+        new_node.CopyFrom(conv_node)
+        new_node.ClearField("input")
+        new_node.ClearField("output")
 
-        new_node = onnx.helper.make_node(
-            op_type="Conv",
-            inputs=inputs,
-            outputs=outputs,
-            name=conv_node.name,
-            kernel_shape=attrs["kernel_shape"],
-            pads=attrs["pads"],
-            strides=attrs["strides"],
-            dilations=attrs["dilations"],
-            group=attrs["group"],
-            auto_pad=attrs["auto_pad"],
-        )
+        if is_conv_bn:
+            new_node.input.extend([conv_node.input[0], new_weight_name, new_bias_name])
+            new_node.output.extend(bn_node.output)
+        else:
+            new_node.input.extend([bn_node.input[0], new_weight_name, new_bias_name])
+            new_node.output.extend(conv_node.output)
 
         new_nodes.append(new_node)
         pre_node = node
@@ -197,27 +192,17 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
         initializers[new_weight_name] = new_weight
         initializers[new_bias_name] = new_bias
 
-        if is_convtranspose_bn:
-            inputs = [conv_node.input[0], new_weight_name, new_bias_name]
-            outputs = bn_node.output
-        else:
-            inputs = [bn_node.input[0], new_weight_name, new_bias_name]
-            outputs = conv_node.output
+        new_node = onnx.NodeProto()
+        new_node.CopyFrom(conv_node)
+        new_node.ClearField("input")
+        new_node.ClearField("output")
 
-        new_node = onnx.helper.make_node(
-            op_type="ConvTranspose",
-            inputs=inputs,
-            outputs=outputs,
-            name=conv_node.name,
-            kernel_shape=attrs["kernel_shape"],
-            pads=attrs["pads"],
-            strides=attrs["strides"],
-            dilations=attrs["dilations"],
-            output_shape=attrs["output_shape"],
-            output_padding=attrs["output_padding"],
-            group=attrs["group"],
-            auto_pad=attrs["auto_pad"],
-        )
+        if is_convtranspose_bn:
+            new_node.input.extend([conv_node.input[0], new_weight_name, new_bias_name])
+            new_node.output.extend(bn_node.output)
+        else:
+            new_node.input.extend([bn_node.input[0], new_weight_name, new_bias_name])
+            new_node.output.extend(conv_node.output)
 
         new_nodes.append(new_node)
         pre_node = node

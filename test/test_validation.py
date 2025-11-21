@@ -14,8 +14,8 @@ __all__ = [
     "main",
 ]
 
-import os
 from collections import defaultdict
+from pathlib import Path
 
 from slimonnx import SlimONNX, OptimizationConfig
 from slimonnx.test.utils import (
@@ -70,7 +70,7 @@ def test_preprocess(onnx_path: str, target_opset: int | None = None) -> dict:
             "error": None,
         }
 
-    except Exception as e:
+    except (IOError, ValueError, AttributeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -81,7 +81,7 @@ def test_preprocess(onnx_path: str, target_opset: int | None = None) -> dict:
             "output_count": 0,
             "initializer_count": 0,
             "has_shapes": False,
-            "error": str(e),
+            "error": str(error),
         }
 
 
@@ -111,7 +111,7 @@ def test_all_preprocess(
     models_with_shapes = 0
 
     for i, onnx_path in enumerate(onnx_files, 1):
-        basename = os.path.basename(onnx_path)
+        basename = Path(onnx_path).name
         benchmark_name = get_benchmark_name(onnx_path)
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
@@ -185,7 +185,7 @@ def test_validation(onnx_path: str) -> dict:
             "error": None,
         }
 
-    except Exception as e:
+    except (IOError, ValueError, AttributeError, RuntimeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -197,7 +197,7 @@ def test_validation(onnx_path: str) -> dict:
             "orphan_initializers": 0,
             "type_errors": 0,
             "shape_errors": 0,
-            "error": str(e),
+            "error": str(error),
         }
 
 
@@ -227,7 +227,7 @@ def test_all_validation(
     total_issues = 0
 
     for i, onnx_path in enumerate(onnx_files, 1):
-        basename = os.path.basename(onnx_path)
+        basename = Path(onnx_path).name
         benchmark_name = get_benchmark_name(onnx_path)
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")

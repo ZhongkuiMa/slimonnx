@@ -77,8 +77,8 @@ def _fuse_matmul_add(
                     if transB == 0
                     else [weight_name, input_name, bias_name]
                 )
-                new_node = onnx.helper.make_node(
-                    op_type="Gemm", inputs=inputs, outputs=add_node.output
+                new_node = onnx.NodeProto(
+                    op_type="Gemm", input=inputs, output=add_node.output
                 )
 
         new_nodes.append(new_node)

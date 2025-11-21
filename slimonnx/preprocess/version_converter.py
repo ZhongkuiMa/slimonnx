@@ -45,9 +45,9 @@ def convert_model_version(
     if current_opset != target_opset:
         try:
             model = version_converter.convert_version(model, target_opset)
-        except Exception as e:
+        except (ValueError, RuntimeError, AttributeError) as error:
             warnings.warn(
-                f"Version conversion failed from opset {current_opset} to {target_opset}: {e}. "
+                f"Version conversion failed from opset {current_opset} to {target_opset}: {error}. "
                 f"Keeping original opset version.",
                 UserWarning,
                 stacklevel=2,
@@ -89,8 +89,8 @@ def load_and_preprocess(
     if check_model:
         try:
             onnx.checker.check_model(model)
-        except Exception as e:
-            raise ValueError(f"Invalid ONNX model: {e}")
+        except (ValueError, AttributeError, TypeError) as error:
+            raise ValueError(f"Invalid ONNX model: {error}")
 
     # Convert opset version if requested
     if target_opset is not None:
@@ -100,8 +100,8 @@ def load_and_preprocess(
     if infer_shapes:
         try:
             model = onnx.shape_inference.infer_shapes(model)
-        except Exception as e:
-            warnings.warn(f"Shape inference failed: {e}", UserWarning, stacklevel=2)
+        except (ValueError, RuntimeError, AttributeError) as error:
+            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
 
     # Clear docstrings
     if clear_docstrings:

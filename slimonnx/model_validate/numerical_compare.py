@@ -126,7 +126,8 @@ def compare_model_outputs(
                 if test_inputs is not None and len(test_inputs) > num_samples:
                     test_inputs = test_inputs[:num_samples]
 
-            except Exception:
+            except (IOError, OSError, ValueError, IndexError, KeyError) as error:
+                print(f"Failed to load test data: {error}")
                 test_data_path = None
                 test_inputs = None
 

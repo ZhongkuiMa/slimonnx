@@ -14,8 +14,8 @@ __all__ = [
     "main",
 ]
 
-import os
 from collections import defaultdict
+from pathlib import Path
 
 import numpy as np
 import onnx
@@ -67,7 +67,7 @@ def test_pattern_detection(onnx_path: str) -> dict:
             "error": None,
         }
 
-    except Exception as e:
+    except (ImportError, ValueError, AttributeError, RuntimeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -75,7 +75,7 @@ def test_pattern_detection(onnx_path: str) -> dict:
             "redundant_patterns": 0,
             "total_patterns": 0,
             "pattern_details": {},
-            "error": str(e),
+            "error": str(error),
         }
 
 
@@ -103,7 +103,7 @@ def test_all_pattern_detection(
     pattern_counts = defaultdict(int)
 
     for i, onnx_path in enumerate(onnx_files, 1):
-        basename = os.path.basename(onnx_path)
+        basename = Path(onnx_path).name
         benchmark_name = get_benchmark_name(onnx_path)
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
@@ -199,7 +199,14 @@ def test_structure_analysis(onnx_path: str) -> dict:
                 input_nodes, output_nodes, nodes, initializers, has_batch_dim, False
             )
             has_shapes = True
-        except Exception as e:
+        except (
+            ImportError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+        ) as error:
+            print(f"Shape inference failed: {error}")
             data_shapes = None
             has_shapes = False
 
@@ -270,11 +277,11 @@ def test_structure_analysis(onnx_path: str) -> dict:
             "error": None,
         }
 
-    except Exception as e:
+    except (IOError, ValueError, AttributeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
-            "error": str(e),
+            "error": str(error),
         }
 
 
@@ -303,7 +310,7 @@ def test_all_structure_analysis(
     models_with_shapes = 0
 
     for i, onnx_path in enumerate(onnx_files, 1):
-        basename = os.path.basename(onnx_path)
+        basename = Path(onnx_path).name
         benchmark_name = get_benchmark_name(onnx_path)
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")

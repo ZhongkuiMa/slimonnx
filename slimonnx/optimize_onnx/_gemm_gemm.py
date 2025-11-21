@@ -4,7 +4,6 @@ __all__ = ["_fuse_gemm_gemm"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-
 from ._utils import _get_gemm_params
 
 
@@ -36,14 +35,13 @@ def _fuse_gemm_gemm(
     chosen_gemm_output_names = [node.output[0] for node in chosen_gemm_nodes]
     # Find all adjacent gemm nodes group
     fused_gemm_groups = []
-    i = 0
+    group_index = 0
     group = []
     while True:
-        if i >= len(chosen_gemm_nodes):
+        if group_index >= len(chosen_gemm_nodes):
             break
-
-        node = chosen_gemm_nodes[i]
-        i += 1
+        node = chosen_gemm_nodes[group_index]
+        group_index += 1
         if node.input[1] not in initializers:
             raise ValueError(
                 f"Gemm node {node.name} weight input {node.input[1]} not found in initializers."
@@ -61,8 +59,6 @@ def _fuse_gemm_gemm(
     fused_gemm_nodes_output_names = [
         node.output[0] for group in fused_gemm_groups for node in group
     ]
-    # for group in fused_gemm_groups:
-    #     print([e.output[0] for e in group])
 
     gemm_group_start_nodes = {
         group[0].output[0]: i for i, group in enumerate(fused_gemm_groups)
@@ -108,9 +104,6 @@ def _fuse_gemm_gemm(
             all_weights.append(weight)
             all_biases.append(bias)
 
-        # for w, b in zip(all_weights, all_biases):
-        #     print(w.shape, b.shape)
-
         # Merge all weights and biases
         new_weight = all_weights[0]
         new_bias = all_biases[0]
@@ -126,13 +119,13 @@ def _fuse_gemm_gemm(
         initializers[new_weight_name] = new_weight
         initializers[new_bias_name] = new_bias
 
-        # Create a new gemm node with the merged weights and biases
-        new_gemm_node = onnx.helper.make_node(
-            op_type="Gemm",
-            inputs=[group[0].input[0], new_weight_name, new_bias_name],
-            outputs=group[-1].output,
-            name=group[-1].name,
-        )
+        new_gemm_node = onnx.NodeProto()
+        new_gemm_node.CopyFrom(group[0])
+        new_gemm_node.ClearField("input")
+        new_gemm_node.ClearField("output")
+        new_gemm_node.input.extend([group[0].input[0], new_weight_name, new_bias_name])
+        new_gemm_node.output.extend(group[-1].output)
+        new_gemm_node.name = group[-1].name
 
         new_nodes.append(new_gemm_node)
 

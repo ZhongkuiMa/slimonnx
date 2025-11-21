@@ -16,6 +16,10 @@ DTYPE_MAP = {
     11: "float64",
 }
 
+IR_VERSION_THRESHOLD = 10
+OPSET_VERSION_THRESHOLD = 22
+MAX_DISPLAY_ITEMS = 10
+
 
 def _get_tensor_shape(tensor_type) -> tuple[list[int], bool]:
     """Extract shape and dynamic flag from tensor type.
@@ -42,15 +46,15 @@ def _parse_instances_csv(csv_path: Path) -> set[str]:
     """
     unique_models = set()
     try:
-        with open(csv_path) as f:
-            for line in f.readlines()[1:]:
+        with open(csv_path, encoding="utf-8") as file_handle:
+            for line in file_handle.readlines()[1:]:
                 line = line.strip()
                 if line:
                     parts = line.split(",")
                     if len(parts) >= 2:
                         unique_models.add(parts[0].strip())
-    except Exception:
-        pass
+    except (IOError, OSError) as error:
+        print(f"Error reading {csv_path}: {error}")
     return unique_models
 
 
@@ -130,8 +134,8 @@ def inspect_model(onnx_path: str) -> dict | None:
             "initializer_dtypes": sorted(initializer_dtypes),
         }
 
-    except Exception as e:
-        print(f"Error inspecting {onnx_path}: {e}")
+    except (IOError, OSError, ValueError, AttributeError) as error:
+        print(f"Error inspecting {onnx_path}: {error}")
         return None
 
 
@@ -216,12 +220,15 @@ def inspect_all_models(
                 shape_str = str(out["shape"]).replace("-1", "dynamic")
                 print(f"    Output '{out['name']}': {shape_str} {out['dtype']}")
 
-            if info["ir_version"] > 10:
+            if info["ir_version"] > IR_VERSION_THRESHOLD:
                 high_ir_version.append(
                     f"{benchmark_name}/{model_name} (IR {info['ir_version']})"
                 )
 
-            if info["opset_version"] and info["opset_version"] > 22:
+            if (
+                info["opset_version"]
+                and info["opset_version"] > OPSET_VERSION_THRESHOLD
+            ):
                 high_opset_version.append(
                     f"{benchmark_name}/{model_name} (opset {info['opset_version']})"
                 )
@@ -234,32 +241,36 @@ def inspect_all_models(
     print(f"Total failed: {total_failed}")
 
     if high_ir_version:
-        print(f"\nModels with IR version > 10 ({len(high_ir_version)}):")
-        for model in high_ir_version[:10]:
+        print(
+            f"\nModels with IR version > {IR_VERSION_THRESHOLD} ({len(high_ir_version)}):"
+        )
+        for model in high_ir_version[:MAX_DISPLAY_ITEMS]:
             print(f"  - {model}")
-        if len(high_ir_version) > 10:
-            print(f"  ... and {len(high_ir_version) - 10} more")
+        if len(high_ir_version) > MAX_DISPLAY_ITEMS:
+            print(f"  ... and {len(high_ir_version) - MAX_DISPLAY_ITEMS} more")
 
     if high_opset_version:
-        print(f"\nModels with opset > 22 ({len(high_opset_version)}):")
-        for model in high_opset_version[:10]:
+        print(
+            f"\nModels with opset > {OPSET_VERSION_THRESHOLD} ({len(high_opset_version)}):"
+        )
+        for model in high_opset_version[:MAX_DISPLAY_ITEMS]:
             print(f"  - {model}")
-        if len(high_opset_version) > 10:
-            print(f"  ... and {len(high_opset_version) - 10} more")
+        if len(high_opset_version) > MAX_DISPLAY_ITEMS:
+            print(f"  ... and {len(high_opset_version) - MAX_DISPLAY_ITEMS} more")
 
     if dynamic_shapes:
         print(f"\nModels with dynamic shapes ({len(dynamic_shapes)}):")
-        for model in dynamic_shapes[:10]:
+        for model in dynamic_shapes[:MAX_DISPLAY_ITEMS]:
             print(f"  - {model}")
-        if len(dynamic_shapes) > 10:
-            print(f"  ... and {len(dynamic_shapes) - 10} more")
+        if len(dynamic_shapes) > MAX_DISPLAY_ITEMS:
+            print(f"  ... and {len(dynamic_shapes) - MAX_DISPLAY_ITEMS} more")
 
     if float64_models:
         print(f"\nModels with float64 initializers ({len(float64_models)}):")
-        for model in float64_models[:10]:
+        for model in float64_models[:MAX_DISPLAY_ITEMS]:
             print(f"  - {model}")
-        if len(float64_models) > 10:
-            print(f"  ... and {len(float64_models) - 10} more")
+        if len(float64_models) > MAX_DISPLAY_ITEMS:
+            print(f"  ... and {len(float64_models) - MAX_DISPLAY_ITEMS} more")
 
 
 if __name__ == "__main__":

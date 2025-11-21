@@ -14,9 +14,9 @@ __all__ = [
     "load_test_inputs",
     "compare_onnx_outputs",
     "load_test_data_from_file",
+    "BENCHMARKS_WITHOUT_BATCH_DIM",
 ]
 
-import os
 from pathlib import Path
 
 import numpy as np
@@ -29,10 +29,10 @@ def find_benchmark_folders(base_dir: str) -> list[str]:
     :return: List of benchmark directory paths
     """
     benchmark_dirs = []
-    for entry in os.listdir(base_dir):
-        subdir = os.path.normpath(os.path.join(base_dir, entry))
-        if os.path.isdir(subdir) and not entry.startswith("."):
-            benchmark_dirs.append(subdir)
+    base_path = Path(base_dir)
+    for entry in base_path.iterdir():
+        if entry.is_dir() and not entry.name.startswith("."):
+            benchmark_dirs.append(str(entry))
     return benchmark_dirs
 
 
@@ -50,28 +50,30 @@ def find_onnx_files_from_instances(
     """
     onnx_files = []
     for bdir in benchmark_dirs:
-        instances_csv = os.path.join(bdir, "instances.csv")
-        if not os.path.exists(instances_csv):
+        bdir_path = Path(bdir)
+        instances_csv = bdir_path / "instances.csv"
+        if not instances_csv.exists():
             continue
 
         found_files = set()
         try:
-            with open(instances_csv) as f:
-                for line in f.readlines()[1:]:
+            with open(instances_csv) as file_handle:
+                for line in file_handle.readlines()[1:]:
                     line = line.strip()
                     if not line:
                         continue
                     parts = line.split(",")
                     if parts:
                         model_path = parts[0].strip()
-                        onnx_path = os.path.normpath(os.path.join(bdir, model_path))
-                        if onnx_path not in found_files and os.path.exists(onnx_path):
+                        onnx_path = str((bdir_path / model_path).resolve())
+                        if onnx_path not in found_files and Path(onnx_path).exists():
                             found_files.add(onnx_path)
                             onnx_files.append(onnx_path)
                             if len(found_files) >= num_limit:
                                 break
-        except Exception:
-            pass
+        except OSError as error:
+            print(f"Error reading instances.csv in {bdir}: {error}")
+            continue
 
     return onnx_files
 
@@ -87,30 +89,31 @@ def find_vnnlib_files_from_instances(benchmark_dirs: list[str]) -> list[str]:
     """
     vnnlib_files = []
     for bdir in benchmark_dirs:
-        instances_csv = os.path.join(bdir, "instances.csv")
-        if not os.path.exists(instances_csv):
+        bdir_path = Path(bdir)
+        instances_csv = bdir_path / "instances.csv"
+        if not instances_csv.exists():
             continue
 
         found_files = set()
         try:
-            with open(instances_csv) as f:
-                for line in f.readlines()[1:]:
+            with open(instances_csv) as file_handle:
+                for line in file_handle.readlines()[1:]:
                     line = line.strip()
                     if not line:
                         continue
                     parts = line.split(",")
                     if len(parts) >= 2:
                         vnnlib_path_rel = parts[1].strip()
-                        vnnlib_path = os.path.normpath(
-                            os.path.join(bdir, vnnlib_path_rel)
-                        )
-                        if vnnlib_path not in found_files and os.path.exists(
-                            vnnlib_path
+                        vnnlib_path = str((bdir_path / vnnlib_path_rel).resolve())
+                        if (
+                            vnnlib_path not in found_files
+                            and Path(vnnlib_path).exists()
                         ):
                             found_files.add(vnnlib_path)
                             vnnlib_files.append(vnnlib_path)
-        except Exception:
-            pass
+        except OSError as error:
+            print(f"Error reading instances.csv in {bdir}: {error}")
+            continue
 
     return vnnlib_files
 
@@ -122,8 +125,8 @@ def get_benchmark_name(onnx_path: str, benchmarks_dir: str = "benchmarks") -> st
     :param benchmarks_dir: Root benchmarks directory name
     :return: Benchmark name (subdirectory name)
     """
-    onnx_path = os.path.normpath(onnx_path)
-    path_parts = onnx_path.split(os.sep)
+    path_obj = Path(onnx_path).resolve()
+    path_parts = path_obj.parts
 
     try:
         bench_idx = path_parts.index(benchmarks_dir)
@@ -132,7 +135,7 @@ def get_benchmark_name(onnx_path: str, benchmarks_dir: str = "benchmarks") -> st
     except ValueError:
         pass
 
-    return os.path.basename(os.path.dirname(onnx_path))
+    return path_obj.parent.name
 
 
 def get_benchmark_dir(onnx_path: str, benchmarks_dir: str = "benchmarks") -> Path:
@@ -173,7 +176,7 @@ def get_benchmark_dir(onnx_path: str, benchmarks_dir: str = "benchmarks") -> Pat
     )
 
 
-def load_onnx_model(onnx_path: str):
+def load_onnx_model(onnx_path: str):  # type: ignore
     """Load ONNX model and convert to version 21.
 
     :param onnx_path: Path to ONNX model file
@@ -187,7 +190,7 @@ def load_onnx_model(onnx_path: str):
     return model
 
 
-benchmark_without_batch_dim = [
+BENCHMARKS_WITHOUT_BATCH_DIM = (
     "cctsdb_yolo",
     "cgan",
     "pensieve_big_parallel.onnx",
@@ -196,7 +199,7 @@ benchmark_without_batch_dim = [
     "test_nano.onnx",
     "test_small.onnx",
     "test_tiny.onnx",
-]
+)
 
 
 def if_has_batch_dim(onnx_path: str) -> bool:
@@ -207,7 +210,7 @@ def if_has_batch_dim(onnx_path: str) -> bool:
     :param onnx_path: Path to ONNX model file
     :return: True if model has batch dimension, False otherwise
     """
-    return all(bname not in onnx_path for bname in benchmark_without_batch_dim)
+    return all(bname not in onnx_path for bname in BENCHMARKS_WITHOUT_BATCH_DIM)
 
 
 def check_shape_compatibility(inferred_shape, expected_shape) -> bool:
@@ -226,7 +229,9 @@ def check_shape_compatibility(inferred_shape, expected_shape) -> bool:
     return False
 
 
-def infer_shape(model, has_batch_dim: bool = True, verbose: bool = False):
+def infer_shape(
+    model, has_batch_dim: bool = True, verbose: bool = False
+) -> dict[str, list[int]]:
     """Run shape inference on model and validate against expected I/O shapes.
 
     :param model: ONNX ModelProto
@@ -279,64 +284,48 @@ def infer_shape(model, has_batch_dim: bool = True, verbose: bool = False):
     return data_shapes
 
 
-def load_test_inputs(
-    onnx_path: str, benchmarks_dir: str = "benchmarks"
-) -> list[np.ndarray]:
-    """Load test inputs for an ONNX model.
+def _load_precomputed_data(data_file: Path) -> list[np.ndarray]:
+    """Load pre-computed test data from npz file.
 
-    Tries in order:
-    1. Pre-computed data from data/ directory (npz files from calculate_outputs)
-    2. VNNLib-derived inputs from vnnlib_data/ directory
-
-    :param onnx_path: Path to ONNX model file
-    :param benchmarks_dir: Root benchmarks directory name
-    :return: List of input arrays
-    :raises FileNotFoundError: If no test data is available
+    :param data_file: Path to npz data file
+    :return: List of input arrays, empty if loading fails
     """
-    import onnx
+    if not data_file.exists():
+        return []
 
     try:
-        benchmark_dir = get_benchmark_dir(onnx_path, benchmarks_dir)
-    except FileNotFoundError as e:
-        raise FileNotFoundError(f"Cannot load test inputs: {e}") from e
+        data = np.load(data_file, allow_pickle=True)
+        inputs_list = []
 
-    model_name = Path(onnx_path).stem
+        for vnnlib_name in data.files:
+            vnnlib_data = data[vnnlib_name].item()
+            if isinstance(vnnlib_data, dict):
+                for bound_type in ["lower", "upper"]:
+                    if bound_type in vnnlib_data:
+                        bound_data = vnnlib_data[bound_type]
+                        if "inputs" in bound_data:
+                            inputs_list.extend(bound_data["inputs"])
 
-    # Try pre-computed data first (from calculate_outputs)
-    data_file = benchmark_dir / "data" / f"{model_name}.npz"
-    if data_file.exists():
-        try:
-            data = np.load(data_file, allow_pickle=True)
-            inputs_list = []
+        return inputs_list
+    except (IOError, KeyError, ValueError):
+        return []
 
-            # Data format: {vnnlib_name: {lower/upper: {inputs: [...], outputs: [...]}}}
-            for vnnlib_name in data.files:
-                vnnlib_data = data[vnnlib_name].item()
-                if isinstance(vnnlib_data, dict):
-                    for bound_type in ["lower", "upper"]:
-                        if bound_type in vnnlib_data:
-                            bound_data = vnnlib_data[bound_type]
-                            if "inputs" in bound_data:
-                                inputs_list.extend(bound_data["inputs"])
 
-            if inputs_list:
-                return inputs_list
-        except Exception as e:
-            # Log the error for debugging
-            pass
+def _get_vnnlib_names_from_csv(instances_csv: Path, onnx_rel_path: str) -> list[str]:
+    """Extract VNNLib names for a model from instances.csv.
 
-    # Fallback to vnnlib_data
-    onnx_rel_path = str(Path(onnx_path).relative_to(benchmark_dir)).replace("\\", "/")
-    instances_csv = benchmark_dir / "instances.csv"
-
+    :param instances_csv: Path to instances.csv file
+    :param onnx_rel_path: Relative path to ONNX model
+    :return: List of VNNLib file names
+    :raises FileNotFoundError: If instances.csv not found or parsing fails
+    """
     if not instances_csv.exists():
-        raise FileNotFoundError(f"No instances.csv found in {benchmark_dir}")
+        raise FileNotFoundError(f"No instances.csv found at {instances_csv}")
 
-    # Find associated vnnlib file from instances.csv
     vnnlib_names = []
     try:
-        with open(instances_csv) as f:
-            for line in f.readlines()[1:]:
+        with open(instances_csv) as file_handle:
+            for line in file_handle.readlines()[1:]:
                 line = line.strip()
                 if not line:
                     continue
@@ -348,21 +337,21 @@ def load_test_inputs(
                         vnnlib_name = Path(vnnlib_path).stem
                         if vnnlib_name not in vnnlib_names:
                             vnnlib_names.append(vnnlib_name)
-    except Exception as e:
-        raise FileNotFoundError(f"Error reading instances.csv: {e}") from e
+    except IOError as error:
+        raise FileNotFoundError(f"Error reading instances.csv: {error}") from error
 
-    if not vnnlib_names:
-        raise FileNotFoundError(
-            f"No VNNLib files found for {onnx_rel_path} in instances.csv"
-        )
+    return vnnlib_names
 
-    # Load from vnnlib_data
-    vnnlib_data_dir = benchmark_dir / "vnnlib_data"
-    if not vnnlib_data_dir.exists():
-        raise FileNotFoundError(
-            f"No vnnlib_data directory found in {benchmark_dir}. "
-            f"Run extract_inputs() first."
-        )
+
+def _get_model_input_info(onnx_path: str) -> tuple[str, list]:
+    """Get model input name and dimensions.
+
+    :param onnx_path: Path to ONNX model
+    :return: Tuple of (input_name, input_dims)
+    :raises ValueError: If model has no inputs
+    :raises NotImplementedError: If model has multiple inputs
+    """
+    import onnx
 
     model = onnx.load(onnx_path)
     input_names = [
@@ -386,7 +375,45 @@ def load_test_inputs(
             input_dims = inp.type.tensor_type.shape.dim
             break
 
+    return input_name, input_dims
+
+
+def _reshape_array_to_input_dims(arr: np.ndarray, input_dims: list) -> np.ndarray:
+    """Reshape flat array to match model input dimensions.
+
+    :param arr: Flat input array
+    :param input_dims: ONNX input dimensions
+    :return: Reshaped array
+    """
+    if input_dims is None:
+        return arr
+
+    target_shape = []
+    remaining_size = len(arr)
+
+    for dim in input_dims:
+        if dim.dim_value > 0:
+            target_shape.append(dim.dim_value)
+            remaining_size //= dim.dim_value
+
+    if len(target_shape) < len(input_dims):
+        target_shape.insert(0, remaining_size)
+
+    return arr.reshape(target_shape)
+
+
+def _load_from_vnnlib_data(
+    vnnlib_data_dir: Path, vnnlib_names: list[str], input_dims: list
+) -> list[np.ndarray]:
+    """Load test inputs from vnnlib_data directory.
+
+    :param vnnlib_data_dir: Path to vnnlib_data directory
+    :param vnnlib_names: List of VNNLib file names
+    :param input_dims: Model input dimensions for reshaping
+    :return: List of input arrays
+    """
     inputs_list = []
+
     for vnnlib_name in vnnlib_names:
         vnnlib_dir = vnnlib_data_dir / vnnlib_name / "or_group_0"
         if not vnnlib_dir.exists():
@@ -399,30 +426,65 @@ def load_test_inputs(
                 if input_bounds.ndim != 2 or input_bounds.shape[1] != 2:
                     continue
 
-                # Use midpoint of bounds
                 lower = input_bounds[:, 0]
                 upper = input_bounds[:, 1]
                 midpoint = (lower + upper) / 2
                 arr = midpoint.astype(np.float32)
 
-                # Reshape to match model input
-                if input_dims is not None:
-                    target_shape = []
-                    remaining_size = len(arr)
-
-                    for d in input_dims:
-                        if d.dim_value > 0:
-                            target_shape.append(d.dim_value)
-                            remaining_size //= d.dim_value
-
-                    if len(target_shape) < len(input_dims):
-                        target_shape.insert(0, remaining_size)
-
-                    arr = arr.reshape(target_shape)
-
+                arr = _reshape_array_to_input_dims(arr, input_dims)
                 inputs_list.append(arr)
-            except Exception:
+            except (IOError, KeyError, ValueError, IndexError):
                 continue
+
+    return inputs_list
+
+
+def load_test_inputs(
+    onnx_path: str, benchmarks_dir: str = "benchmarks"
+) -> list[np.ndarray]:
+    """Load test inputs for an ONNX model.
+
+    Tries in order:
+    1. Pre-computed data from data/ directory (npz files from calculate_outputs)
+    2. VNNLib-derived inputs from vnnlib_data/ directory
+
+    :param onnx_path: Path to ONNX model file
+    :param benchmarks_dir: Root benchmarks directory name
+    :return: List of input arrays
+    :raises FileNotFoundError: If no test data is available
+    """
+    try:
+        benchmark_dir = get_benchmark_dir(onnx_path, benchmarks_dir)
+    except FileNotFoundError as error:
+        raise FileNotFoundError(f"Cannot load test inputs: {error}") from error
+
+    model_name = Path(onnx_path).stem
+
+    # Try pre-computed data first
+    data_file = benchmark_dir / "data" / f"{model_name}.npz"
+    precomputed_inputs = _load_precomputed_data(data_file)
+    if precomputed_inputs:
+        return precomputed_inputs
+
+    # Fallback to vnnlib_data
+    onnx_rel_path = str(Path(onnx_path).relative_to(benchmark_dir)).replace("\\", "/")
+    instances_csv = benchmark_dir / "instances.csv"
+
+    vnnlib_names = _get_vnnlib_names_from_csv(instances_csv, onnx_rel_path)
+    if not vnnlib_names:
+        raise FileNotFoundError(
+            f"No VNNLib files found for {onnx_rel_path} in instances.csv"
+        )
+
+    vnnlib_data_dir = benchmark_dir / "vnnlib_data"
+    if not vnnlib_data_dir.exists():
+        raise FileNotFoundError(
+            f"No vnnlib_data directory found in {benchmark_dir}. "
+            f"Run extract_inputs() first."
+        )
+
+    input_name, input_dims = _get_model_input_info(onnx_path)
+    inputs_list = _load_from_vnnlib_data(vnnlib_data_dir, vnnlib_names, input_dims)
 
     if not inputs_list:
         raise FileNotFoundError(
@@ -433,7 +495,7 @@ def load_test_inputs(
     return inputs_list
 
 
-def compare_onnx_outputs(
+def compare_onnx_outputs(  # type: ignore
     outputs1: dict,
     outputs2: dict,
     rtol: float = 1e-5,
@@ -477,7 +539,7 @@ def load_test_data_from_file(data_path: str) -> list[dict[str, np.ndarray]]:
     :param data_path: Path to test data file
     :return: List of input dictionaries
     """
-    if not os.path.exists(data_path):
+    if not Path(data_path).exists():
         raise FileNotFoundError(f"Test data file not found: {data_path}")
 
     if data_path.endswith(".npy"):

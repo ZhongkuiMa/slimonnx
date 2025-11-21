@@ -29,11 +29,8 @@ def _fuse_constant_nodes(
     nodes_dict = {node.output[0]: node for node in nodes}
 
     nodes_to_delete = []
-    # Iterate over value_info to print tensor names and their shapes
+    # Iterate over value_info to check tensor names and their shapes
     for node in nodes:
-        # if verbose:
-        #     print(f"Node: {node.op_type} {node.name}")
-
         op_type = node.op_type
 
         if op_type == "Shape":
@@ -187,11 +184,11 @@ def _fuse_constant_nodes(
                 value = np.power(tensor1, tensor2)
 
         elif op_type == "Cast":
-            to = get_onnx_attrs(node, initializers)["to"]
+            target_dtype = get_onnx_attrs(node, initializers)["to"]
             value = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            if to not in ONNX_DTYPE_TO_NUMPY:
-                raise ValueError(f"Unsupported Cast dtype: {to}")
-            value = value.astype(ONNX_DTYPE_TO_NUMPY[to])
+            if target_dtype not in ONNX_DTYPE_TO_NUMPY:
+                raise ValueError(f"Unsupported Cast dtype: {target_dtype}")
+            value = value.astype(ONNX_DTYPE_TO_NUMPY[target_dtype])
 
         elif op_type == "Equal":
 
@@ -201,9 +198,9 @@ def _fuse_constant_nodes(
         elif op_type == "Where":
 
             condition = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            x = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            y = onnx.numpy_helper.to_array(initializers[node.input[2]])
-            value = np.where(condition, x, y)
+            operand_x = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            operand_y = onnx.numpy_helper.to_array(initializers[node.input[2]])
+            value = np.where(condition, operand_x, operand_y)
         elif op_type == "Expand":
 
             ipt = onnx.numpy_helper.to_array(initializers[node.input[0]])

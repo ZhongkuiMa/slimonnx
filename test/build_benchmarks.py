@@ -92,8 +92,8 @@ def copy_benchmarks(
                         if model_path not in onnx_to_vnnlib:
                             onnx_to_vnnlib[model_path] = []
                         onnx_to_vnnlib[model_path].append((property_path, timeout))
-        except Exception as e:
-            print(f"[{benchmark_name}] Error parsing instances.csv: {e}, skipping")
+        except (IOError, OSError) as error:
+            print(f"[{benchmark_name}] Error parsing instances.csv: {error}, skipping")
             continue
 
         if not onnx_to_vnnlib:
@@ -208,8 +208,8 @@ def extract_inputs(benchmarks_dir: str = "benchmarks") -> tuple[int, int]:
                         parts = line.split(",")
                         if len(parts) >= 2:
                             unique_vnnlibs.add(parts[1].strip())
-        except Exception as e:
-            print(f"[{benchmark_name}] Error parsing instances.csv: {e}")
+        except (IOError, OSError) as error:
+            print(f"[{benchmark_name}] Error parsing instances.csv: {error}")
             continue
 
         if not unique_vnnlibs:
@@ -233,7 +233,8 @@ def extract_inputs(benchmarks_dir: str = "benchmarks") -> tuple[int, int]:
             vnnlib_rel_path_no_suffix = (
                 str(vnnlib_rel_path)
                 .replace(".vnnlib", "")
-                .replace(f"vnnlib{os.sep}", "")
+                .replace("vnnlib/", "")
+                .replace("vnnlib\\", "")
             )
             output_dir = vnnlib_data_dir / vnnlib_rel_path_no_suffix
             output_dir.mkdir(parents=True, exist_ok=True)
@@ -244,8 +245,8 @@ def extract_inputs(benchmarks_dir: str = "benchmarks") -> tuple[int, int]:
                 )
                 converter.convert(str(vnnlib_file), str(output_dir))
                 success += 1
-            except Exception as e:
-                failed.append((vnnlib_name, str(e)))
+            except (IOError, OSError, ValueError, RuntimeError) as error:
+                failed.append((vnnlib_name, str(error)))
 
         total_success += success
         total_failed += len(failed)
@@ -312,8 +313,8 @@ def calculate_outputs(
                         parts = line.split(",")
                         if len(parts) >= 2:
                             unique_models.add(parts[0].strip())
-        except Exception as e:
-            print(f"[{benchmark_name}] Error reading instances.csv: {e}")
+        except (IOError, OSError) as error:
+            print(f"[{benchmark_name}] Error reading instances.csv: {error}")
             continue
 
         if not unique_models:
@@ -330,7 +331,10 @@ def calculate_outputs(
             model_name = Path(model_rel_path).stem
 
             model_rel_path_no_suffix = (
-                str(model_rel_path).replace(".onnx", "").replace(f"onnx{os.sep}", "")
+                str(model_rel_path)
+                .replace(".onnx", "")
+                .replace("onnx/", "")
+                .replace("onnx\\", "")
             )
             model_rel_path_no_suffix = Path(model_rel_path_no_suffix).parent
             data_dir = benchmark_dir / "data" / model_rel_path_no_suffix
@@ -354,8 +358,8 @@ def calculate_outputs(
                 else:
                     failed.append((model_name, "No results"))
 
-            except Exception as e:
-                failed.append((model_name, str(e)))
+            except (IOError, OSError, ValueError, RuntimeError) as error:
+                failed.append((model_name, str(error)))
 
         total_success += success
         total_failed += len(failed)
@@ -409,7 +413,8 @@ def _calculate_model_outputs(
                             vnnlib_name = Path(parts[1].strip()).stem
                             if vnnlib_name not in vnnlib_names:
                                 vnnlib_names.append(vnnlib_name)
-    except Exception:
+    except (IOError, OSError) as error:
+        print(f"Error reading instances.csv: {error}")
         return None
 
     if not vnnlib_names:
@@ -437,12 +442,14 @@ def _calculate_model_outputs(
             dim.dim_value if dim.dim_value > 0 else 1
             for dim in input_tensor.type.tensor_type.shape.dim
         ]
-    except Exception:
+    except (AttributeError, ValueError) as error:
+        print(f"Error getting input shape: {error}")
         return None
 
     try:
         session = ort.InferenceSession(onnx_path, providers=["CPUExecutionProvider"])
-    except Exception:
+    except (RuntimeError, ValueError) as error:
+        print(f"Error creating ONNX Runtime session: {error}")
         return None
 
     results = {}
@@ -455,9 +462,9 @@ def _calculate_model_outputs(
 
         npz_files = sorted(vnnlib_subdir.glob("sub_prop_*.npz"))
 
-        # TODO: Taking this magic number as an argument.
-        NUM_NPZ_LIMIT = 2
-        npz_files = npz_files[:NUM_NPZ_LIMIT]
+        # Limit number of npz files to prevent long runtime
+        MAX_NPZ_FILES_PER_BENCHMARK = 2
+        npz_files = npz_files[:MAX_NPZ_FILES_PER_BENCHMARK]
 
         if not npz_files:
             continue
@@ -481,7 +488,7 @@ def _calculate_model_outputs(
                     output = session.run(None, {input_name: input_array})
                     lower_inputs.append(input_array)
                     lower_outputs.append(output[0])
-                except Exception:
+                except (RuntimeError, ValueError, TypeError, IndexError):
                     pass
 
                 try:
@@ -491,10 +498,10 @@ def _calculate_model_outputs(
                     output = session.run(None, {input_name: input_array})
                     upper_inputs.append(input_array)
                     upper_outputs.append(output[0])
-                except Exception:
+                except (RuntimeError, ValueError, TypeError, IndexError):
                     pass
 
-            except Exception:
+            except (IOError, OSError, ValueError, KeyError):
                 continue
 
         if lower_inputs or upper_inputs:
@@ -584,7 +591,4 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    copy_benchmarks()
-    extract_inputs()
-    calculate_outputs()
     main()

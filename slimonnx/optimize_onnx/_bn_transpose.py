@@ -35,7 +35,6 @@ def _fuse_transpose_batchnorm_transpose(
     pre_pre_node = None
     pre_node = None
     for node in nodes:
-        # print(node.op_type, node.input, node.output)
         new_node = node
         if (
             node.op_type == "Transpose"
@@ -61,7 +60,7 @@ def _fuse_transpose_batchnorm_transpose(
                     f"Second Transpose node {tp_node2.name} has unsupported perm={perm2}. Expected {TRANSPOSE_CHW_TO_CWH}."
                 )
 
-            epsilon, scale, b, mean, var = _get_batchnorm_params(
+            epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
                 bn_node, initializers, True
             )
 
@@ -85,7 +84,7 @@ def _fuse_transpose_batchnorm_transpose(
             # Preserve dtype from scale tensor to avoid float32/float64 mismatch
             target_dtype = scale.dtype
             bn_weight, bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var, target_dtype
+                epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
             weight = np.diag(bn_weight).astype(target_dtype, copy=False)
 
@@ -100,10 +99,10 @@ def _fuse_transpose_batchnorm_transpose(
                 initializers[weight_name] = weight_tensor
                 initializers[bias_name] = bias_tensor
 
-                new_node = onnx.helper.make_node(
+                new_node = onnx.NodeProto(
                     op_type="Gemm",
-                    inputs=[tp_node1.input[0], weight_name, bias_name],
-                    outputs=tp_node2.output,
+                    input=[tp_node1.input[0], weight_name, bias_name],
+                    output=tp_node2.output,
                     name=bn_node.name + "_gemm",
                 )
 
@@ -120,19 +119,19 @@ def _fuse_transpose_batchnorm_transpose(
                 initializers[bias_name] = bias_tensor
 
                 # Create MatMul node
-                matmul_node = onnx.helper.make_node(
+                matmul_node = onnx.NodeProto(
                     op_type="MatMul",
-                    inputs=[tp_node1.input[0], weight_name],
-                    outputs=[matmul_output],
+                    input=[tp_node1.input[0], weight_name],
+                    output=[matmul_output],
                     name=bn_node.name + "_matmul",
                 )
                 new_nodes.append(matmul_node)
 
                 # Create Add node
-                new_node = onnx.helper.make_node(
+                new_node = onnx.NodeProto(
                     op_type="Add",
-                    inputs=[matmul_output, bias_name],
-                    outputs=tp_node2.output,
+                    input=[matmul_output, bias_name],
+                    output=tp_node2.output,
                     name=bn_node.name + "_add",
                 )
 
