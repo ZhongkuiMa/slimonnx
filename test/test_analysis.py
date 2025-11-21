@@ -22,12 +22,12 @@ import onnx
 
 from slimonnx import SlimONNX, OptimizationConfig
 from slimonnx.slimonnx.structure_analysis.topology import build_topology
-from slimonnx.test.utils import (
+from slimonnx.test.benchmark_utils import (
     find_onnx_files_from_instances,
     find_benchmark_folders,
     get_benchmark_name,
-    if_has_batch_dim,
 )
+from slimonnx.test.utils import if_has_batch_dim
 
 
 def test_pattern_detection(onnx_path: str) -> dict:

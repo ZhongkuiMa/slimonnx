@@ -10,6 +10,7 @@ __all__ = [
     "convert_constant_to_initializer",
     "get_next_nodes_mapping",
     "generate_random_inputs",
+    "load_test_data_from_file",
     "compare_outputs",
 ]
 
@@ -251,6 +252,43 @@ def generate_random_inputs(
         inputs_list.append(input_dict)
 
     return inputs_list
+
+
+def load_test_data_from_file(data_path: str) -> list[dict[str, np.ndarray]]:
+    """Load test input-output data from .npy or .npz file.
+
+    :param data_path: Path to test data file
+    :return: List of input dictionaries
+    :raises FileNotFoundError: If data file not found
+    :raises ValueError: If unsupported file format
+    """
+    from pathlib import Path
+
+    if not Path(data_path).exists():
+        raise FileNotFoundError(f"Test data file not found: {data_path}")
+
+    if data_path.endswith(".npy"):
+        data = np.load(data_path)
+        if len(data.shape) == 1:
+            return [{"input": data}]
+        else:
+            return [{"input": data[i]} for i in range(data.shape[0])]
+
+    elif data_path.endswith(".npz"):
+        data = np.load(data_path)
+        if "inputs" in data:
+            inputs_data = data["inputs"]
+            return [{"input": inputs_data[i]} for i in range(inputs_data.shape[0])]
+        elif "X" in data:
+            X = data["X"]
+            return [{"input": X[i]} for i in range(X.shape[0])]
+        else:
+            key = list(data.keys())[0]
+            arr = data[key]
+            return [{"input": arr[i]} for i in range(arr.shape[0])]
+
+    else:
+        raise ValueError(f"Unsupported file format: {data_path}")
 
 
 def compare_outputs(
