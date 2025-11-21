@@ -30,12 +30,14 @@ import onnxruntime as ort
 
 from slimonnx import SlimONNX, get_preset
 from slimonnx.slimonnx.analyze_structure import analyze_model
-from slimonnx.test.utils import (
-    find_onnx_files_from_instances,
-    find_benchmark_folders,
-    get_benchmark_name,
-    load_onnx_model,
+from slimonnx.test.benchmark_utils import (
+    find_benchmarks,
+    find_models,
+    get_model_benchmark_name,
+    get_model_relative_path,
+    get_model_data_path,
 )
+from slimonnx.test.utils import load_onnx_model
 
 
 def _run_onnx_model(model_path: str, inputs: np.ndarray) -> dict:
@@ -80,58 +82,43 @@ def _compare_outputs(
 
 
 def optimize_model(
-    onnx_path: str,
-    output_dir: str = "results/baselines",
-    benchmark_name: str | None = None,
+    model_path: Path,
+    output_dir: Path,
+    benchmarks_root: Path,
 ) -> dict:
     """Optimize one ONNX model and save to results directory.
 
-    :param onnx_path: Path to source ONNX model file
-    :param output_dir: Directory to save optimized model (e.g., results/baselines)
-    :param benchmark_name: Benchmark name (auto-detected if None)
+    :param model_path: Path to source ONNX model file
+    :param output_dir: Directory to save optimized model
+    :param benchmarks_root: Path to benchmarks root directory
     :return: Dictionary with optimization results
     """
-    if benchmark_name is None:
-        benchmark_name = get_benchmark_name(onnx_path)
-    model_name = Path(onnx_path).name
+    benchmark_name = get_model_benchmark_name(model_path)
+    model_name = model_path.name
     config = get_preset(benchmark_name, model_name)
     has_batch_dim = config.has_batch_dim
 
-    model = load_onnx_model(onnx_path)
+    model = load_onnx_model(str(model_path))
     original_node_count = len(model.graph.node)
 
-    benchmark_output_dir = Path(output_dir) / benchmark_name
-    benchmark_output_dir.mkdir(parents=True, exist_ok=True)
-
-    onnx_path_obj = Path(onnx_path)
-    path_parts = onnx_path_obj.parts
-
-    try:
-        benchmarks_idx = path_parts.index("benchmarks")
-        benchmark_idx = benchmarks_idx + 1
-        if benchmark_idx < len(path_parts):
-            relative_parts = path_parts[benchmark_idx + 1 : -1]
-            model_local_parent_dir = Path(*relative_parts) if relative_parts else Path()
-        else:
-            model_local_parent_dir = Path()
-    except ValueError:
-        model_local_parent_dir = Path()
-
-    model_filename = onnx_path_obj.name
-    onnx_output_path = benchmark_output_dir / model_local_parent_dir / model_filename
-    topology_output_path = Path(
-        str(onnx_output_path).replace(".onnx", "_topology.json").replace("onnx", "json")
+    rel_path = get_model_relative_path(model_path, benchmarks_root)
+    onnx_output_path = output_dir / rel_path
+    topology_output_path = (
+        onnx_output_path.with_suffix("").with_suffix(".json").parent.parent
+        / "json"
+        / (onnx_output_path.stem + "_topology.json")
     )
+
     onnx_output_path.parent.mkdir(parents=True, exist_ok=True)
     topology_output_path.parent.mkdir(parents=True, exist_ok=True)
 
-    temp_path = str(Path(onnx_path).with_suffix("")) + "_temp.onnx"
-    onnx.save(model, temp_path)
+    temp_path = model_path.with_suffix(".temp.onnx")
+    onnx.save(model, str(temp_path))
 
     try:
         start_time = time.perf_counter()
         slimonnx = SlimONNX()
-        slimonnx.slim(temp_path, str(onnx_output_path), config=config)
+        slimonnx.slim(str(temp_path), str(onnx_output_path), config=config)
         elapsed_time = time.perf_counter() - start_time
 
         optimized_model = onnx.load(str(onnx_output_path))
@@ -154,7 +141,7 @@ def optimize_model(
         return {
             "success": True,
             "benchmark": benchmark_name,
-            "model": model_filename,
+            "model": model_name,
             "time": elapsed_time,
             "original_nodes": original_node_count,
             "optimized_nodes": optimized_node_count,
@@ -169,7 +156,7 @@ def optimize_model(
         return {
             "success": False,
             "benchmark": benchmark_name,
-            "model": model_filename,
+            "model": model_name,
             "time": 0.0,
             "original_nodes": original_node_count,
             "optimized_nodes": 0,
@@ -181,8 +168,8 @@ def optimize_model(
         }
 
     finally:
-        if Path(temp_path).exists():
-            Path(temp_path).unlink()
+        if temp_path.exists():
+            temp_path.unlink()
 
 
 def optimize_all_models(
@@ -197,12 +184,12 @@ def optimize_all_models(
     :param max_per_benchmark: Maximum models per benchmark to process
     :return: Dictionary with overall statistics
     """
-    benchmark_dirs = find_benchmark_folders(benchmark_dir)
-    onnx_files = find_onnx_files_from_instances(
-        benchmark_dirs, num_limit=max_per_benchmark
-    )
+    benchmarks_root = Path(benchmark_dir)
+    output_root = Path(output_dir)
+    benchmarks = find_benchmarks(benchmark_dir)
+    models = find_models(benchmarks, max_per_benchmark)
 
-    print(f"Optimizing {len(onnx_files)} models to {output_dir}/")
+    print(f"Optimizing {len(models)} models to {output_dir}/")
     print("=" * 70)
 
     success_count = 0
@@ -214,13 +201,12 @@ def optimize_all_models(
 
     start_time = time.perf_counter()
 
-    for i, onnx_path in enumerate(onnx_files):
-        basename = Path(onnx_path).name
-        benchmark_name = get_benchmark_name(onnx_path)
+    for i, model_path in enumerate(models):
+        rel_path = get_model_relative_path(model_path, benchmarks_root)
 
-        print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
+        print(f"[{i}/{len(models)}] {rel_path}...", end=" ")
 
-        result = optimize_model(onnx_path, output_dir, benchmark_name)
+        result = optimize_model(model_path, output_root, benchmarks_root)
 
         if result["success"]:
             success_count += 1
@@ -241,10 +227,10 @@ def optimize_all_models(
     print("\n" + "=" * 70)
     print("SUMMARY")
     print("=" * 70)
-    print(f"Total models: {len(onnx_files)}")
+    print(f"Total models: {len(models)}")
     print(f"Success: {success_count}")
     print(f"Failed: {failed_count}")
-    print(f"Success rate: {success_count/len(onnx_files)*100:.1f}%")
+    print(f"Success rate: {success_count/len(models)*100:.1f}%")
     print(f"Total optimization time: {total_time:.2f}s")
     print(
         f"Avg time per model: {total_time/success_count:.2f}s"
@@ -257,7 +243,7 @@ def optimize_all_models(
     )
 
     return {
-        "total": len(onnx_files),
+        "total": len(models),
         "success": success_count,
         "failed": failed_count,
         "total_time": total_time,
@@ -400,6 +386,7 @@ def verify_against_baseline(
     results_dir: str = "results/baselines",
     benchmarks_dir: str = "benchmarks",
     baselines_dir: str = "baselines",
+    max_per_benchmark: int = 20,
 ) -> dict:
     """Verify current results against archived baselines.
 
@@ -419,7 +406,9 @@ def verify_against_baseline(
     print(f"Verifying {results_dir}/ against {baselines_dir}/")
     print("=" * 70)
 
-    results_onnx = sorted(results_path.rglob("*.onnx"))
+    benchmarks = find_benchmarks(benchmarks_dir)
+    result_models = find_models(benchmarks, max_per_benchmark)
+
     baselines_onnx = {
         f.relative_to(baselines_path): f for f in baselines_path.rglob("*.onnx")
     }
@@ -430,12 +419,10 @@ def verify_against_baseline(
     structural_mismatches = 0
     numerical_mismatches = 0
 
-    for i, result_file in enumerate(results_onnx):
-        basename = Path(result_file).name
-        benchmark_name = get_benchmark_name(str(result_file))
-        print(f"[{i}/{len(results_onnx)}] {benchmark_name}/{basename}...", end=" ")
-
-        rel_path = result_file.relative_to(results_path)
+    for i, result_model in enumerate(result_models):
+        rel_path = get_model_relative_path(result_model, benchmarks_path)
+        print(f"[{i}/{len(result_models)}] {rel_path}...", end=" ")
+        result_file = results_path / rel_path
         baseline_file = baselines_onnx.get(rel_path)
 
         if baseline_file is None:
@@ -443,16 +430,7 @@ def verify_against_baseline(
             missing += 1
             continue
 
-        benchmark_name_from_path = rel_path.parts[:-1] if rel_path.parts else ""
-        benchmark_name_from_path = "/".join(benchmark_name_from_path).replace(
-            "onnx", "data"
-        )
-        if "data" not in benchmark_name_from_path:
-            benchmark_name_from_path = benchmark_name_from_path + "/data"
-        model_stem = rel_path.stem
-
-        benchmark_root = benchmarks_path / benchmark_name_from_path
-        data_file = benchmark_root / f"{model_stem}.npz"
+        data_file = get_model_data_path(result_model, benchmarks_path)
 
         status, error_msg = _verify_single_model(
             result_file, baseline_file, data_file, rel_path
@@ -478,20 +456,20 @@ def verify_against_baseline(
     print("\n" + "=" * 70)
     print("VERIFICATION SUMMARY")
     print("=" * 70)
-    print(f"Total files: {len(results_onnx)}")
+    print(f"Total files: {len(result_models)}")
     print(f"Passed: {passed}")
     print(f"Failed: {failed}")
     print(f"  Structural mismatches: {structural_mismatches}")
     print(f"  Numerical mismatches: {numerical_mismatches}")
     print(f"Missing baselines: {missing}")
     print(
-        f"Pass rate: {passed/(len(results_onnx)-missing)*100:.1f}%"
-        if len(results_onnx) > missing
+        f"Pass rate: {passed/(len(result_models)-missing)*100:.1f}%"
+        if len(result_models) > missing
         else "N/A"
     )
 
     return {
-        "total": len(results_onnx),
+        "total": len(result_models),
         "passed": passed,
         "failed": failed,
         "missing": missing,
