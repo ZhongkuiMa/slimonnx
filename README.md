@@ -10,7 +10,7 @@
 
 SlimONNX is a pure Python toolkit for optimizing and simplifying ONNX neural network models through graph transformations and operator fusion.
 
-**Extensively tested on all 23 benchmarks from [VNN-COMP 2024](https://sites.google.com/view/vnn2024), covering diverse neural network architectures including feedforward networks, convolutional networks, transformers, and graph neural networks.**
+**Extensively tested on all benchmarks from [VNN-COMP 2024](https://sites.google.com/view/vnn2024), covering diverse neural network architectures including feedforward networks, convolutional networks, transformers, and graph neural networks.**
 
 ## Motivation
 
@@ -132,6 +132,117 @@ The following optimizations are always enabled:
 - Constants are converted to initializers for shape inference
 - Gemm nodes are normalized (alpha=1, beta=1, transA=False, transB=False)
 - Graph nodes are topologically sorted
+
+## Architecture
+
+### Design Principles
+
+- **Immutable Configuration**: Frozen dataclass configurations prevent accidental modifications
+- **Pure Functional Pipeline**: Model transformations as composable functions
+- **Explicit Dependencies**: All optimizations declare their requirements (shapes, batch dimension)
+- **Type Safety**: Complete type hints using Python 3.10+ syntax
+- **Minimal Abstraction**: Direct operations on ONNX protobuf structures
+
+### Performance Characteristics
+
+- **Single-Pass Optimization**: Most optimizations complete in one graph traversal
+- **Lazy Shape Inference**: Shape computation only when required by optimizations
+- **Efficient Pattern Matching**: Pre-compiled patterns for common optimization opportunities
+- **Topological Ordering**: Ensures correctness of graph transformations
+
+### Module Structure
+
+```
+slimonnx/
+├── __init__.py                 # Public API exports
+├── slimonnx.py                 # Main SlimONNX class
+├── configs.py                  # Configuration dataclasses
+├── presets.py                  # Preset configurations for benchmarks
+├── utils.py                    # Common utilities
+├── onnx_attrs.py               # ONNX attribute helpers
+├── preprocess/                 # Model preprocessing
+│   ├── __init__.py
+│   ├── version_converter.py   # ONNX version conversion
+│   └── cleanup.py              # Docstring and metadata cleanup
+├── optimize_onnx/              # Optimization passes
+│   ├── __init__.py
+│   ├── _optimize.py            # Main optimization orchestration
+│   ├── _cst2initer.py          # Constant to initializer conversion
+│   ├── _cst_op.py              # Constant folding
+│   ├── _mm_add.py              # MatMul+Add fusion
+│   ├── _gemm.py                # Gemm simplification
+│   ├── _gemm_gemm.py           # Gemm-Gemm fusion
+│   ├── _bn_gemm.py             # BatchNorm-Gemm fusion patterns
+│   ├── _bn_transpose.py        # Transpose-BN-Transpose fusion
+│   ├── _conv.py                # Conv simplifications
+│   ├── _bn_conv.py             # Conv-BN fusion patterns
+│   ├── _depthwise_conv.py      # Depthwise Conv-BN fusion
+│   ├── _dropout.py             # Dropout removal
+│   ├── _redundant.py           # Redundant operation removal
+│   ├── _ordering.py            # Topological sorting
+│   ├── _name.py                # Node name simplification
+│   ├── _utils.py               # Optimization utilities
+│   └── constants.py            # ONNX constants and mappings
+├── pattern_detect/             # Pattern detection for analysis
+│   ├── __init__.py
+│   ├── registry.py             # Pattern registry
+│   ├── matmul_add.py           # MatMul+Add patterns
+│   ├── gemm_chains.py          # Gemm chain patterns
+│   ├── gemm_bn.py              # Gemm-BN patterns
+│   ├── transpose_bn.py         # Transpose-BN patterns
+│   ├── conv_bn.py              # Conv-BN patterns
+│   ├── depthwise_conv.py       # Depthwise Conv patterns
+│   ├── constant_ops.py         # Constant operation patterns
+│   ├── redundant_ops.py        # Redundant operation patterns
+│   ├── reshape_chains.py       # Reshape chain patterns
+│   └── dropout.py              # Dropout patterns
+├── model_validate/             # Model validation
+│   ├── __init__.py
+│   ├── onnx_checker.py         # ONNX checker validation
+│   ├── runtime_validator.py    # ONNXRuntime validation
+│   ├── graph_validator.py      # Graph structure validation
+│   └── numerical_compare.py    # Numerical output comparison
+└── structure_analysis/         # Model structure analysis
+    ├── __init__.py
+    ├── analyzer.py             # Structure analyzer
+    ├── topology.py             # Topology analysis
+    └── reporter.py             # JSON report generation
+```
+
+### Optimization Pipeline
+
+```
+Input ONNX Model
+    │
+    ├─> Preprocessing
+    │   ├─> Load model
+    │   ├─> Version conversion (target opset)
+    │   ├─> Shape inference
+    │   └─> Clear docstrings
+    │
+    ├─> Optimization Passes (configurable)
+    │   ├─> Constant to initializer (always)
+    │   ├─> Remove dropout
+    │   ├─> Constant folding
+    │   ├─> MatMul+Add → Gemm
+    │   ├─> Gemm simplification (always)
+    │   ├─> Gemm-Gemm fusion
+    │   ├─> BatchNorm-Gemm fusion
+    │   ├─> Transpose-BN-Transpose fusion
+    │   ├─> Conv-BN fusion
+    │   ├─> Depthwise Conv-BN fusion
+    │   ├─> Conv to Flatten+Gemm
+    │   ├─> Remove redundant operations
+    │   ├─> Topological reordering (always)
+    │   └─> Node name simplification
+    │
+    ├─> Validation (optional)
+    │   ├─> ONNX checker
+    │   ├─> ONNXRuntime loading
+    │   └─> Numerical comparison
+    │
+    └─> Save Optimized Model
+```
 
 ## Usage
 
@@ -460,7 +571,7 @@ All 23 benchmarks from the International Verification of Neural Networks Competi
 
 ### Test Results
 
-- **Total Models Tested**: 135+ models across all benchmarks
+- **Total Models Tested**: 100+ models across all benchmarks
 - **Optimization Success Rate**: 100% (all models successfully optimized)
 - **ONNXRuntime Compatibility**: 100% (all optimized models loadable and executable)
 - **Numerical Validation**: Validated on models with test data (safenlp, cgan, vit, etc.)
@@ -487,10 +598,9 @@ Contributions are welcome. Please:
 
 1. Fork the repository
 2. Create a feature branch
-3. Follow the code style guidelines in `.claude/CLAUDE.md`
-4. Run black formatter on all modified files
-5. Test on relevant VNN-COMP benchmarks if applicable
-6. Submit a pull request
+3. Run black formatter on all modified files
+4. Test on relevant VNN-COMP benchmarks if applicable
+5. Submit a pull request
 
 Direct pushes to main branch are restricted.
 
