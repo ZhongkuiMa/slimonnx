@@ -7,8 +7,8 @@ from functools import lru_cache
 
 from .configs import OptimizationConfig
 
-# List of available preset names
-PRESET_NAMES = [
+# Tuple of available preset names
+PRESET_NAMES = (
     "acasxu_2023",
     "cctsdb_yolo_2023",
     "cersyve",
@@ -37,7 +37,7 @@ PRESET_NAMES = [
     "vit_2023",
     "yolo_2023",
     "test",
-]
+)
 
 
 @lru_cache(maxsize=128)

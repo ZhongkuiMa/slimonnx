@@ -19,8 +19,8 @@ def run_onnx_checker(model: ModelProto) -> dict:
             "valid": True,
             "error": None,
         }
-    except Exception as e:
+    except (ValueError, AttributeError, TypeError) as error:
         return {
             "valid": False,
-            "error": str(e),
+            "error": str(error),
         }

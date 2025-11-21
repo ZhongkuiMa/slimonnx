@@ -46,7 +46,7 @@ def _fuse_gemm_reshape_bn(
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
-            epsilon, scale, b, mean, var = _get_batchnorm_params(
+            epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
                 bn_node, initializers, True
             )
             reshape_shape = (
@@ -58,7 +58,7 @@ def _fuse_gemm_reshape_bn(
                 raise ValueError(
                     f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for Gemm-Reshape-BN fusion."
                 )
-            n = bias.shape[0]
+            num_features = bias.shape[0]
             weight = weight.T if transB == 1 else weight
 
             """
@@ -85,7 +85,7 @@ def _fuse_gemm_reshape_bn(
             # Preserve dtype from weight tensor to avoid float32/float64 mismatch
             target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var, target_dtype
+                epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
             new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
                 target_dtype, copy=False
@@ -93,8 +93,8 @@ def _fuse_gemm_reshape_bn(
             new_bias = (bias + bn_bias.reshape(-1, 1, 1)).astype(
                 target_dtype, copy=False
             )
-            new_weight = new_weight.reshape((-1, n)).T
-            new_bias = new_bias.reshape((n,))
+            new_weight = new_weight.reshape((-1, num_features)).T
+            new_bias = new_bias.reshape((num_features,))
 
             new_weight_name = gemm_node.input[1]
             new_bias_name = gemm_node.input[2]
@@ -105,23 +105,14 @@ def _fuse_gemm_reshape_bn(
             initializers[gemm_node.input[1]] = new_weight
             initializers[gemm_node.input[2]] = new_bias
 
-            new_gemm_node = onnx.helper.make_node(
-                op_type="Gemm",
-                inputs=gemm_node.input,
-                outputs=gemm_node.output,
-                name=gemm_node.name,
-                alpha=alpha,
-                beta=beta,
-                transA=transA,
-                transB=transB,
-            )
+            new_gemm_node = onnx.NodeProto()
+            new_gemm_node.CopyFrom(gemm_node)
+            new_gemm_node.ClearField("attribute")
 
-            new_reshape_node = onnx.helper.make_node(
-                op_type="Reshape",
-                inputs=reshape_node.input,
-                outputs=bn_node.output,
-                name=reshape_node.name,
-            )
+            new_reshape_node = onnx.NodeProto()
+            new_reshape_node.CopyFrom(reshape_node)
+            new_reshape_node.ClearField("output")
+            new_reshape_node.output.extend(bn_node.output)
 
             new_nodes.append(new_gemm_node)
             new_nodes.append(new_reshape_node)
@@ -162,7 +153,7 @@ def _fuse_bn_reshape_gemm(
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
-            epsilon, scale, b, mean, var = _get_batchnorm_params(
+            epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
                 bn_node, initializers, True
             )
             # reshape_shape = onnx.numpy_helper.to_array(
@@ -176,9 +167,9 @@ def _fuse_bn_reshape_gemm(
 
             """
             IDEA
-            BN: 
+            BN:
             bn_weight (c,) = scale / np.sqrt(var + epsilon)
-            bn_bias (c,) = b - (mean * weight)
+            bn_bias (c,) = bn_param_bias - (mean * weight)
             Reshape: (M, c, h * w) => (M, K) (case (M, c, h, w) is similar)
             GEMM: (M, K) @ (K, N) + (N,) => (M, N)
 
@@ -200,7 +191,7 @@ def _fuse_bn_reshape_gemm(
             # Preserve dtype from weight tensor to avoid float32/float64 mismatch
             target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var, target_dtype
+                epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
             new_weight = (bn_weight.reshape(-1, 1, 1) * weight).astype(
                 target_dtype, copy=False
@@ -219,22 +210,14 @@ def _fuse_bn_reshape_gemm(
             initializers[new_weight_name] = new_weight
             initializers[new_bias_name] = new_bias
 
-            new_reshape_node = onnx.helper.make_node(
-                op_type="Reshape",
-                inputs=[bn_node.input[0], reshape_node.input[1]],
-                outputs=reshape_node.output,
-                name=reshape_node.name,
-            )
-            new_gemm_node = onnx.helper.make_node(
-                op_type="Gemm",
-                inputs=gemm_node.input,
-                outputs=gemm_node.output,
-                name=gemm_node.name,
-                alpha=alpha,
-                beta=beta,
-                transA=transA,
-                transB=transB,
-            )
+            new_reshape_node = onnx.NodeProto()
+            new_reshape_node.CopyFrom(reshape_node)
+            new_reshape_node.ClearField("input")
+            new_reshape_node.input.extend([bn_node.input[0], reshape_node.input[1]])
+
+            new_gemm_node = onnx.NodeProto()
+            new_gemm_node.CopyFrom(gemm_node)
+            new_gemm_node.ClearField("attribute")
 
             new_nodes.append(new_reshape_node)
             new_nodes.append(new_gemm_node)
@@ -271,7 +254,7 @@ def _fuse_bn_gemm(
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
             )
-            epsilon, scale, b, mean, var = _get_batchnorm_params(
+            epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
                 bn_node, initializers, True
             )
             if transA != 0:
@@ -295,7 +278,7 @@ def _fuse_bn_gemm(
             # Preserve dtype from weight tensor to avoid float32/float64 mismatch
             target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
-                epsilon, scale, b, mean, var, target_dtype
+                epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
             new_weight = (bn_weight.reshape(-1, 1) * weight).astype(
                 target_dtype, copy=False
@@ -313,13 +296,12 @@ def _fuse_bn_gemm(
             initializers[gemm_node.input[1]] = new_weight
             initializers[gemm_node.input[2]] = new_bias
 
-            new_node = onnx.helper.make_node(
-                op_type="Gemm",
-                inputs=[bn_node.input[0], gemm_node.input[1], gemm_node.input[2]],
-                outputs=gemm_node.output,
-                name=gemm_node.name,
-                alpha=alpha,
-                beta=beta,
+            new_node = onnx.NodeProto()
+            new_node.CopyFrom(gemm_node)
+            new_node.ClearField("input")
+            new_node.ClearField("attribute")
+            new_node.input.extend(
+                [bn_node.input[0], gemm_node.input[1], gemm_node.input[2]]
             )
 
         new_nodes.append(new_node)

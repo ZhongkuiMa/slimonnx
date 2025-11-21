@@ -3,8 +3,8 @@
 __docformat__ = "restructuredtext"
 __all__ = ["validate_with_onnxruntime"]
 
-import os
 import tempfile
+from pathlib import Path
 
 import numpy as np
 import onnx
@@ -50,21 +50,21 @@ def validate_with_onnxruntime(
                 outputs = session.run(None, test_inputs)
                 result["can_infer"] = True
                 result["output_shapes"] = [list(out.shape) for out in outputs]
-            except Exception as e:
-                result["error"] = f"Inference failed: {e}"
+            except (RuntimeError, ValueError, TypeError) as error:
+                result["error"] = f"Inference failed: {error}"
 
         return result
 
-    except Exception as e:
+    except (IOError, OSError, RuntimeError, ValueError) as error:
         return {
             "can_load": False,
             "can_infer": False,
-            "error": str(e),
+            "error": str(error),
         }
     finally:
         # Clean up temp file
-        if tmp_path and os.path.exists(tmp_path):
+        if tmp_path and Path(tmp_path).exists():
             try:
-                os.unlink(tmp_path)
-            except Exception:
-                pass
+                Path(tmp_path).unlink()
+            except OSError as error:
+                print(f"Failed to remove temp file {tmp_path}: {error}")

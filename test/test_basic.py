@@ -3,15 +3,19 @@
 __docformat__ = "restructuredtext"
 __all__ = ["create_test_model", "test_basic_optimization", "test_conv_bn_fusion"]
 
-import os
 import sys
 import tempfile
+from pathlib import Path
 
 import numpy as np
 import onnx
 import onnxruntime as ort
 
 from slimonnx import SlimONNX, OptimizationConfig
+
+# Test tolerance constants
+NUMERICAL_RTOL = 1e-5
+NUMERICAL_ATOL = 1e-6
 
 
 def create_test_model() -> onnx.ModelProto:
@@ -122,8 +126,9 @@ def test_basic_optimization() -> bool:
     model = create_test_model()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        original_path = os.path.join(tmpdir, "original.onnx")
-        optimized_path = os.path.join(tmpdir, "optimized.onnx")
+        tmpdir_path = Path(tmpdir)
+        original_path = str(tmpdir_path / "original.onnx")
+        optimized_path = str(tmpdir_path / "optimized.onnx")
 
         onnx.save(model, original_path)
         print(f"Saved original model: {original_path}")
@@ -137,7 +142,7 @@ def test_basic_optimization() -> bool:
         slimonnx = SlimONNX()
         slimonnx.slim(original_path, optimized_path, config=config)
 
-        assert os.path.exists(optimized_path), "Optimized model not created"
+        assert Path(optimized_path).exists(), "Optimized model not created"
         print("OK: Optimized model created")
 
         _prepare_optimized_model(optimized_path)
@@ -170,7 +175,7 @@ def test_basic_optimization() -> bool:
         ):
             assert orig_out.shape == opt_out.shape, f"Shape mismatch for output {i}"
             assert np.allclose(
-                orig_out, opt_out, rtol=1e-5, atol=1e-6
+                orig_out, opt_out, rtol=NUMERICAL_RTOL, atol=NUMERICAL_ATOL
             ), f"Output values mismatch for output {i}"
 
         print("OK: Outputs match between original and optimized models")
@@ -187,8 +192,9 @@ def test_conv_bn_fusion() -> bool:
     model = create_test_model()
 
     with tempfile.TemporaryDirectory() as tmpdir:
-        original_path = os.path.join(tmpdir, "original.onnx")
-        optimized_path = os.path.join(tmpdir, "optimized.onnx")
+        tmpdir_path = Path(tmpdir)
+        original_path = str(tmpdir_path / "original.onnx")
+        optimized_path = str(tmpdir_path / "optimized.onnx")
 
         onnx.save(model, original_path)
 
@@ -248,7 +254,7 @@ def test_conv_bn_fusion() -> bool:
             print(f"Max difference for output {i}: {max_diff:.2e}")
 
             assert np.allclose(
-                orig_out, opt_out, rtol=1e-5, atol=1e-6
+                orig_out, opt_out, rtol=NUMERICAL_RTOL, atol=NUMERICAL_ATOL
             ), f"Output values mismatch for output {i}, max diff: {max_diff}"
 
         print("OK: Outputs match after Conv-BN fusion")
@@ -272,8 +278,8 @@ if __name__ == "__main__":
         print("SUCCESS: All basic tests passed")
         print("=" * 50)
         sys.exit(0)
-    except Exception as e:
-        print(f"\nERROR: Test failed - {e}")
+    except (AssertionError, IOError, OSError, ValueError, RuntimeError) as error:
+        print(f"\nERROR: Test failed - {error}")
         import traceback
 
         traceback.print_exc()

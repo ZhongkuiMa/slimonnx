@@ -11,7 +11,6 @@ from ._bn_conv import (
     _fuse_conv_bn_or_bn_conv,
     _fuse_convtranspose_bn_or_bn_convtranspose,
 )
-from ._bn_conv_with_padding import _fuse_bn_conv_with_padding
 from ._bn_gemm import _fuse_gemm_reshape_bn, _fuse_bn_reshape_gemm, _fuse_bn_gemm
 from ._bn_transpose import _fuse_transpose_batchnorm_transpose
 from ._conv import _simplify_conv_to_flatten_gemm

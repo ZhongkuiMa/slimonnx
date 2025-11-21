@@ -20,7 +20,6 @@ __all__ = [
     "verify_against_baseline",
 ]
 
-import os
 import shutil
 import time
 from pathlib import Path
@@ -104,16 +103,21 @@ def optimize_model(
     benchmark_output_dir = Path(output_dir) / benchmark_name
     benchmark_output_dir.mkdir(parents=True, exist_ok=True)
 
-    model_local_parent_dir = []
-    temp_onnx_path = Path(onnx_path)
-    while temp_onnx_path.parent != Path("benchmarks"):
-        model_local_parent_dir.append(temp_onnx_path.parent.name)
-        temp_onnx_path = temp_onnx_path.parent
+    onnx_path_obj = Path(onnx_path)
+    path_parts = onnx_path_obj.parts
 
-    # Reverse to get correct order
-    model_local_parent_dir = Path(*reversed(model_local_parent_dir[:-1]))
+    try:
+        benchmarks_idx = path_parts.index("benchmarks")
+        benchmark_idx = benchmarks_idx + 1
+        if benchmark_idx < len(path_parts):
+            relative_parts = path_parts[benchmark_idx + 1 : -1]
+            model_local_parent_dir = Path(*relative_parts) if relative_parts else Path()
+        else:
+            model_local_parent_dir = Path()
+    except ValueError:
+        model_local_parent_dir = Path()
 
-    model_filename = Path(onnx_path).name
+    model_filename = onnx_path_obj.name
     onnx_output_path = benchmark_output_dir / model_local_parent_dir / model_filename
     topology_output_path = Path(
         str(onnx_output_path).replace(".onnx", "_topology.json").replace("onnx", "json")
@@ -161,7 +165,7 @@ def optimize_model(
             "error": None,
         }
 
-    except Exception as e:
+    except (IOError, OSError, ValueError, RuntimeError, AttributeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -173,12 +177,12 @@ def optimize_model(
             "reduction_pct": 0.0,
             "onnx_path": None,
             "topology_path": None,
-            "error": str(e),
+            "error": str(error),
         }
 
     finally:
-        if os.path.exists(temp_path):
-            os.remove(temp_path)
+        if Path(temp_path).exists():
+            Path(temp_path).unlink()
 
 
 def optimize_all_models(
@@ -211,7 +215,7 @@ def optimize_all_models(
     start_time = time.perf_counter()
 
     for i, onnx_path in enumerate(onnx_files):
-        basename = os.path.basename(onnx_path)
+        basename = Path(onnx_path).name
         benchmark_name = get_benchmark_name(onnx_path)
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
@@ -302,6 +306,96 @@ def save_as_baseline(
     return onnx_count, json_count
 
 
+def _validate_verification_directories(
+    results_path: Path, baselines_path: Path, benchmarks_path: Path
+) -> None:
+    """Validate that all required directories exist for verification.
+
+    :param results_path: Path to results directory
+    :param baselines_path: Path to baselines directory
+    :param benchmarks_path: Path to benchmarks directory
+    """
+    if not results_path.exists():
+        raise FileNotFoundError(f"Results directory not found: {results_path}")
+    if not baselines_path.exists():
+        raise FileNotFoundError(f"Baselines directory not found: {baselines_path}")
+    if not benchmarks_path.exists():
+        raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_path}")
+
+
+def _load_test_data_from_npz(data_file: Path) -> list[np.ndarray]:
+    """Load test inputs from npz data file.
+
+    :param data_file: Path to npz data file
+    :return: List of test input arrays
+    """
+    data = np.load(data_file, allow_pickle=True)
+    test_inputs = []
+
+    for vnnlib_name in data.files:
+        vnnlib_data = data[vnnlib_name].item()
+        if isinstance(vnnlib_data, dict):
+            for bound_type in ["lower", "upper"]:
+                if bound_type in vnnlib_data:
+                    bound_data = vnnlib_data[bound_type]
+                    if "inputs" in bound_data:
+                        test_inputs.extend(bound_data["inputs"])
+
+    return test_inputs
+
+
+def _verify_single_model(
+    result_file: Path,
+    baseline_file: Path,
+    data_file: Path,
+    rel_path: Path,
+) -> tuple[str, str | None]:
+    """Verify single model against baseline with structural and numerical checks.
+
+    :param result_file: Path to result ONNX model
+    :param baseline_file: Path to baseline ONNX model
+    :param data_file: Path to test data npz file
+    :param rel_path: Relative path for reporting
+    :return: Tuple of (status, error_message) where status is "OK", "STRUCTURAL_MISMATCH", "NUMERICAL_MISMATCH", "SKIP", "ERROR"
+    """
+    result_model = onnx.load(str(result_file))
+    baseline_model = onnx.load(str(baseline_file))
+
+    result_nodes = len(result_model.graph.node)
+    baseline_nodes = len(baseline_model.graph.node)
+
+    if result_nodes != baseline_nodes:
+        return "STRUCTURAL_MISMATCH", f"{result_nodes} vs {baseline_nodes} nodes"
+
+    if not data_file.exists():
+        return "SKIP", f"No test data file: {data_file}"
+
+    try:
+        test_inputs = _load_test_data_from_npz(data_file)
+        if not test_inputs:
+            return "SKIP", "No inputs in data file"
+    except (IOError, KeyError, ValueError, IndexError) as error:
+        return "SKIP", f"Error loading data: {error}"
+
+    all_match = True
+    for inputs in test_inputs:
+        try:
+            result_outputs = _run_onnx_model(str(result_file), inputs)
+            baseline_outputs = _run_onnx_model(str(baseline_file), inputs)
+
+            match, mismatches = _compare_outputs(result_outputs, baseline_outputs)
+            if not match:
+                all_match = False
+                break
+        except (RuntimeError, ValueError) as error:
+            return "ERROR", str(error)
+
+    if all_match:
+        return "OK", None
+    else:
+        return "NUMERICAL_MISMATCH", None
+
+
 def verify_against_baseline(
     results_dir: str = "results/baselines",
     benchmarks_dir: str = "benchmarks",
@@ -320,12 +414,8 @@ def verify_against_baseline(
     baselines_path = Path(baselines_dir)
     benchmarks_path = Path(benchmarks_dir)
 
-    if not results_path.exists():
-        raise FileNotFoundError(f"Results directory not found: {results_dir}")
-    if not baselines_path.exists():
-        raise FileNotFoundError(f"Baselines directory not found: {baselines_dir}")
-    if not benchmarks_path.exists():
-        raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_dir}")
+    _validate_verification_directories(results_path, baselines_path, benchmarks_path)
+
     print(f"Verifying {results_dir}/ against {baselines_dir}/")
     print("=" * 70)
 
@@ -341,7 +431,7 @@ def verify_against_baseline(
     numerical_mismatches = 0
 
     for i, result_file in enumerate(results_onnx):
-        basename = os.path.basename(result_file)
+        basename = Path(result_file).name
         benchmark_name = get_benchmark_name(str(result_file))
         print(f"[{i}/{len(results_onnx)}] {benchmark_name}/{basename}...", end=" ")
 
@@ -353,85 +443,37 @@ def verify_against_baseline(
             missing += 1
             continue
 
-        # Load models
-        result_model = onnx.load(str(result_file))
-        baseline_model = onnx.load(str(baseline_file))
-
-        # Structural check
-        result_nodes = len(result_model.graph.node)
-        baseline_nodes = len(baseline_model.graph.node)
-
-        if result_nodes != baseline_nodes:
-            print(
-                f"STRUCTURAL MISMATCH: {rel_path} ({result_nodes} vs {baseline_nodes} nodes)"
-            )
-            structural_mismatches += 1
-            failed += 1
-            continue
-
-        # Numerical check - get test inputs
-        # rel_path is like: benchmark_name/model.onnx
-        benchmark_name_from_path = rel_path.parts[:-1] if (rel_path.parts) else ""
-        benchmark_name_from_path = f"{os.sep}".join(benchmark_name_from_path).replace(
+        benchmark_name_from_path = rel_path.parts[:-1] if rel_path.parts else ""
+        benchmark_name_from_path = "/".join(benchmark_name_from_path).replace(
             "onnx", "data"
         )
-        if not "data" in benchmark_name_from_path:
-            benchmark_name_from_path = benchmark_name_from_path + os.sep + "data"
+        if "data" not in benchmark_name_from_path:
+            benchmark_name_from_path = benchmark_name_from_path + "/data"
         model_stem = rel_path.stem
 
-        # Direct path to data file
         benchmark_root = benchmarks_path / benchmark_name_from_path
         data_file = benchmark_root / f"{model_stem}.npz"
 
-        if not data_file.exists():
-            print(f"SKIP: {rel_path} - No test data file: {data_file}")
-            continue
+        status, error_msg = _verify_single_model(
+            result_file, baseline_file, data_file, rel_path
+        )
 
-        try:
-            data = np.load(data_file, allow_pickle=True)
-            test_inputs = []
-
-            # Extract inputs from npz file
-            for vnnlib_name in data.files:
-                vnnlib_data = data[vnnlib_name].item()
-                if isinstance(vnnlib_data, dict):
-                    for bound_type in ["lower", "upper"]:
-                        if bound_type in vnnlib_data:
-                            bound_data = vnnlib_data[bound_type]
-                            if "inputs" in bound_data:
-                                test_inputs.extend(bound_data["inputs"])
-
-            if not test_inputs:
-                print(f"SKIP: {rel_path} - No inputs in data file")
-                continue
-
-        except Exception as e:
-            print(f"SKIP: {rel_path} - Error loading data: {e}")
-            continue
-
-        # Run both models and compare
-        all_match = True
-        for inputs in test_inputs:
-            try:
-                result_outputs = _run_onnx_model(str(result_file), inputs)
-                baseline_outputs = _run_onnx_model(str(baseline_file), inputs)
-
-                match, mismatches = _compare_outputs(result_outputs, baseline_outputs)
-                if not match:
-                    all_match = False
-                    break
-            except Exception as e:
-                print(f"ERROR: {rel_path} - {e}")
-                all_match = False
-                break
-
-        if all_match:
+        if status == "OK":
             passed += 1
             print("OK")
-        else:
-            print(f"NUMERICAL MISMATCH: {rel_path}")
+        elif status == "STRUCTURAL_MISMATCH":
+            structural_mismatches += 1
+            failed += 1
+            print(f"STRUCTURAL MISMATCH: {rel_path} ({error_msg})")
+        elif status == "NUMERICAL_MISMATCH":
             numerical_mismatches += 1
             failed += 1
+            print(f"NUMERICAL MISMATCH: {rel_path}")
+        elif status == "SKIP":
+            print(f"SKIP: {rel_path} - {error_msg}")
+        elif status == "ERROR":
+            failed += 1
+            print(f"ERROR: {rel_path} - {error_msg}")
 
     print("\n" + "=" * 70)
     print("VERIFICATION SUMMARY")
@@ -483,7 +525,7 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    # optimize_all_models()
-    # save_as_baseline()
-    # verify_against_baseline()
-    main()
+    optimize_all_models()
+    save_as_baseline()
+    verify_against_baseline()
+    # main()

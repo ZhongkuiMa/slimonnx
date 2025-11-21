@@ -3,8 +3,8 @@
 __docformat__ = "restructuredtext"
 __all__ = ["SlimONNX"]
 
-import os
 import time
+from pathlib import Path
 
 import onnx
 
@@ -49,7 +49,7 @@ class SlimONNX:
         config = config or OptimizationConfig()
         validation = validation or ValidationConfig()
 
-        t = time.perf_counter()
+        start_time = time.perf_counter()
 
         # Preprocess model (load, convert to opset 21, clear docs, mark SlimONNX)
         model = self.preprocess(
@@ -86,13 +86,14 @@ class SlimONNX:
             has_batch_dim=config.has_batch_dim,
         )
 
-        t = time.perf_counter() - t
+        optimization_time = time.perf_counter() - start_time
 
         # Determine save path
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
-        os.makedirs(os.path.dirname(target_path), exist_ok=True)
-        onnx.save(new_model, target_path)
+        target_path_obj = Path(target_path)
+        target_path_obj.parent.mkdir(parents=True, exist_ok=True)
+        onnx.save(new_model, str(target_path_obj))
 
         # Validate outputs if requested
         validation_result = None
@@ -124,7 +125,7 @@ class SlimONNX:
                 "optimized_nodes": optimized_node_count,
                 "reduction": reduction,
                 "reduction_pct": reduction_pct,
-                "optimization_time": t,
+                "optimization_time": optimization_time,
                 "validation": validation_result,
                 "output_path": target_path,
             }
@@ -184,7 +185,14 @@ class SlimONNX:
                 has_batch_dim=config.has_batch_dim,
             )
             shape_inference_success = True
-        except Exception:
+        except (
+            ImportError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+        ) as error:
+            print(f"Shape inference failed: {error}")
             data_shapes = None
             shape_inference_success = False
 
@@ -388,7 +396,14 @@ class SlimONNX:
                 initializers,
                 has_batch_dim=config.has_batch_dim,
             )
-        except Exception:
+        except (
+            ImportError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+        ) as error:
+            print(f"Shape inference failed: {error}")
             data_shapes = None
 
         from .model_validate import validate_model
@@ -437,7 +452,14 @@ class SlimONNX:
                 initializers,
                 has_batch_dim=config.has_batch_dim,
             )
-        except Exception:
+        except (
+            ImportError,
+            ValueError,
+            AttributeError,
+            KeyError,
+            RuntimeError,
+        ) as error:
+            print(f"Shape inference failed: {error}")
             data_shapes = None
 
         from .pattern_detect import detect_all_patterns

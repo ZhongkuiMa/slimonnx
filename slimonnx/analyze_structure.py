@@ -3,11 +3,11 @@
 __docformat__ = "restructuredtext"
 __all__ = ["analyze_model", "compare_models"]
 
-import os
 import sys
+from pathlib import Path
 
 # Add parent to path for shapeonnx import
-sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
 
@@ -66,7 +66,8 @@ def analyze_model(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim=has_batch_dim
         )
         shape_inference_success = True
-    except Exception:
+    except (ImportError, ValueError, AttributeError, KeyError, RuntimeError) as error:
+        print(f"Shape inference failed: {error}")
         data_shapes = None
         shape_inference_success = False
 

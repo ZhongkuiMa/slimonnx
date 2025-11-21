@@ -40,7 +40,7 @@ def _get_batchnorm_params(
     attrs = get_onnx_attrs(node, initializers)
     epsilon = attrs["epsilon"]
     scale = onnx.numpy_helper.to_array(initializers[node.input[1]])
-    b = onnx.numpy_helper.to_array(initializers[node.input[2]])
+    bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
     mean = onnx.numpy_helper.to_array(initializers[node.input[3]])
     var = onnx.numpy_helper.to_array(initializers[node.input[4]])
     if remove_initializers:
@@ -49,7 +49,7 @@ def _get_batchnorm_params(
         del initializers[node.input[3]]
         del initializers[node.input[4]]
 
-    return epsilon, scale, b, mean, var
+    return epsilon, scale, bias, mean, var
 
 
 def _get_gemm_params(
@@ -143,7 +143,7 @@ def _get_convtranspose_params(
 def compute_batchnorm_fusion_params(
     epsilon: float,
     scale: np.ndarray,
-    b: np.ndarray,
+    bias: np.ndarray,
     mean: np.ndarray,
     var: np.ndarray,
     target_dtype: np.dtype = np.float32,
@@ -154,7 +154,7 @@ def compute_batchnorm_fusion_params(
 
     :param epsilon: BatchNorm epsilon value
     :param scale: BatchNorm scale parameter
-    :param b: BatchNorm bias parameter
+    :param bias: BatchNorm bias parameter
     :param mean: BatchNorm mean parameter
     :param var: BatchNorm variance parameter
     :param target_dtype: Target dtype to preserve precision (default: float32)
@@ -162,11 +162,11 @@ def compute_batchnorm_fusion_params(
     """
     # Cast all inputs to target dtype to avoid float32/float64 mismatch
     scale = scale.astype(target_dtype, copy=False)
-    b = b.astype(target_dtype, copy=False)
+    bias = bias.astype(target_dtype, copy=False)
     mean = mean.astype(target_dtype, copy=False)
     var = var.astype(target_dtype, copy=False)
 
     # Perform computation in target dtype
     bn_weight = scale / np.sqrt(var + target_dtype.type(epsilon))
-    bn_bias = b - mean * bn_weight
+    bn_bias = bias - mean * bn_weight
     return bn_weight, bn_bias
