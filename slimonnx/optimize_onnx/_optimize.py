@@ -34,7 +34,6 @@ from ..utils import (
 
 def optimize_onnx(
     model: ModelProto,
-    constant_to_initializer: bool = False,
     constant_folding: bool = False,
     fuse_matmul_add: bool = False,
     fuse_gemm_reshape_bn: bool = False,
@@ -44,7 +43,6 @@ def optimize_onnx(
     fuse_gemm_gemm: bool = False,
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
-    fuse_bn_conv_with_padding: bool = False,
     fuse_convtransposed_bn: bool = False,
     fuse_bn_convtransposed: bool = False,
     fuse_depthwise_conv_bn: bool = False,
@@ -59,8 +57,9 @@ def optimize_onnx(
 ) -> ModelProto:
     """Optimize ONNX model with various fusion and simplification passes.
 
+    Constants are always converted to initializers for shape inference.
+
     :param model: Input ONNX model
-    :param constant_to_initializer: Convert constant nodes to initializers
     :param constant_folding: Fold constant operations (renamed from fuse_constant_nodes)
     :param fuse_matmul_add: Fuse MatMul + Add to Gemm
     :param fuse_gemm_reshape_bn: Fuse Gemm-Reshape-BatchNorm
@@ -88,24 +87,19 @@ def optimize_onnx(
 
     model = clear_onnx_docstring(model)
 
-    # Cannot use extract_nodes() here because it always converts constants to initializers,
-    # but we need to respect the constant_to_initializer flag for backward compatibility.
-    # TODO: Remove the constant_to_initializer flag and always convert it.
+    # Convert constants to initializers (critical for shape inference and optimization)
     initializers = get_initializers(model)
     input_nodes = get_input_nodes(model, initializers, has_batch_dim)
     output_nodes = get_output_nodes(model, has_batch_dim)
 
     nodes = list(model.graph.node)
-
-    if constant_to_initializer:
-        nodes = _constant_to_initializer(nodes, initializers)
+    nodes = _constant_to_initializer(nodes, initializers)
 
     # Update model with converted constants before any shape inference
-    if constant_to_initializer:
-        model.graph.ClearField("node")
-        model.graph.node.extend(nodes)
-        model.graph.ClearField("initializer")
-        model.graph.initializer.extend(list(initializers.values()))
+    model.graph.ClearField("node")
+    model.graph.node.extend(nodes)
+    model.graph.ClearField("initializer")
+    model.graph.initializer.extend(list(initializers.values()))
 
     if remove_dropout:
         model = _remove_dropout(model)
@@ -159,8 +153,6 @@ def optimize_onnx(
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers)
     if fuse_bn_conv:
         nodes = _fuse_conv_bn_or_bn_conv(nodes, initializers, is_conv_bn=False)
-    if fuse_bn_conv_with_padding:
-        nodes = _fuse_bn_conv_with_padding(nodes, initializers)
     if fuse_convtransposed_bn:
         nodes = _fuse_convtranspose_bn_or_bn_convtranspose(nodes, initializers)
     if fuse_bn_convtransposed:

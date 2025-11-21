@@ -60,10 +60,9 @@ class SlimONNX:
             mark_slimonnx=True,
         )
 
-        # Apply optimizations (constant_to_initializer, simplify_gemm, reorder always True)
+        # Apply optimizations (simplify_gemm, reorder always True)
         new_model = optimize_onnx(
             model,
-            constant_to_initializer=True,  # Always True
             constant_folding=config.constant_folding,
             fuse_matmul_add=config.fuse_matmul_add,
             fuse_gemm_reshape_bn=config.fuse_gemm_reshape_bn,

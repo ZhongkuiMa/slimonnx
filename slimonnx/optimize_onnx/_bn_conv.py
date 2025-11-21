@@ -49,10 +49,12 @@ def _fuse_conv_bn_or_bn_conv(
         else:
             conv_node, bn_node = node, pre_node
 
-        # Check if Conv has padding BEFORE calling _get_*_params to avoid modifying initializers
+        # Check if Conv has padding BEFORE calling _get_*_params to avoid modifying
+        # initializers
         _, _, attrs = _get_conv_params(conv_node, initializers, False)
 
-        # Skip fusion if Conv has padding (fusion is incorrect with padding when bn_bias != 0)
+        # Skip fusion if Conv has padding (fusion is incorrect with padding when
+        # bn_bias != 0)
         if not is_conv_bn and any(p != 0 for p in attrs["pads"]):
             # Restore the nodes and skip fusion
             new_nodes.append(pre_node)
@@ -65,9 +67,6 @@ def _fuse_conv_bn_or_bn_conv(
             bn_node, initializers, True
         )
         weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
-
-        # TODO: Here if the batchnorm is before conv and conv has padding, we should
-        #  not fuse, adding a check above to skip fusion in that case.
 
         # Preserve dtype from weight tensor to avoid float32/float64 mismatch
         target_dtype = weight.dtype
