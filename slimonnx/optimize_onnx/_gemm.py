@@ -3,12 +3,11 @@
 __docformat__ = "restructuredtext"
 __all__ = ["_simplify_gemm"]
 
-import numpy as np
 import onnx.numpy_helper
 from onnx import NodeProto, TensorProto
 
+from ._constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
 from ..onnx_attrs import get_onnx_attrs
-from .constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
 
 
 def _normalize_gemm_matrix_input(

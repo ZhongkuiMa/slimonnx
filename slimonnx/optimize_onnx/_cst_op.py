@@ -5,8 +5,8 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
+from ._constants import ONNX_DTYPE_TO_NUMPY
 from ..onnx_attrs import get_onnx_attrs
-from .constants import ONNX_DTYPE_TO_NUMPY
 
 
 def _fuse_constant_nodes(

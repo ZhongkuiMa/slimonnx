@@ -51,7 +51,7 @@ class SlimONNX:
 
         start_time = time.perf_counter()
 
-        # Preprocess model (load, convert to opset 21, clear docs, mark SlimONNX)
+        # Preprocess model (load, convert to opset 17, clear docs, mark SlimONNX)
         model = self.preprocess(
             onnx_path,
             target_opset=17,
