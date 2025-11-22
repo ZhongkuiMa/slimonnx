@@ -487,7 +487,7 @@ SlimONNX includes comprehensive test suites:
 
 ```bash
 cd slimonnx/test
-python test_baselines.py
+python test_benchmarks.py
 ```
 
 ### Test Preprocessing
@@ -505,13 +505,13 @@ python test_validation.py --validate-only
 ### Optimize Benchmarks
 
 ```bash
-python test_baselines.py --optimize
+python test_benchmarks.py --optimize
 ```
 
 ### Verify Against Baseline
 
 ```bash
-python test_baselines.py --verify
+python test_benchmarks.py --verify
 ```
 
 ## ONNX Version Compatibility
