@@ -17,16 +17,20 @@ __all__ = [
     "optimize_model",
     "optimize_all_models",
     "save_as_baseline",
-    "verify_against_baseline",
+    "verify_benchmarks",
 ]
 
 import shutil
+import sys
 import time
 from pathlib import Path
 
 import numpy as np
 import onnx
 import onnxruntime as ort
+
+sys.path.insert(0, "../..")
+
 
 from slimonnx import SlimONNX, get_preset
 from slimonnx.slimonnx.analyze_structure import analyze_model
@@ -230,7 +234,11 @@ def optimize_all_models(
     print(f"Total models: {len(models)}")
     print(f"Success: {success_count}")
     print(f"Failed: {failed_count}")
-    print(f"Success rate: {success_count/len(models)*100:.1f}%")
+    print(
+        f"Success rate: {success_count/len(models)*100:.1f}%"
+        if len(models) > 0
+        else "N/A"
+    )
     print(f"Total optimization time: {total_time:.2f}s")
     print(
         f"Avg time per model: {total_time/success_count:.2f}s"
@@ -240,6 +248,8 @@ def optimize_all_models(
     print(f"Total wall time: {elapsed_total:.2f}s")
     print(
         f"Node reduction: {total_original_nodes} -> {total_optimized_nodes} ({total_reduction} nodes, {total_reduction/total_original_nodes*100:.1f}%)"
+        if total_original_nodes > 0
+        else "N/A"
     )
 
     return {
@@ -255,7 +265,8 @@ def optimize_all_models(
 
 
 def save_as_baseline(
-    results_dir: str = "results/baselines", baselines_dir: str = "baselines"
+    results_dir: str = "results/baselines",
+    baselines_dir: str = "baselines",
 ) -> tuple[int, int]:
     """Save current results as archived baselines.
 
@@ -292,23 +303,6 @@ def save_as_baseline(
     return onnx_count, json_count
 
 
-def _validate_verification_directories(
-    results_path: Path, baselines_path: Path, benchmarks_path: Path
-) -> None:
-    """Validate that all required directories exist for verification.
-
-    :param results_path: Path to results directory
-    :param baselines_path: Path to baselines directory
-    :param benchmarks_path: Path to benchmarks directory
-    """
-    if not results_path.exists():
-        raise FileNotFoundError(f"Results directory not found: {results_path}")
-    if not baselines_path.exists():
-        raise FileNotFoundError(f"Baselines directory not found: {baselines_path}")
-    if not benchmarks_path.exists():
-        raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_path}")
-
-
 def _load_test_data_from_npz(data_file: Path) -> list[np.ndarray]:
     """Load test inputs from npz data file.
 
@@ -330,28 +324,22 @@ def _load_test_data_from_npz(data_file: Path) -> list[np.ndarray]:
     return test_inputs
 
 
-def _verify_single_model(
+def _verify_one_benchmark(
     result_file: Path,
-    baseline_file: Path,
+    benchmark_file: Path,
     data_file: Path,
     rel_path: Path,
 ) -> tuple[str, str | None]:
     """Verify single model against baseline with structural and numerical checks.
 
     :param result_file: Path to result ONNX model
-    :param baseline_file: Path to baseline ONNX model
+    :param benchmark_file:
     :param data_file: Path to test data npz file
     :param rel_path: Relative path for reporting
     :return: Tuple of (status, error_message) where status is "OK", "STRUCTURAL_MISMATCH", "NUMERICAL_MISMATCH", "SKIP", "ERROR"
     """
     result_model = onnx.load(str(result_file))
-    baseline_model = onnx.load(str(baseline_file))
-
-    result_nodes = len(result_model.graph.node)
-    baseline_nodes = len(baseline_model.graph.node)
-
-    if result_nodes != baseline_nodes:
-        return "STRUCTURAL_MISMATCH", f"{result_nodes} vs {baseline_nodes} nodes"
+    benchmark_model = onnx.load(str(benchmark_file))
 
     if not data_file.exists():
         return "SKIP", f"No test data file: {data_file}"
@@ -367,9 +355,9 @@ def _verify_single_model(
     for inputs in test_inputs:
         try:
             result_outputs = _run_onnx_model(str(result_file), inputs)
-            baseline_outputs = _run_onnx_model(str(baseline_file), inputs)
+            benchmark_outputs = _run_onnx_model(str(benchmark_file), inputs)
 
-            match, mismatches = _compare_outputs(result_outputs, baseline_outputs)
+            match, mismatches = _compare_outputs(result_outputs, benchmark_outputs)
             if not match:
                 all_match = False
                 break
@@ -382,36 +370,33 @@ def _verify_single_model(
         return "NUMERICAL_MISMATCH", None
 
 
-def verify_against_baseline(
+def verify_benchmarks(
     results_dir: str = "results/baselines",
     benchmarks_dir: str = "benchmarks",
-    baselines_dir: str = "baselines",
     max_per_benchmark: int = 20,
 ) -> dict:
-    """Verify current results against archived baselines.
+    """Verify optimized results against original benchmark models.
 
-    Compares structure (node count) and numerical outputs.
+    Compares numerical outputs between slimonnx optimized models and original models.
 
-    :param results_dir: Directory containing current results
+    :param results_dir: Directory containing optimized results
     :param benchmarks_dir: Directory containing original benchmarks with test data
-    :param baselines_dir: Directory containing archived baselines
+    :param max_per_benchmark: Maximum models per benchmark to verify
     :return: Dictionary with verification results
     """
     results_path = Path(results_dir)
-    baselines_path = Path(baselines_dir)
     benchmarks_path = Path(benchmarks_dir)
 
-    _validate_verification_directories(results_path, baselines_path, benchmarks_path)
+    if not results_path.exists():
+        raise FileNotFoundError(f"Results directory not found: {results_path}")
+    if not benchmarks_path.exists():
+        raise FileNotFoundError(f"Benchmarks directory not found: {benchmarks_path}")
 
-    print(f"Verifying {results_dir}/ against {baselines_dir}/")
+    print(f"Verifying {results_dir}/ against {benchmarks_dir}/")
     print("=" * 70)
 
     benchmarks = find_benchmarks(benchmarks_dir)
-    result_models = find_models(benchmarks, max_per_benchmark)
-
-    baselines_onnx = {
-        f.relative_to(baselines_path): f for f in baselines_path.rglob("*.onnx")
-    }
+    benchmark_models = find_models(benchmarks, max_per_benchmark)
 
     passed = 0
     failed = 0
@@ -419,21 +404,16 @@ def verify_against_baseline(
     structural_mismatches = 0
     numerical_mismatches = 0
 
-    for i, result_model in enumerate(result_models):
-        rel_path = get_model_relative_path(result_model, benchmarks_path)
-        print(f"[{i}/{len(result_models)}] {rel_path}...", end=" ")
+    for i, benchmark_model in enumerate(benchmark_models):
+        rel_path = get_model_relative_path(benchmark_model, benchmarks_path)
+        print(f"[{i}/{len(benchmark_models)}] {rel_path}...", end=" ")
         result_file = results_path / rel_path
-        baseline_file = baselines_onnx.get(rel_path)
+        benchmark_file = benchmarks_path / rel_path
 
-        if baseline_file is None:
-            print(f"MISSING: {rel_path} (no baseline)")
-            missing += 1
-            continue
+        data_file = get_model_data_path(benchmark_model, benchmarks_path)
 
-        data_file = get_model_data_path(result_model, benchmarks_path)
-
-        status, error_msg = _verify_single_model(
-            result_file, baseline_file, data_file, rel_path
+        status, error_msg = _verify_one_benchmark(
+            result_file, benchmark_file, data_file, rel_path
         )
 
         if status == "OK":
@@ -456,20 +436,20 @@ def verify_against_baseline(
     print("\n" + "=" * 70)
     print("VERIFICATION SUMMARY")
     print("=" * 70)
-    print(f"Total files: {len(result_models)}")
+    print(f"Total files: {len(benchmark_models)}")
     print(f"Passed: {passed}")
     print(f"Failed: {failed}")
     print(f"  Structural mismatches: {structural_mismatches}")
     print(f"  Numerical mismatches: {numerical_mismatches}")
     print(f"Missing baselines: {missing}")
     print(
-        f"Pass rate: {passed/(len(result_models)-missing)*100:.1f}%"
-        if len(result_models) > missing
+        f"Pass rate: {passed/(len(benchmark_models)-missing)*100:.1f}%"
+        if len(benchmark_models) > missing
         else "N/A"
     )
 
     return {
-        "total": len(result_models),
+        "total": len(benchmark_models),
         "passed": passed,
         "failed": failed,
         "missing": missing,
@@ -480,30 +460,10 @@ def verify_against_baseline(
 
 def main() -> None:
     """Main entry point for script execution."""
-    import sys
-
-    if "--create" in sys.argv:
-        optimize_all_models()
-    elif "--save-baseline" in sys.argv:
-        save_as_baseline()
-    elif "--verify" in sys.argv:
-        verify_against_baseline()
-
-    else:
-        print("Usage:")
-        print("  python test_baselines.py --create              # Optimize to results/")
-        print(
-            "  python test_baselines.py --save-baseline       # Save results/ as baselines/"
-        )
-        print(
-            "  python test_baselines.py --verify              # Verify results/ vs baselines/"
-        )
-
-        sys.exit(1)
+    optimize_all_models()
+    verify_benchmarks()
+    save_as_baseline()
 
 
 if __name__ == "__main__":
-    optimize_all_models()
-    save_as_baseline()
-    verify_against_baseline()
-    # main()
+    main()
