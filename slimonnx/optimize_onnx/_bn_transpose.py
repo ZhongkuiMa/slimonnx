@@ -6,12 +6,12 @@ import onnx
 from onnx import NodeProto, TensorProto
 
 from ._constants import TRANSPOSE_CHW_TO_CWH
+from ._onnx_attrs import get_onnx_attrs
 from ._utils import (
     _is_only_next_node,
     _get_batchnorm_params,
     compute_batchnorm_fusion_params,
 )
-from ..onnx_attrs import get_onnx_attrs
 
 
 def _fuse_transpose_batchnorm_transpose(

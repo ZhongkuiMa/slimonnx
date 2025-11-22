@@ -12,7 +12,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from ..onnx_attrs import get_onnx_attrs
+from ._onnx_attrs import get_onnx_attrs
 
 
 def _is_only_next_node(
