@@ -51,7 +51,7 @@ def detect_matmul_add(
 
         # Check if one input of MatMul is an initializer (weight)
         weight_input = None
-        for inp in matmul_node.input:
+        for inp in matmul_node.inp:
             if inp in initializers:
                 weight_input = inp
                 break

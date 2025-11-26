@@ -22,13 +22,13 @@ from .graph_validator import (
     check_type_consistency,
     check_shape_consistency,
 )
-from .onnx_checker import run_onnx_checker
-from .runtime_validator import validate_with_onnxruntime
 from .numerical_compare import (
     compare_model_outputs,
     run_onnx_inference,
     generate_inputs_from_bounds,
 )
+from .onnx_checker import run_onnx_checker
+from .runtime_validator import validate_with_onnxruntime
 
 
 def validate_model(
@@ -47,8 +47,8 @@ def validate_model(
 
     nodes = list(model.graph.node)
     initializers = utils.get_initializers(model)
-    inputs = list(model.graph.input)
-    outputs = list(model.graph.output)
+    inputs = list(model.graph.inp)
+    outputs = list(model.graph.out)
 
     results = {
         "onnx_checker": run_onnx_checker(model),
