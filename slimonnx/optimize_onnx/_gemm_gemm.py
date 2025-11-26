@@ -32,7 +32,7 @@ def _fuse_gemm_gemm(
     # Reverse the order and group the gemm nodes by their pre nodes
     chosen_gemm_nodes = chosen_gemm_nodes[::-1]
 
-    chosen_gemm_output_names = [node.output[0] for node in chosen_gemm_nodes]
+    chosen_gemm_output_names = [node.out[0] for node in chosen_gemm_nodes]
     # Find all adjacent gemm nodes group
     fused_gemm_groups = []
     group_index = 0
@@ -42,13 +42,13 @@ def _fuse_gemm_gemm(
             break
         node = chosen_gemm_nodes[group_index]
         group_index += 1
-        if node.input[1] not in initializers:
+        if node.inp[1] not in initializers:
             raise ValueError(
-                f"Gemm node {node.name} weight input {node.input[1]} not found in initializers."
+                f"Gemm node {node.name} weight input {node.inp[1]} not found in initializers."
             )
 
         group.append(node)
-        if node.input[0] in chosen_gemm_output_names:
+        if node.inp[0] in chosen_gemm_output_names:
             continue
 
         if len(group) > 1:
@@ -57,11 +57,11 @@ def _fuse_gemm_gemm(
 
     fused_gemm_groups = fused_gemm_groups[::-1]
     fused_gemm_nodes_output_names = [
-        node.output[0] for group in fused_gemm_groups for node in group
+        node.out[0] for group in fused_gemm_groups for node in group
     ]
 
     gemm_group_start_nodes = {
-        group[0].output[0]: i for i, group in enumerate(fused_gemm_groups)
+        group[0].out[0]: i for i, group in enumerate(fused_gemm_groups)
     }
 
     new_nodes = []
@@ -82,13 +82,13 @@ def _fuse_gemm_gemm(
         all_weights = []
         all_biases = []
         for gemm_node in group:
-            if gemm_node.input[1] not in initializers:
+            if gemm_node.inp[1] not in initializers:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} weight input {gemm_node.input[1]} not found in initializers."
+                    f"Gemm node {gemm_node.name} weight input {gemm_node.inp[1]} not found in initializers."
                 )
-            if gemm_node.input[2] not in initializers:
+            if gemm_node.inp[2] not in initializers:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} bias input {gemm_node.input[2]} not found in initializers."
+                    f"Gemm node {gemm_node.name} bias input {gemm_node.inp[2]} not found in initializers."
                 )
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
@@ -112,8 +112,8 @@ def _fuse_gemm_gemm(
             new_bias = new_bias @ all_weights[i] + all_biases[i]
 
         # Create new initializers for the merged weights and biases
-        new_weight_name = group[0].input[1]
-        new_bias_name = group[0].input[2]
+        new_weight_name = group[0].inp[1]
+        new_bias_name = group[0].inp[2]
         new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
         new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
         initializers[new_weight_name] = new_weight
@@ -123,8 +123,8 @@ def _fuse_gemm_gemm(
         new_gemm_node.CopyFrom(group[0])
         new_gemm_node.ClearField("input")
         new_gemm_node.ClearField("output")
-        new_gemm_node.input.extend([group[0].input[0], new_weight_name, new_bias_name])
-        new_gemm_node.output.extend(group[-1].output)
+        new_gemm_node.input.extend([group[0].inp[0], new_weight_name, new_bias_name])
+        new_gemm_node.output.extend(group[-1].out)
         new_gemm_node.name = group[-1].name
 
         new_nodes.append(new_gemm_node)

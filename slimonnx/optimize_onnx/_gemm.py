@@ -179,7 +179,7 @@ def _simplify_gemm(
         gemm_count += 1
 
     # Cleanup: Remove unused initializers
-    all_input_names = {input_name for node in new_nodes for input_name in node.input}
+    all_input_names = {input_name for node in new_nodes for input_name in node.inp}
     for name in list(initializers.keys()):
         if name not in all_input_names:
             del initializers[name]
