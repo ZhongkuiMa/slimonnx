@@ -62,19 +62,19 @@ def _remove_redundant_operations(
     for node in nodes:
         if node.op_type in {"Reshape", "Flatten"}:
             # Check if the node does nothing.
-            input_shape = data_shapes[node.inp[0]]
+            input_shape = data_shapes[node.input[0]]
             output_shape = data_shapes[node.out[0]]
             if input_shape == output_shape:
                 if node.op_type == "Reshape":
-                    del initializers[node.inp[1]]
+                    del initializers[node.input[1]]
                 skip_node(node)
                 continue
 
         elif node.op_type in {"Add", "Sub", "Mul", "Div"}:
-            if node.inp[1] in initializers:
-                initializer_name = node.inp[1]
-            elif node.inp[0] in initializers:
-                initializer_name = node.inp[0]
+            if node.input[1] in initializers:
+                initializer_name = node.input[1]
+            elif node.input[0] in initializers:
+                initializer_name = node.input[0]
             else:
                 new_nodes.append(node)
                 continue
@@ -94,10 +94,10 @@ def _remove_redundant_operations(
 
         elif node.op_type in {"Pad"}:
             # Check if the node does nothing.
-            initializer = initializers[node.inp[1]]
+            initializer = initializers[node.input[1]]
             array = onnx.numpy_helper.to_array(initializer)
             if np.all(array == 0):
-                del initializers[node.inp[1]]
+                del initializers[node.input[1]]
                 skip_node(node)
                 continue
 

@@ -42,13 +42,13 @@ def _fuse_gemm_gemm(
             break
         node = chosen_gemm_nodes[group_index]
         group_index += 1
-        if node.inp[1] not in initializers:
+        if node.input[1] not in initializers:
             raise ValueError(
-                f"Gemm node {node.name} weight input {node.inp[1]} not found in initializers."
+                f"Gemm node {node.name} weight input {node.input[1]} not found in initializers."
             )
 
         group.append(node)
-        if node.inp[0] in chosen_gemm_output_names:
+        if node.input[0] in chosen_gemm_output_names:
             continue
 
         if len(group) > 1:
@@ -82,13 +82,13 @@ def _fuse_gemm_gemm(
         all_weights = []
         all_biases = []
         for gemm_node in group:
-            if gemm_node.inp[1] not in initializers:
+            if gemm_node.input[1] not in initializers:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} weight input {gemm_node.inp[1]} not found in initializers."
+                    f"Gemm node {gemm_node.name} weight input {gemm_node.input[1]} not found in initializers."
                 )
-            if gemm_node.inp[2] not in initializers:
+            if gemm_node.input[2] not in initializers:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} bias input {gemm_node.inp[2]} not found in initializers."
+                    f"Gemm node {gemm_node.name} bias input {gemm_node.input[2]} not found in initializers."
                 )
             alpha, beta, transA, transB, weight, bias = _get_gemm_params(
                 gemm_node, initializers, True
