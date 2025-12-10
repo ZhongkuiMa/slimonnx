@@ -32,7 +32,7 @@ def _fuse_gemm_gemm(
     # Reverse the order and group the gemm nodes by their pre nodes
     chosen_gemm_nodes = chosen_gemm_nodes[::-1]
 
-    chosen_gemm_output_names = [node.out[0] for node in chosen_gemm_nodes]
+    chosen_gemm_output_names = [node.output[0] for node in chosen_gemm_nodes]
     # Find all adjacent gemm nodes group
     fused_gemm_groups = []
     group_index = 0
@@ -57,7 +57,7 @@ def _fuse_gemm_gemm(
 
     fused_gemm_groups = fused_gemm_groups[::-1]
     fused_gemm_nodes_output_names = [
-        node.out[0] for group in fused_gemm_groups for node in group
+        node.output[0] for group in fused_gemm_groups for node in group
     ]
 
     gemm_group_start_nodes = {
