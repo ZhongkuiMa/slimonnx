@@ -63,7 +63,7 @@ def _remove_redundant_operations(
         if node.op_type in {"Reshape", "Flatten"}:
             # Check if the node does nothing.
             input_shape = data_shapes[node.input[0]]
-            output_shape = data_shapes[node.out[0]]
+            output_shape = data_shapes[node.output[0]]
             if input_shape == output_shape:
                 if node.op_type == "Reshape":
                     del initializers[node.input[1]]
