@@ -112,8 +112,8 @@ def _fuse_gemm_gemm(
             new_bias = new_bias @ all_weights[i] + all_biases[i]
 
         # Create new initializers for the merged weights and biases
-        new_weight_name = group[0].inp[1]
-        new_bias_name = group[0].inp[2]
+        new_weight_name = group[0].input[1]
+        new_bias_name = group[0].input[2]
         new_weight = onnx.numpy_helper.from_array(new_weight, new_weight_name)
         new_bias = onnx.numpy_helper.from_array(new_bias, new_bias_name)
         initializers[new_weight_name] = new_weight
@@ -123,7 +123,7 @@ def _fuse_gemm_gemm(
         new_gemm_node.CopyFrom(group[0])
         new_gemm_node.ClearField("input")
         new_gemm_node.ClearField("output")
-        new_gemm_node.input.extend([group[0].inp[0], new_weight_name, new_bias_name])
+        new_gemm_node.input.extend([group[0].input[0], new_weight_name, new_bias_name])
         new_gemm_node.output.extend(group[-1].out)
         new_gemm_node.name = group[-1].name
 

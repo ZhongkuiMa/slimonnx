@@ -62,6 +62,7 @@ def get_preset(
         "acasxu_2023": OptimizationConfig(
             fuse_matmul_add=True,
             remove_redundant_operations=True,
+            constant_folding=True,
         ),
         "cctsdb_yolo_2023": OptimizationConfig(
             constant_folding=True,
@@ -70,6 +71,7 @@ def get_preset(
         "cifar100_2024": OptimizationConfig(
             fuse_conv_bn=True,
             fuse_bn_conv=True,
+            constant_folding=True,
         ),
         "cgan_2023": OptimizationConfig(
             fuse_conv_bn=True,
@@ -79,42 +81,60 @@ def get_preset(
             remove_redundant_operations=True,
             has_batch_dim=False,
         ),
-        "collins_aerospace_benchmark": OptimizationConfig(),
+        "collins_aerospace_benchmark": OptimizationConfig(
+            constant_folding=True,
+        ),
         "collins_rul_cnn_2022": OptimizationConfig(
             simplify_conv_to_flatten_gemm=True,
             remove_redundant_operations=True,
+            constant_folding=True,
         ),
         "cora_2024": OptimizationConfig(
             fuse_matmul_add=True,
+            constant_folding=True,
         ),
         "dist_shift_2023": OptimizationConfig(
             remove_redundant_operations=True,
+            constant_folding=True,
         ),
-        "linearizenn": OptimizationConfig(),
+        "linearizenn": OptimizationConfig(
+            constant_folding=True,
+        ),
         "lsnc": OptimizationConfig(
             constant_folding=True,
         ),
-        "metaroom_2023": OptimizationConfig(),
+        "metaroom_2023": OptimizationConfig(
+            constant_folding=True,
+        ),
         "ml4acopf_2024": OptimizationConfig(
             constant_folding=True,
         ),
         "nn4sys": OptimizationConfig(
             fuse_matmul_add=True,
+            constant_folding=True,
         ),
         "nn4sys_2023": OptimizationConfig(
             fuse_matmul_add=True,
+            constant_folding=True,
         ),
         "safenlp_2024": OptimizationConfig(
             fuse_matmul_add=True,
+            constant_folding=True,
         ),
         "tinyimagenet_2024": OptimizationConfig(
             fuse_conv_bn=True,
+            constant_folding=True,
         ),
         "tllverifybench_2023": OptimizationConfig(
             fuse_matmul_add=True,
+            constant_folding=True,
         ),
-        "traffic_signs_recognition_2023": OptimizationConfig(),
-        "vggnet16_2022": OptimizationConfig(),
+        "traffic_signs_recognition_2023": OptimizationConfig(
+            constant_folding=True,
+        ),
+        "vggnet16_2022": OptimizationConfig(
+            constant_folding=True,
+        ),
         "vit_2023": OptimizationConfig(
             constant_folding=True,
             fuse_matmul_add=True,
@@ -123,18 +143,29 @@ def get_preset(
             fuse_bn_gemm=True,
             remove_redundant_operations=True,
         ),
-        "yolo_2023": OptimizationConfig(),
+        "yolo_2023": OptimizationConfig(
+            constant_folding=True,
+        ),
         "test": all_optimizations(has_batch_dim=False),
         "cersyve": OptimizationConfig(
             fuse_gemm_gemm=True,
+            constant_folding=True,
         ),
         "lsnc_relu": OptimizationConfig(
             constant_folding=True,
         ),
-        "malbeware": OptimizationConfig(),
-        "relusplitter": OptimizationConfig(),
-        "sat_relu": OptimizationConfig(),
-        "soundnessbench": OptimizationConfig(),
+        "malbeware": OptimizationConfig(
+            constant_folding=True,
+        ),
+        "relusplitter": OptimizationConfig(
+            constant_folding=True,
+        ),
+        "sat_relu": OptimizationConfig(
+            constant_folding=True,
+        ),
+        "soundnessbench": OptimizationConfig(
+            constant_folding=True,
+        ),
     }
 
     # Return preset or default config

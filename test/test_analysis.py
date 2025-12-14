@@ -7,9 +7,9 @@ Combines two types of model analysis:
 
 __docformat__ = "restructuredtext"
 __all__ = [
-    "test_pattern_detection",
+    "run_pattern_detection_test",
     "test_all_pattern_detection",
-    "test_structure_analysis",
+    "run_structure_analysis_test",
     "test_all_structure_analysis",
     "main",
 ]
@@ -30,8 +30,8 @@ from slimonnx.test.benchmark_utils import (
 from slimonnx.test.utils import if_has_batch_dim
 
 
-def test_pattern_detection(onnx_path: str) -> dict:
-    """Test pattern detection on a single ONNX model.
+def run_pattern_detection_test(onnx_path: str) -> dict:
+    """Run pattern detection test on a single ONNX model.
 
     :param onnx_path: Path to ONNX model file
     :return: Pattern detection result dictionary
@@ -108,7 +108,7 @@ def test_all_pattern_detection(
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
 
-        result = test_pattern_detection(onnx_path)
+        result = run_pattern_detection_test(onnx_path)
 
         if result["success"]:
             success_count += 1
@@ -154,8 +154,8 @@ def test_all_pattern_detection(
     }
 
 
-def test_structure_analysis(onnx_path: str) -> dict:
-    """Test structure analysis on a single ONNX model.
+def run_structure_analysis_test(onnx_path: str) -> dict:
+    """Run structure analysis test on a single ONNX model.
 
     :param onnx_path: Path to ONNX model file
     :return: Structure analysis result dictionary
@@ -315,7 +315,7 @@ def test_all_structure_analysis(
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
 
-        result = test_structure_analysis(onnx_path)
+        result = run_structure_analysis_test(onnx_path)
 
         if result["success"]:
             success_count += 1

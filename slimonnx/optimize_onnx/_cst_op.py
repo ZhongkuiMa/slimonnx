@@ -225,7 +225,7 @@ def _fuse_constant_nodes(
     # Remove all unused initializers
     all_inputs = []
     for node in nodes:
-        for input_name in node.inp:
+        for input_name in node.input:
             all_inputs.append(input_name)
     new_initializers = {}
     for name, initializer in initializers.items():

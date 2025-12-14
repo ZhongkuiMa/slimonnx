@@ -7,9 +7,9 @@ Combines two types of testing:
 
 __docformat__ = "restructuredtext"
 __all__ = [
-    "test_preprocess",
+    "run_preprocess_test",
     "test_all_preprocess",
-    "test_validation",
+    "run_validation_test",
     "test_all_validation",
     "main",
 ]
@@ -26,8 +26,8 @@ from slimonnx.test.benchmark_utils import (
 from slimonnx.test.utils import if_has_batch_dim
 
 
-def test_preprocess(onnx_path: str, target_opset: int | None = None) -> dict:
-    """Test preprocessing on a single ONNX model.
+def run_preprocess_test(onnx_path: str, target_opset: int | None = None) -> dict:
+    """Run preprocessing test on a single ONNX model.
 
     :param onnx_path: Path to ONNX model file
     :param target_opset: Target opset version (None = keep original)
@@ -116,7 +116,7 @@ def test_all_preprocess(
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
 
-        result = test_preprocess(onnx_path, target_opset)
+        result = run_preprocess_test(onnx_path, target_opset)
 
         if result["success"]:
             success_count += 1
@@ -156,8 +156,8 @@ def test_all_preprocess(
     }
 
 
-def test_validation(onnx_path: str) -> dict:
-    """Test validation on a single ONNX model.
+def run_validation_test(onnx_path: str) -> dict:
+    """Run validation test on a single ONNX model.
 
     :param onnx_path: Path to ONNX model file
     :return: Validation test result dictionary
@@ -232,7 +232,7 @@ def test_all_validation(
 
         print(f"[{i}/{len(onnx_files)}] {benchmark_name}/{basename}...", end=" ")
 
-        result = test_validation(onnx_path)
+        result = run_validation_test(onnx_path)
 
         if result["success"]:
             success_count += 1

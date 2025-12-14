@@ -157,6 +157,7 @@ def optimize_model(
         }
 
     except (IOError, OSError, ValueError, RuntimeError, AttributeError) as error:
+        import traceback
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -168,7 +169,7 @@ def optimize_model(
             "reduction_pct": 0.0,
             "onnx_path": None,
             "topology_path": None,
-            "error": str(error),
+            "error": traceback.format_exc(),
         }
 
     finally:
@@ -224,7 +225,14 @@ def optimize_all_models(
             )
         else:
             failed_count += 1
-            print(f"FAILED: {result['error']}")
+            error_msg = result['error']
+            # Show just first line for inline display, full trace below
+            first_line = error_msg.strip().split('\n')[-1] if error_msg else "Unknown error"
+            print(f"FAILED: {first_line}")
+            # Print full traceback indented
+            if error_msg:
+                for line in error_msg.strip().split('\n'):
+                    print(f"    {line}")
 
     elapsed_total = time.perf_counter() - start_time
 
