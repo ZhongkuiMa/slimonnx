@@ -120,6 +120,12 @@ PATTERNS = {
         "category": "constant_folding",
         "severity": "optimization",
     },
+    # Shape optimization
+    "reshape_negative_one": {
+        "description": "Reshape with -1 shape that can be resolved to concrete values",
+        "category": "shape_optimization",
+        "severity": "optimization",
+    },
 }
 
 
@@ -166,6 +172,7 @@ def detect_all_patterns(
     from .reshape_chains import detect_consecutive_reshape
     from .dropout import detect_dropout
     from .constant_ops import detect_constant_foldable
+    from .reshape_negative_one import detect_reshape_with_negative_one
 
     results = {}
 
@@ -346,5 +353,22 @@ def detect_all_patterns(
         "count": len(constant_foldable_instances),
         "instances": constant_foldable_instances,
     }
+
+    # Detect reshape with resolvable -1
+    if data_shapes is not None:
+        reshape_negative_one_instances = detect_reshape_with_negative_one(
+            nodes, initializers, data_shapes
+        )
+        results["reshape_negative_one"] = {
+            **PATTERNS["reshape_negative_one"],
+            "count": len(reshape_negative_one_instances),
+            "instances": reshape_negative_one_instances,
+        }
+    else:
+        results["reshape_negative_one"] = {
+            **PATTERNS["reshape_negative_one"],
+            "count": 0,
+            "instances": [],
+        }
 
     return results

@@ -24,6 +24,7 @@ from ._mm_add import _fuse_matmul_add
 from ._name import _simplify_names
 from ._ordering import _reorder_by_strict_topological_order
 from ._redundant import _remove_redundant_operations
+from ._reshape import _resolve_reshape_negative_one
 from ..utils import (
     clear_onnx_docstring,
     get_initializers,
@@ -110,6 +111,13 @@ def optimize_onnx(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim
         )
         nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
+
+    # Resolve reshape -1 to concrete values (always run when shapes available)
+    data_shapes = infer_onnx_shape(
+        input_nodes, output_nodes, nodes, initializers, has_batch_dim
+    )
+    nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)
+
     if remove_redundant_operations:
         data_shapes = infer_onnx_shape(
             input_nodes, output_nodes, nodes, initializers, has_batch_dim

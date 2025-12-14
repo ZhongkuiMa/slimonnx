@@ -47,8 +47,8 @@ def validate_model(
 
     nodes = list(model.graph.node)
     initializers = utils.get_initializers(model)
-    inputs = list(model.graph.inp)
-    outputs = list(model.graph.out)
+    inputs = list(model.graph.input)
+    outputs = list(model.graph.output)
 
     results = {
         "onnx_checker": run_onnx_checker(model),

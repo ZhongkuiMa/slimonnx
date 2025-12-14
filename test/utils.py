@@ -33,7 +33,6 @@ def load_onnx_model(onnx_path: str):  # type: ignore
 
 BENCHMARKS_WITHOUT_BATCH_DIM = (
     "cctsdb_yolo",
-    "cgan",
     "pensieve_big_parallel.onnx",
     "pensieve_mid_parallel.onnx",
     "pensieve_small_parallel.onnx",

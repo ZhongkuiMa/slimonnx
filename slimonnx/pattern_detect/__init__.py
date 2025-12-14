@@ -26,6 +26,7 @@ __all__ = [
     "detect_consecutive_reshape",
     "detect_dropout",
     "detect_constant_foldable",
+    "detect_reshape_with_negative_one",
 ]
 
 from .registry import PATTERNS, detect_all_patterns
@@ -59,3 +60,4 @@ from .redundant_ops import (
 from .reshape_chains import detect_consecutive_reshape
 from .dropout import detect_dropout
 from .constant_ops import detect_constant_foldable
+from .reshape_negative_one import detect_reshape_with_negative_one

@@ -79,7 +79,7 @@ def get_preset(
             fuse_convtransposed_bn=True,
             constant_folding=True,
             remove_redundant_operations=True,
-            has_batch_dim=False,
+            has_batch_dim=True,
         ),
         "collins_aerospace_benchmark": OptimizationConfig(
             constant_folding=True,
