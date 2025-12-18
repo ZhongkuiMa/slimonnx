@@ -13,9 +13,12 @@ PRESET_NAMES = (
     "cctsdb_yolo_2023",
     "cersyve",
     "cgan_2023",
+    "cifar100",  # vnncomp2024 alias
     "cifar100_2024",
     "collins_aerospace_benchmark",
     "collins_rul_cnn_2022",
+    "collins_rul_cnn_2023",  # vnncomp2024 alias
+    "cora",  # vnncomp2024 alias
     "cora_2024",
     "dist_shift_2023",
     "linearizenn",
@@ -28,13 +31,16 @@ PRESET_NAMES = (
     "nn4sys",
     "nn4sys_2023",
     "relusplitter",
+    "safenlp",  # vnncomp2024 alias
     "safenlp_2024",
     "sat_relu",
     "soundnessbench",
+    "tinyimagenet",  # vnncomp2024 alias
     "tinyimagenet_2024",
     "tllverifybench_2023",
     "traffic_signs_recognition_2023",
     "vggnet16_2022",
+    "vggnet16_2023",  # vnncomp2024 alias
     "vit_2023",
     "yolo_2023",
     "test",
@@ -151,6 +157,32 @@ def get_preset(
             constant_folding=True,
         ),
         "test": all_optimizations(has_batch_dim=False),
+        # Aliases for vnncomp2024 benchmarks with name mismatches
+        "cifar100": OptimizationConfig(
+            fuse_conv_bn=True,
+            fuse_bn_conv=True,
+            constant_folding=True,
+        ),
+        "collins_rul_cnn_2023": OptimizationConfig(
+            simplify_conv_to_flatten_gemm=True,
+            remove_redundant_operations=True,
+            constant_folding=True,
+        ),
+        "cora": OptimizationConfig(
+            fuse_matmul_add=True,
+            constant_folding=True,
+        ),
+        "safenlp": OptimizationConfig(
+            fuse_matmul_add=True,
+            constant_folding=True,
+        ),
+        "tinyimagenet": OptimizationConfig(
+            fuse_conv_bn=True,
+            constant_folding=True,
+        ),
+        "vggnet16_2023": OptimizationConfig(
+            constant_folding=True,
+        ),
         "cersyve": OptimizationConfig(
             fuse_gemm_gemm=True,
             constant_folding=True,
