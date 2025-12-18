@@ -117,11 +117,8 @@ def _prepare_optimized_model(model_path: str) -> None:
     onnx.save(model, model_path)
 
 
-def test_basic_optimization() -> bool:
-    """Test basic SlimONNX optimization without fusion.
-
-    :return: True if test passes
-    """
+def test_basic_optimization() -> None:
+    """Test basic SlimONNX optimization without fusion."""
     print("Creating test model...")
     model = create_test_model()
 
@@ -180,14 +177,9 @@ def test_basic_optimization() -> bool:
 
         print("OK: Outputs match between original and optimized models")
 
-    return True
 
-
-def test_conv_bn_fusion() -> bool:
-    """Test Conv-BatchNorm fusion optimization.
-
-    :return: True if test passes
-    """
+def test_conv_bn_fusion() -> None:
+    """Test Conv-BatchNorm fusion optimization."""
     print("\nCreating test model for Conv-BN fusion...")
     model = create_test_model()
 
@@ -258,8 +250,6 @@ def test_conv_bn_fusion() -> bool:
             ), f"Output values mismatch for output {i}, max diff: {max_diff}"
 
         print("OK: Outputs match after Conv-BN fusion")
-
-    return True
 
 
 if __name__ == "__main__":

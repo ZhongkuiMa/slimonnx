@@ -8,9 +8,11 @@ Combines two types of testing:
 __docformat__ = "restructuredtext"
 __all__ = [
     "run_preprocess_test",
-    "test_all_preprocess",
+    "run_all_preprocess",
     "run_validation_test",
-    "test_all_validation",
+    "run_all_validation",
+    "test_preprocess_benchmarks",
+    "test_validation_benchmarks",
     "main",
 ]
 
@@ -85,7 +87,7 @@ def run_preprocess_test(onnx_path: str, target_opset: int | None = None) -> dict
         }
 
 
-def test_all_preprocess(
+def run_all_preprocess(
     benchmark_dir: str = "benchmarks",
     max_per_benchmark: int = 20,
     target_opset: int | None = None,
@@ -201,7 +203,7 @@ def run_validation_test(onnx_path: str) -> dict:
         }
 
 
-def test_all_validation(
+def run_all_validation(
     benchmark_dir: str = "benchmarks", max_per_benchmark: int = 20
 ) -> dict:
     """Test validation on all benchmark models.
@@ -297,6 +299,35 @@ def test_all_validation(
     }
 
 
+def test_preprocess_benchmarks() -> None:
+    """Pytest: Test preprocessing on all benchmark models."""
+    import pytest
+    from pathlib import Path
+
+    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    if not benchmark_dir.exists():
+        pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
+
+    result = run_all_preprocess(str(benchmark_dir))
+    assert result["success"] > 0, "No models successfully preprocessed"
+    assert result["failed"] == 0, f"Preprocessing failed for {result['failed']} models"
+
+
+def test_validation_benchmarks() -> None:
+    """Pytest: Test validation on all benchmark models."""
+    import pytest
+    from pathlib import Path
+
+    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    if not benchmark_dir.exists():
+        pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
+
+    result = run_all_validation(str(benchmark_dir))
+    assert result["success"] > 0, "No models successfully validated"
+    assert result["failed"] == 0, f"Validation failed for {result['failed']} models"
+    assert result["valid_count"] == result["success"], f"Some models are invalid: {result['success'] - result['valid_count']} models"
+
+
 def main() -> None:
     """Main entry point for script execution."""
     import sys
@@ -307,14 +338,14 @@ def main() -> None:
             idx = sys.argv.index("--opset")
             if idx + 1 < len(sys.argv):
                 opset = int(sys.argv[idx + 1])
-        test_all_preprocess(target_opset=opset)
+        run_all_preprocess(target_opset=opset)
     elif "--validate-only" in sys.argv:
-        test_all_validation()
+        run_all_validation()
     else:
         print("Running both preprocessing and validation tests...\n")
-        test_all_preprocess()
+        run_all_preprocess()
         print("\n")
-        test_all_validation()
+        run_all_validation()
 
 
 if __name__ == "__main__":

@@ -8,9 +8,11 @@ Combines two types of model analysis:
 __docformat__ = "restructuredtext"
 __all__ = [
     "run_pattern_detection_test",
-    "test_all_pattern_detection",
+    "run_all_pattern_detection",
     "run_structure_analysis_test",
-    "test_all_structure_analysis",
+    "run_all_structure_analysis",
+    "test_pattern_detection_benchmarks",
+    "test_structure_analysis_benchmarks",
     "main",
 ]
 
@@ -79,7 +81,7 @@ def run_pattern_detection_test(onnx_path: str) -> dict:
         }
 
 
-def test_all_pattern_detection(
+def run_all_pattern_detection(
     benchmark_dir: str = "benchmarks", max_per_benchmark: int = 20
 ) -> dict:
     """Test pattern detection on all benchmark models.
@@ -285,7 +287,7 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
         }
 
 
-def test_all_structure_analysis(
+def run_all_structure_analysis(
     benchmark_dir: str = "benchmarks", max_per_benchmark: int = 20
 ) -> dict:
     """Test structure analysis on all benchmark models.
@@ -365,19 +367,47 @@ def test_all_structure_analysis(
     }
 
 
+def test_pattern_detection_benchmarks() -> None:
+    """Pytest: Test pattern detection on all benchmark models."""
+    import pytest
+    from pathlib import Path
+
+    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    if not benchmark_dir.exists():
+        pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
+
+    result = run_all_pattern_detection(str(benchmark_dir))
+    assert result["success"] > 0, "No models successfully processed for pattern detection"
+    assert result["failed"] == 0, f"Pattern detection failed for {result['failed']} models"
+
+
+def test_structure_analysis_benchmarks() -> None:
+    """Pytest: Test structure analysis on all benchmark models."""
+    import pytest
+    from pathlib import Path
+
+    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    if not benchmark_dir.exists():
+        pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
+
+    result = run_all_structure_analysis(str(benchmark_dir))
+    assert result["success"] > 0, "No models successfully processed for structure analysis"
+    assert result["failed"] == 0, f"Structure analysis failed for {result['failed']} models"
+
+
 def main() -> None:
     """Main entry point for script execution."""
     import sys
 
     if "--patterns-only" in sys.argv:
-        test_all_pattern_detection()
+        run_all_pattern_detection()
     elif "--structure-only" in sys.argv:
-        test_all_structure_analysis()
+        run_all_structure_analysis()
     else:
         print("Running both pattern detection and structure analysis...\n")
-        test_all_pattern_detection()
+        run_all_pattern_detection()
         print("\n")
-        test_all_structure_analysis()
+        run_all_structure_analysis()
 
 
 if __name__ == "__main__":
