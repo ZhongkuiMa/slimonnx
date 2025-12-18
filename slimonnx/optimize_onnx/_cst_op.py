@@ -114,7 +114,9 @@ def _fuse_constant_nodes(
 
         elif op_type == "ConstantOfShape":
 
-            shape = shapes[node.output[0]]
+            # Get shape from input tensor (which contains the shape values)
+            shape_tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            shape = shape_tensor.tolist() if shape_tensor.ndim > 0 else [int(shape_tensor)]
             value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
             value = np.full(shape, value, dtype=value.dtype)
 

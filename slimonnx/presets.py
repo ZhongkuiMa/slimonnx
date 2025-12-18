@@ -23,6 +23,7 @@ PRESET_NAMES = (
     "lsnc_relu",
     "malbeware",
     "metaroom_2023",
+    "ml4acopf_2023",
     "ml4acopf_2024",
     "nn4sys",
     "nn4sys_2023",
@@ -104,6 +105,9 @@ def get_preset(
             constant_folding=True,
         ),
         "metaroom_2023": OptimizationConfig(
+            constant_folding=True,
+        ),
+        "ml4acopf_2023": OptimizationConfig(
             constant_folding=True,
         ),
         "ml4acopf_2024": OptimizationConfig(
