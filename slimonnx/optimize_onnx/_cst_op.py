@@ -106,10 +106,24 @@ def _fuse_constant_nodes(
             value = data.reshape(shape)
 
         elif op_type == "Range":
+            if node.input[0] not in initializers:
+                continue
+            if node.input[1] not in initializers:
+                continue
+            if node.input[2] not in initializers:
+                continue
 
-            start = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            limit = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            delta = onnx.numpy_helper.to_array(initializers[node.input[2]])
+            start_array = onnx.numpy_helper.to_array(initializers[node.input[0]])
+            limit_array = onnx.numpy_helper.to_array(initializers[node.input[1]])
+            delta_array = onnx.numpy_helper.to_array(initializers[node.input[2]])
+
+            start = start_array.item() if start_array.ndim == 0 or start_array.size == 1 else None
+            limit = limit_array.item() if limit_array.ndim == 0 or limit_array.size == 1 else None
+            delta = delta_array.item() if delta_array.ndim == 0 or delta_array.size == 1 else None
+
+            if not (start is not None and limit is not None and delta is not None):
+                continue
+
             value = np.arange(start, limit, delta)
 
         elif op_type == "ConstantOfShape":
