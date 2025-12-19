@@ -25,6 +25,7 @@ from slimonnx.test.test_slimonnx import (
     optimize_model_with_slimonnx,
     run_onnx_model,
     compare_outputs,
+    is_known_failure,
 )
 from slimonnx.test.utils import load_test_inputs
 

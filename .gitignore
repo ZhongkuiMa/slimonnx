@@ -74,7 +74,6 @@ Thumbs.db
 
 # === GitHub Codespaces ===
 .devcontainer/
-/test/benchmarks
-/test/inputs/
 /test/baselines/
 /test/results/
+/test/data/

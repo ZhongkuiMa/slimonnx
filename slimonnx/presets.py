@@ -84,8 +84,8 @@ def get_preset(
             fuse_conv_bn=True,
             fuse_bn_conv=True,
             fuse_convtransposed_bn=True,
-            fuse_gemm_reshape_bn=True,
-            fuse_bn_reshape_gemm=True,
+            fuse_gemm_reshape_bn=False,  # Disabled: padding issues with cGAN structure
+            fuse_bn_reshape_gemm=False,  # Disabled: padding issues with cGAN structure
             constant_folding=True,
             remove_redundant_operations=True,
             has_batch_dim=True,
