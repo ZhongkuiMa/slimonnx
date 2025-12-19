@@ -3,13 +3,13 @@
 __docformat__ = "restructuredtext"
 __all__ = ["create_test_model", "test_basic_optimization", "test_conv_bn_fusion"]
 
-import sys
 import tempfile
 from pathlib import Path
 
 import numpy as np
 import onnx
 import onnxruntime as ort
+import pytest
 
 from slimonnx import SlimONNX, OptimizationConfig
 
@@ -250,27 +250,3 @@ def test_conv_bn_fusion() -> None:
             ), f"Output values mismatch for output {i}, max diff: {max_diff}"
 
         print("OK: Outputs match after Conv-BN fusion")
-
-
-if __name__ == "__main__":
-    try:
-        print("=" * 50)
-        print("TEST 1: Basic Optimization")
-        print("=" * 50)
-        test_basic_optimization()
-
-        print("\n" + "=" * 50)
-        print("TEST 2: Conv-BN Fusion")
-        print("=" * 50)
-        test_conv_bn_fusion()
-
-        print("\n" + "=" * 50)
-        print("SUCCESS: All basic tests passed")
-        print("=" * 50)
-        sys.exit(0)
-    except (AssertionError, IOError, OSError, ValueError, RuntimeError) as error:
-        print(f"\nERROR: Test failed - {error}")
-        import traceback
-
-        traceback.print_exc()
-        sys.exit(1)

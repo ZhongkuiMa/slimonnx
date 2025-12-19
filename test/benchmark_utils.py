@@ -119,7 +119,7 @@ def find_vnnlib_files(benchmarks: list[Path]) -> list[Path]:
 
 
 def get_model_benchmark_name(
-    model_path: Path, benchmarks_root: str = "benchmarks"
+    model_path: Path, benchmarks_root: str = "vnncomp2024_benchmarks"
 ) -> str:
     """Extract benchmark name from model path.
 
@@ -178,7 +178,7 @@ def get_model_data_path(model_path: Path, benchmarks_root: Path) -> Path:
 
 
 def get_benchmark_dir(
-    onnx_path: str | Path, benchmarks_dir: str = "benchmarks"
+    onnx_path: str | Path, benchmarks_dir: str = "vnncomp2024_benchmarks"
 ) -> Path:
     """Find the benchmark root directory for a given ONNX file.
 
@@ -248,7 +248,7 @@ def find_vnnlib_files_from_instances(benchmark_dirs: list[str]) -> list[str]:
     return [str(v) for v in vnnlib_files]
 
 
-def get_benchmark_name(onnx_path: str, benchmarks_dir: str = "benchmarks") -> str:
+def get_benchmark_name(onnx_path: str, benchmarks_dir: str = "vnncomp2024_benchmarks") -> str:
     """Extract benchmark name from ONNX file path (backward compatibility alias).
 
     :param onnx_path: Path to ONNX model file

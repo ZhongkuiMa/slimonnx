@@ -280,7 +280,7 @@ def _load_from_vnnlib_data(
 
 
 def load_test_inputs(
-    onnx_path: str, benchmarks_dir: str = "benchmarks"
+    onnx_path: str, benchmarks_dir: str = "vnncomp2024_benchmarks", data_dir: str = "data"
 ) -> list[np.ndarray]:
     """Load test inputs for an ONNX model.
 
@@ -290,6 +290,7 @@ def load_test_inputs(
 
     :param onnx_path: Path to ONNX model file
     :param benchmarks_dir: Root benchmarks directory name
+    :param data_dir: Root data directory name (default: "data")
     :return: List of input arrays
     :raises FileNotFoundError: If no test data is available
     """
@@ -300,8 +301,10 @@ def load_test_inputs(
 
     model_name = Path(onnx_path).stem
 
-    # Try pre-computed data first
-    data_file = benchmark_dir / "data" / f"{model_name}.npz"
+    # Try pre-computed data first from standalone data/ directory
+    from slimonnx.test.benchmark_utils import get_model_benchmark_name
+    benchmark_name = get_model_benchmark_name(Path(onnx_path), benchmarks_dir)
+    data_file = Path(data_dir) / benchmark_name / f"{model_name}.npz"
     precomputed_inputs = _load_precomputed_data(data_file)
     if precomputed_inputs:
         return precomputed_inputs
