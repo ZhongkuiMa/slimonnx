@@ -33,7 +33,7 @@ def detect_consecutive_reshape(nodes: list[NodeProto]) -> list[dict]:
                     instances.append(
                         {
                             "first_node": (
-                                prev_node.name if prev_node.name else f"Reshape_{i-1}"
+                                prev_node.name if prev_node.name else f"Reshape_{i - 1}"
                             ),
                             "second_node": node.name if node.name else f"Reshape_{i}",
                         }

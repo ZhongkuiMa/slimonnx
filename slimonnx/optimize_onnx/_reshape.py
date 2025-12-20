@@ -11,7 +11,7 @@ from onnx import NodeProto, TensorProto
 def _resolve_reshape_negative_one(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    data_shapes: dict[str, list[int]],
+    data_shapes: dict[str, int | list[int]],
 ) -> list[NodeProto]:
     """Replace -1 in Reshape shape tensors with concrete values.
 
@@ -51,15 +51,17 @@ def _resolve_reshape_negative_one(
             continue
 
         output_shape = data_shapes[output_name]
+        # Handle both int and list[int] cases
+        if isinstance(output_shape, int):
+            output_shape = [output_shape]
+
         if 0 in output_shape:
             # Output shape is dynamic/unknown, cannot resolve
             continue
 
         # Create new shape tensor with concrete values
         new_shape_values = np.array(output_shape, dtype=np.int64)
-        new_initializer = onnx.numpy_helper.from_array(
-            new_shape_values, shape_input_name
-        )
+        new_initializer = onnx.numpy_helper.from_array(new_shape_values, shape_input_name)
         initializers[shape_input_name] = new_initializer
 
     return nodes

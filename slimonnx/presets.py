@@ -5,7 +5,7 @@ __all__ = ["get_preset", "all_optimizations", "PRESET_NAMES"]
 
 from functools import lru_cache
 
-from .configs import OptimizationConfig
+from slimonnx.slimonnx.configs import OptimizationConfig
 
 # Tuple of available preset names
 PRESET_NAMES = (
@@ -48,9 +48,7 @@ PRESET_NAMES = (
 
 
 @lru_cache(maxsize=128)
-def get_preset(
-    benchmark_name: str, model_name: str | None = None
-) -> OptimizationConfig:
+def get_preset(benchmark_name: str, model_name: str | None = None) -> OptimizationConfig:
     """Get preset optimization configuration for a benchmark.
 
     :param benchmark_name: Benchmark identifier (e.g., 'acasxu_2023', 'cgan_2023')
@@ -58,12 +56,16 @@ def get_preset(
     :return: Optimization configuration optimized for the benchmark
     """
     # Model-specific exceptions for nn4sys_2023 (some have batch dim, some don't)
-    if benchmark_name == "nn4sys_2023" and model_name:
-        if "pensieve" in model_name and "parallel" in model_name:
-            return OptimizationConfig(
-                fuse_matmul_add=True,
-                has_batch_dim=False,
-            )
+    if (
+        benchmark_name == "nn4sys_2023"
+        and model_name
+        and "pensieve" in model_name
+        and "parallel" in model_name
+    ):
+        return OptimizationConfig(
+            fuse_matmul_add=True,
+            has_batch_dim=False,
+        )
 
     presets = {
         "acasxu_2023": OptimizationConfig(

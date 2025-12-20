@@ -142,37 +142,39 @@ def detect_all_patterns(
     :return: Detection results per pattern
     """
     # Import all detectors
-    from .matmul_add import detect_matmul_add
-    from .conv_bn import (
-        detect_conv_bn,
+    from slimonnx.slimonnx.pattern_detect.constant_ops import detect_constant_foldable
+    from slimonnx.slimonnx.pattern_detect.conv_bn import (
         detect_bn_conv,
-        detect_convtranspose_bn,
         detect_bn_convtranspose,
+        detect_conv_bn,
+        detect_convtranspose_bn,
     )
-    from .depthwise_conv import (
+    from slimonnx.slimonnx.pattern_detect.depthwise_conv import (
+        detect_bn_depthwise_conv,
         detect_depthwise_conv,
         detect_depthwise_conv_bn,
-        detect_bn_depthwise_conv,
     )
-    from .gemm_bn import (
-        detect_gemm_reshape_bn,
-        detect_bn_reshape_gemm,
+    from slimonnx.slimonnx.pattern_detect.dropout import detect_dropout
+    from slimonnx.slimonnx.pattern_detect.gemm_bn import (
         detect_bn_gemm,
+        detect_bn_reshape_gemm,
+        detect_gemm_reshape_bn,
     )
-    from .transpose_bn import detect_transpose_bn_transpose
-    from .gemm_chains import detect_gemm_gemm
-    from .redundant_ops import (
+    from slimonnx.slimonnx.pattern_detect.gemm_chains import detect_gemm_gemm
+    from slimonnx.slimonnx.pattern_detect.matmul_add import detect_matmul_add
+    from slimonnx.slimonnx.pattern_detect.redundant_ops import (
         detect_add_zero,
-        detect_sub_zero,
-        detect_mul_one,
         detect_div_one,
-        detect_pad_zero,
         detect_identity_reshape,
+        detect_mul_one,
+        detect_pad_zero,
+        detect_sub_zero,
     )
-    from .reshape_chains import detect_consecutive_reshape
-    from .dropout import detect_dropout
-    from .constant_ops import detect_constant_foldable
-    from .reshape_negative_one import detect_reshape_with_negative_one
+    from slimonnx.slimonnx.pattern_detect.reshape_chains import detect_consecutive_reshape
+    from slimonnx.slimonnx.pattern_detect.reshape_negative_one import (
+        detect_reshape_with_negative_one,
+    )
+    from slimonnx.slimonnx.pattern_detect.transpose_bn import detect_transpose_bn_transpose
 
     results = {}
 
@@ -198,18 +200,14 @@ def detect_all_patterns(
         "instances": bn_conv_instances,
     }
 
-    convtranspose_bn_instances = detect_convtranspose_bn(
-        nodes, initializers, data_shapes
-    )
+    convtranspose_bn_instances = detect_convtranspose_bn(nodes, initializers, data_shapes)
     results["convtranspose_bn"] = {
         **PATTERNS["convtranspose_bn"],
         "count": len(convtranspose_bn_instances),
         "instances": convtranspose_bn_instances,
     }
 
-    bn_convtranspose_instances = detect_bn_convtranspose(
-        nodes, initializers, data_shapes
-    )
+    bn_convtranspose_instances = detect_bn_convtranspose(nodes, initializers, data_shapes)
     results["bn_convtranspose"] = {
         **PATTERNS["bn_convtranspose"],
         "count": len(bn_convtranspose_instances),
@@ -223,18 +221,14 @@ def detect_all_patterns(
         "instances": depthwise_conv_instances,
     }
 
-    depthwise_conv_bn_instances = detect_depthwise_conv_bn(
-        nodes, initializers, data_shapes
-    )
+    depthwise_conv_bn_instances = detect_depthwise_conv_bn(nodes, initializers, data_shapes)
     results["depthwise_conv_bn"] = {
         **PATTERNS["depthwise_conv_bn"],
         "count": len(depthwise_conv_bn_instances),
         "instances": depthwise_conv_bn_instances,
     }
 
-    bn_depthwise_conv_instances = detect_bn_depthwise_conv(
-        nodes, initializers, data_shapes
-    )
+    bn_depthwise_conv_instances = detect_bn_depthwise_conv(nodes, initializers, data_shapes)
     results["bn_depthwise_conv"] = {
         **PATTERNS["bn_depthwise_conv"],
         "count": len(bn_depthwise_conv_instances),
@@ -345,9 +339,7 @@ def detect_all_patterns(
     }
 
     # Detect constant folding opportunities
-    constant_foldable_instances = detect_constant_foldable(
-        nodes, initializers, data_shapes
-    )
+    constant_foldable_instances = detect_constant_foldable(nodes, initializers, data_shapes)
     results["constant_foldable"] = {
         **PATTERNS["constant_foldable"],
         "count": len(constant_foldable_instances),

@@ -40,12 +40,11 @@ def check_dead_nodes(
                     queue.append(inp)
 
     # Find unreachable nodes
-    dead_nodes = []
-    for node in nodes:
-        if not any(out in reachable for out in node.output):
-            dead_nodes.append(node.name if node.name else f"{node.op_type}_unnamed")
-
-    return dead_nodes
+    return [
+        node.name if node.name else f"{node.op_type}_unnamed"
+        for node in nodes
+        if not any(out in reachable for out in node.output)
+    ]
 
 
 def check_broken_connections(
@@ -67,19 +66,16 @@ def check_broken_connections(
     for node in nodes:
         available_tensors.update(node.output)
 
-    errors = []
-    for node in nodes:
-        for inp in node.input:
-            if inp and inp not in available_tensors:
-                errors.append(
-                    {
-                        "node": node.name if node.name else f"{node.op_type}_unnamed",
-                        "op_type": node.op_type,
-                        "missing_input": inp,
-                    }
-                )
-
-    return errors
+    return [
+        {
+            "node": node.name if node.name else f"{node.op_type}_unnamed",
+            "op_type": node.op_type,
+            "missing_input": inp,
+        }
+        for node in nodes
+        for inp in node.input
+        if inp and inp not in available_tensors
+    ]
 
 
 def check_orphan_initializers(
@@ -96,12 +92,7 @@ def check_orphan_initializers(
     for node in nodes:
         used_initializers.update(node.input)
 
-    orphans = []
-    for init_name in initializers.keys():
-        if init_name not in used_initializers:
-            orphans.append(init_name)
-
-    return orphans
+    return [init_name for init_name in initializers if init_name not in used_initializers]
 
 
 def check_type_consistency(
@@ -144,31 +135,28 @@ def check_shape_consistency(
     :param data_shapes: Inferred shapes dictionary
     :return: List of shape error dictionaries
     """
-    errors = []
+    input_errors = [
+        {
+            "node": node.name if node.name else f"{node.op_type}_unnamed",
+            "op_type": node.op_type,
+            "input": inp,
+            "error": "Unknown shape",
+        }
+        for node in nodes
+        for inp in node.input
+        if inp and inp not in data_shapes
+    ]
 
-    for node in nodes:
-        # Check if all inputs have known shapes
-        for inp in node.input:
-            if inp and inp not in data_shapes:
-                errors.append(
-                    {
-                        "node": node.name if node.name else f"{node.op_type}_unnamed",
-                        "op_type": node.op_type,
-                        "input": inp,
-                        "error": "Unknown shape",
-                    }
-                )
+    output_errors = [
+        {
+            "node": node.name if node.name else f"{node.op_type}_unnamed",
+            "op_type": node.op_type,
+            "output": out,
+            "error": "Unknown shape",
+        }
+        for node in nodes
+        for out in node.output
+        if out and out not in data_shapes
+    ]
 
-        # Check if all outputs have known shapes
-        for out in node.output:
-            if out and out not in data_shapes:
-                errors.append(
-                    {
-                        "node": node.name if node.name else f"{node.op_type}_unnamed",
-                        "op_type": node.op_type,
-                        "output": out,
-                        "error": "Unknown shape",
-                    }
-                )
-
-    return errors
+    return input_errors + output_errors

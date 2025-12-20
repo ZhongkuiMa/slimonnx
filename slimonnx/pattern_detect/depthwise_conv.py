@@ -18,7 +18,7 @@ def _get_conv_group_attr(node: NodeProto) -> int:
     """
     for attr in node.attribute:
         if attr.name == "group":
-            return attr.i
+            return int(attr.i)
     return 1
 
 
@@ -45,7 +45,7 @@ def _is_depthwise_conv(node: NodeProto, initializers: dict[str, TensorProto]) ->
         return False
 
     weight_tensor = initializers[node.input[1]]
-    weight_shape = list(weight_tensor.dims)
+    weight_shape = [int(d) for d in weight_tensor.dims]
 
     # Conv weight shape: [out_channels, in_channels/group, kH, kW]
     # For depthwise: group == in_channels, so in_channels/group == 1
@@ -55,14 +55,14 @@ def _is_depthwise_conv(node: NodeProto, initializers: dict[str, TensorProto]) ->
         in_channels_per_group = weight_shape[1]
 
         # Depthwise condition: in_channels_per_group == 1 and group == out_channels
-        return in_channels_per_group == 1 and group == out_channels
-    else:  # ConvTranspose
-        # ConvTranspose weight shape: [in_channels, out_channels/group, kH, kW]
-        in_channels = weight_shape[0]
-        out_channels_per_group = weight_shape[1]
+        return bool(in_channels_per_group == 1 and group == out_channels)
+    # ConvTranspose
+    # ConvTranspose weight shape: [in_channels, out_channels/group, kH, kW]
+    in_channels = weight_shape[0]
+    out_channels_per_group = weight_shape[1]
 
-        # Depthwise condition: out_channels_per_group == 1 and group == in_channels
-        return out_channels_per_group == 1 and group == in_channels
+    # Depthwise condition: out_channels_per_group == 1 and group == in_channels
+    return bool(out_channels_per_group == 1 and group == in_channels)
 
 
 def _is_consecutive_nodes(

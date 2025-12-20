@@ -16,7 +16,7 @@ __all__ = [
 
 import numpy as np
 import onnx
-from onnx import ModelProto, ValueInfoProto, NodeProto, TensorProto
+from onnx import ModelProto, NodeProto, TensorProto, ValueInfoProto
 
 EXTRACT_ATTR_MAP = {
     0: lambda x: None,  # UNDEFINED
@@ -46,6 +46,7 @@ def clear_onnx_docstring(model: ModelProto) -> ModelProto:
 
 
 def reformat_io_shape(node: ValueInfoProto, has_batch_dim: bool = True) -> list[int]:
+    """Extract shape from ValueInfoProto node."""
     shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
     if has_batch_dim:
         # Allow scalar outputs [] - they don't need batch dimension validation
@@ -91,9 +92,7 @@ def get_input_nodes(
     return nodes
 
 
-def get_output_nodes(
-    model: ModelProto, has_batch_dim: bool = True
-) -> list[ValueInfoProto]:
+def get_output_nodes(model: ModelProto, has_batch_dim: bool = True) -> list[ValueInfoProto]:
     """Get output nodes from ONNX model.
 
     :param model: ONNX model
@@ -149,9 +148,7 @@ def convert_constant_to_initializer(
 def extract_nodes(
     model: ModelProto,
     has_batch_dim: bool = True,
-) -> tuple[
-    list[ValueInfoProto], list[ValueInfoProto], list[NodeProto], dict[str, TensorProto]
-]:
+) -> tuple[list[ValueInfoProto], list[ValueInfoProto], list[NodeProto], dict[str, TensorProto]]:
     """Extract and preprocess nodes from ONNX model.
 
     This is a helper function that:
@@ -195,13 +192,11 @@ def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
                 empty_name_counter += 1
             name_and_output_name_mapping[output_name] = node.name
 
-    next_nodes_mapping = {node.name: [] for node in nodes}
+    next_nodes_mapping: dict[str, list[str]] = {node.name: [] for node in nodes}
     for node in nodes:
         for input_name in node.input:
             if input_name in name_and_output_name_mapping:
-                next_nodes_mapping[name_and_output_name_mapping[input_name]].append(
-                    node.name
-                )
+                next_nodes_mapping[name_and_output_name_mapping[input_name]].append(node.name)
 
     return next_nodes_mapping
 
@@ -217,6 +212,7 @@ def generate_random_inputs(
     :return: List of input dictionaries
     """
     inputs_list = []
+    rng = np.random.default_rng()
 
     for _ in range(num_samples):
         input_dict = {}
@@ -247,9 +243,9 @@ def generate_random_inputs(
 
             # Generate random input
             if dtype in (np.float32, np.float64, np.float16):
-                input_array = np.random.randn(*shape).astype(dtype)
+                input_array = rng.standard_normal(shape).astype(dtype)
             else:
-                input_array = np.random.randint(0, 10, size=shape).astype(dtype)
+                input_array = rng.integers(0, 10, size=shape).astype(dtype)
 
             input_dict[input_info.name] = input_array
 
@@ -275,24 +271,21 @@ def load_test_data_from_file(data_path: str) -> list[dict[str, np.ndarray]]:
         data = np.load(data_path)
         if len(data.shape) == 1:
             return [{"input": data}]
-        else:
-            return [{"input": data[i]} for i in range(data.shape[0])]
+        return [{"input": data[i]} for i in range(data.shape[0])]
 
-    elif data_path.endswith(".npz"):
+    if data_path.endswith(".npz"):
         data = np.load(data_path)
         if "inputs" in data:
             inputs_data = data["inputs"]
             return [{"input": inputs_data[i]} for i in range(inputs_data.shape[0])]
-        elif "X" in data:
-            X = data["X"]
-            return [{"input": X[i]} for i in range(X.shape[0])]
-        else:
-            key = list(data.keys())[0]
-            arr = data[key]
-            return [{"input": arr[i]} for i in range(arr.shape[0])]
+        if "X" in data:
+            x_data = data["X"]
+            return [{"input": x_data[i]} for i in range(x_data.shape[0])]
+        key = list(data.keys())[0]
+        arr = data[key]
+        return [{"input": arr[i]} for i in range(arr.shape[0])]
 
-    else:
-        raise ValueError(f"Unsupported file format: {data_path}")
+    raise ValueError(f"Unsupported file format: {data_path}")
 
 
 def compare_outputs(
@@ -335,7 +328,7 @@ def compare_outputs(
         return False, mismatches
 
     # Compare each output
-    for key in outputs1.keys():
+    for key in outputs1:
         out1 = outputs1[key]
         out2 = outputs2[key]
 
@@ -345,8 +338,8 @@ def compare_outputs(
                 {
                     "key": key,
                     "type": "shape_mismatch",
-                    "shape1": out1.shape,
-                    "shape2": out2.shape,
+                    "shape1": str(out1.shape),
+                    "shape2": str(out2.shape),
                     "message": f"Shape mismatch for '{key}': {out1.shape} vs {out2.shape}",
                 }
             )
@@ -359,9 +352,9 @@ def compare_outputs(
                 {
                     "key": key,
                     "type": "value_mismatch",
-                    "max_diff": float(max_diff),
-                    "rtol": rtol,
-                    "atol": atol,
+                    "max_diff": str(float(max_diff)),
+                    "rtol": str(rtol),
+                    "atol": str(atol),
                     "message": f"Values differ for '{key}': max_diff={max_diff:.2e}",
                 }
             )

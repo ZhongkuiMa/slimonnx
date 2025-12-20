@@ -5,11 +5,12 @@ __all__ = ["SlimONNX"]
 
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import onnx
 
-from .configs import AnalysisConfig, OptimizationConfig, ValidationConfig
-from .optimize_onnx import optimize_onnx
+from slimonnx.slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
+from slimonnx.slimonnx.optimize_onnx import optimize_onnx
 
 
 class SlimONNX:
@@ -97,9 +98,7 @@ class SlimONNX:
         # Validate outputs if requested
         validation_result = None
         if validation.validate_outputs:
-            validation_result = self.validate_outputs(
-                onnx_path, target_path, validation
-            )
+            validation_result = self.validate_outputs(onnx_path, target_path, validation)
 
             if not validation_result["all_match"]:
                 raise ValueError(
@@ -114,9 +113,7 @@ class SlimONNX:
             optimized_node_count = len(new_model.graph.node)
             reduction = original_node_count - optimized_node_count
             reduction_pct = (
-                (reduction / original_node_count * 100)
-                if original_node_count > 0
-                else 0
+                (reduction / original_node_count * 100) if original_node_count > 0 else 0
             )
 
             return {
@@ -166,7 +163,7 @@ class SlimONNX:
         original_ir = model.ir_version
 
         # Extract nodes (converts Constant nodes to initializers)
-        from . import utils
+        from slimonnx.slimonnx import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
@@ -196,27 +193,23 @@ class SlimONNX:
             shape_inference_success = False
 
         # Validate model
-        from .model_validate import validate_model
+        from slimonnx.slimonnx.model_validate import validate_model
 
         validation = validate_model(model, data_shapes=data_shapes)
 
         # Detect patterns
-        from .pattern_detect import detect_all_patterns
+        from slimonnx.slimonnx.pattern_detect import detect_all_patterns
 
         patterns = detect_all_patterns(nodes, initializers, data_shapes)
 
         # Analyze structure
-        from .structure_analysis import analyze_structure
+        from slimonnx.slimonnx.structure_analysis import analyze_structure
 
         structure = analyze_structure(model, data_shapes)
 
         # Calculate optimization recommendations
-        total_fusible = sum(
-            p["count"] for p in patterns.values() if p["category"] == "fusion"
-        )
-        total_redundant = sum(
-            p["count"] for p in patterns.values() if p["category"] == "redundant"
-        )
+        total_fusible = sum(p["count"] for p in patterns.values() if p["category"] == "fusion")
+        total_redundant = sum(p["count"] for p in patterns.values() if p["category"] == "redundant")
 
         # Build report structure
         report = {
@@ -238,20 +231,16 @@ class SlimONNX:
 
         # Export topology if requested
         if analysis.export_topology:
-            from .structure_analysis import export_topology_json
+            from slimonnx.slimonnx.structure_analysis import export_topology_json
 
-            topo_path = analysis.topology_path or onnx_path.replace(
-                ".onnx", "_topology.json"
-            )
+            topo_path = analysis.topology_path or onnx_path.replace(".onnx", "_topology.json")
             export_topology_json(nodes, topo_path, data_shapes)
 
         # Export full analysis if requested
         if analysis.export_json:
-            from .structure_analysis import generate_json_report
+            from slimonnx.slimonnx.structure_analysis import generate_json_report
 
-            json_path = analysis.json_path or onnx_path.replace(
-                ".onnx", "_analysis.json"
-            )
+            json_path = analysis.json_path or onnx_path.replace(".onnx", "_analysis.json")
             generate_json_report(report, json_path)
 
         return report
@@ -290,9 +279,7 @@ class SlimONNX:
         original_nodes = original_report["structure"]["node_count"]
         optimized_nodes = optimized_report["structure"]["node_count"]
         node_reduction = original_nodes - optimized_nodes
-        node_reduction_pct = (
-            (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
-        )
+        node_reduction_pct = (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
 
         # Build comparison structure
         return {
@@ -337,7 +324,7 @@ class SlimONNX:
         :param mark_slimonnx: Mark model as processed by SlimONNX (default: True)
         :return: Preprocessed model
         """
-        from .preprocess import load_and_preprocess
+        from slimonnx.slimonnx.preprocess import load_and_preprocess
 
         return load_and_preprocess(
             onnx_path,
@@ -378,7 +365,7 @@ class SlimONNX:
             mark_slimonnx=False,
         )
 
-        from . import utils
+        from slimonnx.slimonnx import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
@@ -405,7 +392,7 @@ class SlimONNX:
             print(f"Shape inference failed: {error}")
             data_shapes = None
 
-        from .model_validate import validate_model
+        from slimonnx.slimonnx.model_validate import validate_model
 
         return validate_model(model, data_shapes=data_shapes)
 
@@ -434,7 +421,7 @@ class SlimONNX:
             mark_slimonnx=False,
         )
 
-        from . import utils
+        from slimonnx.slimonnx import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
@@ -461,9 +448,9 @@ class SlimONNX:
             print(f"Shape inference failed: {error}")
             data_shapes = None
 
-        from .pattern_detect import detect_all_patterns
+        from slimonnx.slimonnx.pattern_detect import detect_all_patterns
 
-        return detect_all_patterns(nodes, initializers, data_shapes)
+        return cast(dict[Any, Any], detect_all_patterns(nodes, initializers, data_shapes))
 
     def validate_outputs(
         self,
@@ -480,14 +467,17 @@ class SlimONNX:
         """
         validation = validation or ValidationConfig()
 
-        from .model_validate import compare_model_outputs
+        from slimonnx.slimonnx.model_validate import compare_model_outputs
 
-        return compare_model_outputs(
-            original_path,
-            optimized_path,
-            input_bounds=validation.input_bounds,
-            test_data_path=validation.test_data_path,
-            num_samples=validation.num_samples,
-            rtol=validation.rtol,
-            atol=validation.atol,
+        return cast(
+            dict[Any, Any],
+            compare_model_outputs(
+                original_path,
+                optimized_path,
+                input_bounds=validation.input_bounds,
+                test_data_path=validation.test_data_path,
+                num_samples=validation.num_samples,
+                rtol=validation.rtol,
+                atol=validation.atol,
+            ),
         )

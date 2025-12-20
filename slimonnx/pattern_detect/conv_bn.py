@@ -169,10 +169,7 @@ def detect_convtranspose_bn(
         next_node = nodes[i + 1]
 
         # Check pattern: ConvTranspose followed by BatchNormalization
-        if (
-            curr_node.op_type != "ConvTranspose"
-            or next_node.op_type != "BatchNormalization"
-        ):
+        if curr_node.op_type != "ConvTranspose" or next_node.op_type != "BatchNormalization":
             continue
 
         # Check if they are consecutive with no branching
@@ -227,10 +224,7 @@ def detect_bn_convtranspose(
         next_node = nodes[i + 1]
 
         # Check pattern: BatchNormalization followed by ConvTranspose
-        if (
-            curr_node.op_type != "BatchNormalization"
-            or next_node.op_type != "ConvTranspose"
-        ):
+        if curr_node.op_type != "BatchNormalization" or next_node.op_type != "ConvTranspose":
             continue
 
         # Check if they are consecutive with no branching

@@ -3,7 +3,87 @@
 __docformat__ = "restructuredtext"
 __all__ = ["remove_dropout"]
 
-from onnx import ModelProto, NodeProto
+from onnx import ModelProto, NodeProto, ValueInfoProto
+
+
+def _build_dropout_mapping(nodes: list[NodeProto]) -> tuple[dict[str, str], list[NodeProto]]:
+    """Build mapping of dropout outputs to inputs and collect nodes to remove.
+
+    :param nodes: All model nodes
+    :return: Tuple of (dropout_output_to_input mapping, nodes_to_remove list)
+    """
+    dropout_output_to_input = {}
+    nodes_to_remove = []
+
+    for node in nodes:
+        if node.op_type == "Dropout" and len(node.input) > 0 and len(node.output) > 0:
+            dropout_input = node.input[0]
+            dropout_output = node.output[0]
+
+            dropout_output_to_input[dropout_output] = dropout_input
+            nodes_to_remove.append(node)
+
+    return dropout_output_to_input, nodes_to_remove
+
+
+def _update_node_inputs(
+    nodes: list[NodeProto],
+    nodes_to_remove: list[NodeProto],
+    dropout_mapping: dict[str, str],
+) -> list[NodeProto]:
+    """Update node inputs to bypass dropout nodes.
+
+    :param nodes: All model nodes
+    :param nodes_to_remove: Dropout nodes to remove
+    :param dropout_mapping: Mapping of dropout outputs to inputs
+    :return: New list of nodes with updated inputs
+    """
+    new_nodes = []
+    for node in nodes:
+        if node in nodes_to_remove:
+            continue
+
+        new_input = []
+        modified = False
+        for inp in node.input:
+            if inp in dropout_mapping:
+                new_input.append(dropout_mapping[inp])
+                modified = True
+            else:
+                new_input.append(inp)
+
+        if modified:
+            new_node = NodeProto()
+            new_node.CopyFrom(node)
+            new_node.ClearField("input")
+            new_node.input.extend(new_input)
+            new_nodes.append(new_node)
+        else:
+            new_nodes.append(node)
+
+    return new_nodes
+
+
+def _update_graph_outputs(
+    outputs: list[ValueInfoProto], dropout_mapping: dict[str, str]
+) -> list[ValueInfoProto]:
+    """Update graph outputs to bypass dropout nodes.
+
+    :param outputs: Original graph outputs
+    :param dropout_mapping: Mapping of dropout outputs to inputs
+    :return: New list of outputs with updated names
+    """
+    new_outputs = []
+    for output in outputs:
+        if output.name in dropout_mapping:
+            new_output = ValueInfoProto()
+            new_output.CopyFrom(output)
+            new_output.name = dropout_mapping[output.name]
+            new_outputs.append(new_output)
+        else:
+            new_outputs.append(output)
+
+    return new_outputs
 
 
 def remove_dropout(model: ModelProto) -> ModelProto:
@@ -27,64 +107,13 @@ def remove_dropout(model: ModelProto) -> ModelProto:
     graph = model.graph
     nodes = list(graph.node)
 
-    # Build mapping of Dropout outputs to their inputs
-    dropout_output_to_input = {}
-    nodes_to_remove = []
+    dropout_mapping, nodes_to_remove = _build_dropout_mapping(nodes)
 
-    for node in nodes:
-        if node.op_type == "Dropout":
-            # Dropout has 1 input and 1-2 outputs (data output + optional mask output)
-            if len(node.input) > 0 and len(node.output) > 0:
-                dropout_input = node.input[0]
-                dropout_output = node.output[0]
-
-                # Map dropout output to its input (bypass the dropout)
-                dropout_output_to_input[dropout_output] = dropout_input
-                nodes_to_remove.append(node)
-
-    # If no Dropout nodes found, return model as-is
     if not nodes_to_remove:
         return model
 
-    # Update all nodes that consume Dropout outputs
-    new_nodes = []
-    for node in nodes:
-        if node in nodes_to_remove:
-            continue
-
-        # Create new node with updated inputs
-        new_input = []
-        modified = False
-        for inp in node.input:
-            if inp in dropout_output_to_input:
-                new_input.append(dropout_output_to_input[inp])
-                modified = True
-            else:
-                new_input.append(inp)
-
-        if modified:
-            # Create new node with updated inputs
-            new_node = NodeProto()
-            new_node.CopyFrom(node)
-            new_node.ClearField("input")
-            new_node.input.extend(new_input)
-            new_nodes.append(new_node)
-        else:
-            new_nodes.append(node)
-
-    # Update graph outputs if they reference Dropout outputs
-    new_outputs = []
-    for output in graph.output:
-        if output.name in dropout_output_to_input:
-            # Create new output with updated name
-            from onnx import ValueInfoProto
-
-            new_output = ValueInfoProto()
-            new_output.CopyFrom(output)
-            new_output.name = dropout_output_to_input[output.name]
-            new_outputs.append(new_output)
-        else:
-            new_outputs.append(output)
+    new_nodes = _update_node_inputs(nodes, nodes_to_remove, dropout_mapping)
+    new_outputs = _update_graph_outputs(list(graph.output), dropout_mapping)
 
     # Rebuild graph
     graph.ClearField("node")

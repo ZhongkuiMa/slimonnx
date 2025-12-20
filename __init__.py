@@ -1,1 +1,1 @@
-from .slimonnx import *
+from slimonnx.slimonnx import *

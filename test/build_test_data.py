@@ -10,6 +10,7 @@ Optimizations:
 import csv
 import time
 from pathlib import Path
+from typing import Any, cast
 
 import numpy as np
 import onnx
@@ -29,7 +30,7 @@ def get_models_and_vnnlibs(benchmark_dir: Path, max_models: int = 20):
 
     model_to_vnnlib = {}
 
-    with open(instances_csv) as f:
+    with instances_csv.open() as f:
         reader = csv.reader(f)
         next(reader)  # Skip header
 
@@ -48,8 +49,87 @@ def get_models_and_vnnlibs(benchmark_dir: Path, max_models: int = 20):
                     break
 
     # Return as list of tuples
-    return [(benchmark_dir / onnx, benchmark_dir / vnnlib)
-            for onnx, vnnlib in model_to_vnnlib.items()]
+    return [
+        (benchmark_dir / onnx, benchmark_dir / vnnlib) for onnx, vnnlib in model_to_vnnlib.items()
+    ]
+
+
+def _get_model_input_info(onnx_path: Path) -> tuple[str, list[int]] | None:
+    """Get model input name and expected shape.
+
+    :param onnx_path: Path to ONNX model
+    :return: Tuple of (input_name, expected_shape) or None if invalid
+    """
+    model = onnx.load(str(onnx_path))
+    input_names = [
+        inp.name
+        for inp in model.graph.input
+        if not any(init.name == inp.name for init in model.graph.initializer)
+    ]
+
+    if not input_names:
+        return None
+
+    input_name = input_names[0]
+    input_tensor = next((inp for inp in model.graph.input if inp.name == input_name), None)
+
+    if not input_tensor:
+        return None
+
+    expected_shape = [
+        dim.dim_value if dim.dim_value > 0 else 1 for dim in input_tensor.type.tensor_type.shape.dim
+    ]
+
+    return input_name, expected_shape
+
+
+def _process_bounds(
+    npz_files: list[Path],
+    session: ort.InferenceSession,
+    input_name: str,
+    expected_shape: list[int],
+) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
+    """Process VNNLib bounds and generate inputs/outputs.
+
+    :param npz_files: List of npz files to process
+    :param session: ONNX Runtime session
+    :param input_name: Model input name
+    :param expected_shape: Expected input shape
+    :return: Tuple of (lower_inputs, lower_outputs, upper_inputs, upper_outputs)
+    """
+    lower_inputs = []
+    lower_outputs = []
+    upper_inputs = []
+    upper_outputs = []
+
+    for npz_file in npz_files[:2]:  # Limit to 2 sub-properties
+        data = np.load(npz_file)
+        if "input" not in data:
+            continue
+
+        input_bounds = data["input"]
+        if input_bounds.ndim != 2 or input_bounds.shape[1] != 2:
+            continue
+
+        # Lower bounds
+        try:
+            input_array = input_bounds[:, 0].astype(np.float32).reshape(expected_shape)
+            output = session.run(None, {input_name: input_array})
+            lower_inputs.append(input_array)
+            lower_outputs.append(output[0])
+        except (ValueError, RuntimeError, KeyError):
+            pass
+
+        # Upper bounds
+        try:
+            input_array = input_bounds[:, 1].astype(np.float32).reshape(expected_shape)
+            output = session.run(None, {input_name: input_array})
+            upper_inputs.append(input_array)
+            upper_outputs.append(output[0])
+        except (ValueError, RuntimeError, KeyError):
+            pass
+
+    return lower_inputs, lower_outputs, upper_inputs, upper_outputs
 
 
 def generate_data_from_vnnlib(
@@ -66,93 +146,39 @@ def generate_data_from_vnnlib(
     """
     try:
         # Load model and get input info
-        model = onnx.load(str(onnx_path))
-        input_names = [
-            inp.name for inp in model.graph.input
-            if not any(init.name == inp.name for init in model.graph.initializer)
-        ]
-
-        if not input_names:
+        input_info = _get_model_input_info(onnx_path)
+        if not input_info:
             return False
 
-        input_name = input_names[0]
-        input_tensor = next(
-            (inp for inp in model.graph.input if inp.name == input_name), None
-        )
-
-        if not input_tensor:
-            return False
-
-        # Get expected shape
-        expected_shape = [
-            dim.dim_value if dim.dim_value > 0 else 1
-            for dim in input_tensor.type.tensor_type.shape.dim
-        ]
+        input_name, expected_shape = input_info
 
         # Convert VNNLib to numpy using torchvnnlib
+        import tempfile
+
         from torchvnnlib import TorchVNNLIB
 
-        # Create temporary directory for conversion
-        import tempfile
         with tempfile.TemporaryDirectory() as tmpdir:
-            converter = TorchVNNLIB(
-                verbose=False,
-                detect_fast_type=True,
-                output_format="numpy"
-            )
+            converter = TorchVNNLIB(verbose=False, detect_fast_type=True, output_format="numpy")
             converter.convert(str(vnnlib_path), tmpdir)
 
-            # Find converted .npz files
             npz_files = list(Path(tmpdir).rglob("*.npz"))
-
             if not npz_files:
                 return False
 
             # Create ONNX Runtime session
-            session = ort.InferenceSession(
-                str(onnx_path),
-                providers=["CPUExecutionProvider"]
+            session = ort.InferenceSession(str(onnx_path), providers=["CPUExecutionProvider"])
+
+            # Process VNNLib bounds
+            lower_inputs, lower_outputs, upper_inputs, upper_outputs = _process_bounds(
+                npz_files, session, input_name, expected_shape
             )
-
-            # Process VNNLib bounds (take first 2 sub-properties max)
-            lower_inputs = []
-            lower_outputs = []
-            upper_inputs = []
-            upper_outputs = []
-
-            for npz_file in npz_files[:2]:  # Limit to 2 sub-properties
-                data = np.load(npz_file)
-                if "input" not in data:
-                    continue
-
-                input_bounds = data["input"]
-                if input_bounds.ndim != 2 or input_bounds.shape[1] != 2:
-                    continue
-
-                # Lower bounds
-                try:
-                    input_array = input_bounds[:, 0].astype(np.float32).reshape(expected_shape)
-                    output = session.run(None, {input_name: input_array})
-                    lower_inputs.append(input_array)
-                    lower_outputs.append(output[0])
-                except Exception:
-                    pass
-
-                # Upper bounds
-                try:
-                    input_array = input_bounds[:, 1].astype(np.float32).reshape(expected_shape)
-                    output = session.run(None, {input_name: input_array})
-                    upper_inputs.append(input_array)
-                    upper_outputs.append(output[0])
-                except Exception:
-                    pass
 
             if not lower_inputs and not upper_inputs:
                 return False
 
             # Save results
             vnnlib_name = vnnlib_path.stem
-            results = {vnnlib_name: {}}
+            results: dict[str, dict[str, dict[str, list]]] = {vnnlib_name: {}}
 
             if lower_inputs:
                 results[vnnlib_name]["lower"] = {
@@ -166,13 +192,12 @@ def generate_data_from_vnnlib(
                     "outputs": upper_outputs,
                 }
 
-            # Save to output directory
             output_file = output_dir / f"{onnx_path.stem}.npz"
-            np.savez_compressed(output_file, **results)
+            np.savez_compressed(output_file, **cast(dict[str, Any], results))
 
             return True
 
-    except Exception as e:
+    except (OSError, ValueError, RuntimeError, AttributeError, KeyError) as e:
         print(f"  Error processing {onnx_path.name}: {e}")
         return False
 
@@ -199,14 +224,13 @@ def build_test_data(
     data_path.mkdir(exist_ok=True)
 
     # Get all benchmark directories
-    benchmark_dirs = sorted([
-        d for d in benchmarks_path.iterdir()
-        if d.is_dir() and not d.name.startswith(".")
-    ])
+    benchmark_dirs = sorted(
+        [d for d in benchmarks_path.iterdir() if d.is_dir() and not d.name.startswith(".")]
+    )
 
     print(f"Building test data from {len(benchmark_dirs)} benchmarks")
     print(f"Max {max_per_benchmark} models per benchmark")
-    print(f"Using FIRST vnnlib per model only")
+    print("Using FIRST vnnlib per model only")
     print("=" * 70)
 
     total_models = 0

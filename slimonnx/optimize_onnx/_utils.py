@@ -12,21 +12,13 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from ._onnx_attrs import get_onnx_attrs
+from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 
 
-def _is_only_next_node(
-    pre_node: NodeProto, cur_node: NodeProto, nodes: list[NodeProto]
-) -> bool:
-    """
-    Check the pre_node and node are in a single path. Because if there are multiple
-    paths, we cannot fuse the nodes to avoid changing the computation graph.
-    """
+def _is_only_next_node(pre_node: NodeProto, cur_node: NodeProto, nodes: list[NodeProto]) -> bool:
+    """Check the pre_node and node are in a single path. Because if there are multiple paths, we cannot fuse the nodes to avoid changing the computation graph."""
     pre_node_name = pre_node.output[0]
-    for node in nodes:
-        if pre_node_name in node.input and node != cur_node:
-            return False
-    return True
+    return all(not (pre_node_name in node.input and node != cur_node) for node in nodes)
 
 
 def _get_batchnorm_params(
@@ -34,9 +26,7 @@ def _get_batchnorm_params(
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
 ) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """
-    Get the parameters of a BatchNormalization node.
-    """
+    """Get the parameters of a BatchNormalization node."""
     attrs = get_onnx_attrs(node, initializers)
     epsilon = attrs["epsilon"]
     scale = onnx.numpy_helper.to_array(initializers[node.input[1]])
@@ -57,21 +47,19 @@ def _get_gemm_params(
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
 ) -> tuple[float, float, int, int, np.ndarray, np.ndarray]:
-    """
-    Get the parameters of a Gemm node.
-    """
+    """Get the parameters of a Gemm node."""
     attrs = get_onnx_attrs(node, initializers)
     alpha = attrs["alpha"]
     beta = attrs["beta"]
-    transA = attrs["transA"]
-    transB = attrs["transB"]
+    trans_a = attrs["transA"]
+    trans_b = attrs["transB"]
     weight = onnx.numpy_helper.to_array(initializers[node.input[1]])
     bias = onnx.numpy_helper.to_array(initializers[node.input[2]])
     if remove_initializers:
         del initializers[node.input[1]]
         del initializers[node.input[2]]
 
-    return alpha, beta, transA, transB, weight, bias
+    return alpha, beta, trans_a, trans_b, weight, bias
 
 
 def _get_conv_params(
@@ -79,17 +67,13 @@ def _get_conv_params(
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
 ):
-    """
-    Get the parameters of a Conv or ConvTranspose node.
-    """
+    """Get the parameters of a Conv or ConvTranspose node."""
     attrs = get_onnx_attrs(node, initializers)
     kernel_size = attrs["kernel_shape"]
     group = attrs["group"]
 
     if len(kernel_size) != 2:
-        raise NotImplementedError(
-            f"Unsupported kernel_size={kernel_size} for Conv/ConvTranspose."
-        )
+        raise NotImplementedError(f"Unsupported kernel_size={kernel_size} for Conv/ConvTranspose.")
     if group != 1:
         raise NotImplementedError(f"Unsupported group={group} for Conv.")
 
@@ -112,17 +96,13 @@ def _get_convtranspose_params(
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
 ):
-    """
-    Get the parameters of a ConvTranspose node.
-    """
+    """Get the parameters of a ConvTranspose node."""
     attrs = get_onnx_attrs(node, initializers)
     kernel_size = attrs["kernel_shape"]
     group = attrs["group"]
 
     if len(kernel_size) != 2:
-        raise NotImplementedError(
-            f"Unsupported kernel_size={kernel_size} for Conv/ConvTranspose."
-        )
+        raise NotImplementedError(f"Unsupported kernel_size={kernel_size} for Conv/ConvTranspose.")
     if group != 1:
         raise NotImplementedError(f"Unsupported group={group} for ConvTranspose.")
 
@@ -146,7 +126,7 @@ def compute_batchnorm_fusion_params(
     bias: np.ndarray,
     mean: np.ndarray,
     var: np.ndarray,
-    target_dtype: np.dtype = np.float32,
+    target_dtype: np.dtype | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
     """Compute fused BatchNorm weight and bias for fusion operations.
 
@@ -160,6 +140,10 @@ def compute_batchnorm_fusion_params(
     :param target_dtype: Target dtype to preserve precision (default: float32)
     :return: Tuple of (bn_weight, bn_bias) for fusion
     """
+    # Use default dtype if not specified
+    if target_dtype is None:
+        target_dtype = np.dtype(np.float32)
+
     # Cast all inputs to target dtype to avoid float32/float64 mismatch
     scale = scale.astype(target_dtype, copy=False)
     bias = bias.astype(target_dtype, copy=False)

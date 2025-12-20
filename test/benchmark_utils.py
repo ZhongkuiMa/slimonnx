@@ -31,7 +31,7 @@ def read_instances_csv(benchmark_path: Path) -> list[tuple[str, str, str]]:
 
     instances = []
     try:
-        with open(instances_csv) as f:
+        with instances_csv.open() as f:
             for line in f.readlines()[1:]:
                 line = line.strip()
                 if not line:
@@ -42,7 +42,7 @@ def read_instances_csv(benchmark_path: Path) -> list[tuple[str, str, str]]:
                     vnnlib_path = parts[1].strip()
                     timeout = parts[2].strip() if len(parts) >= 3 else "300"
                     instances.append((model_path, vnnlib_path, timeout))
-    except (IOError, OSError):
+    except OSError:
         return []
 
     return instances
@@ -58,13 +58,11 @@ def find_benchmarks(base_dir: str) -> list[Path]:
     if not base_path.exists():
         return []
 
-    benchmarks = []
-    for entry in sorted(base_path.iterdir()):
-        if entry.is_dir() and not entry.name.startswith("."):
-            if (entry / "instances.csv").exists():
-                benchmarks.append(entry)
-
-    return benchmarks
+    return [
+        entry
+        for entry in sorted(base_path.iterdir())
+        if entry.is_dir() and not entry.name.startswith(".") and (entry / "instances.csv").exists()
+    ]
 
 
 def find_models(benchmarks: list[Path], max_per_benchmark: int = 20) -> list[Path]:
@@ -223,9 +221,7 @@ def find_benchmark_folders(base_dir: str) -> list[str]:
     return [str(b) for b in find_benchmarks(base_dir)]
 
 
-def find_onnx_files_from_instances(
-    benchmark_dirs: list[str], num_limit: int = 20
-) -> list[str]:
+def find_onnx_files_from_instances(benchmark_dirs: list[str], num_limit: int = 20) -> list[str]:
     """Find ONNX files from instances.csv (backward compatibility alias).
 
     :param benchmark_dirs: List of benchmark directory paths as strings

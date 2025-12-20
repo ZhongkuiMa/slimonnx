@@ -26,13 +26,14 @@ from slimonnx.test.benchmark_utils import (
 from slimonnx.test.utils import load_onnx_model, load_test_inputs
 
 # Known failing models due to SlimONNX optimizer bugs
-KNOWN_FAILURES = {
-}
+KNOWN_FAILURES: dict[str, str] = {}
 
 
 def get_benchmark_models():
     """Collect all models from vnncomp2024 benchmarks."""
-    benchmarks = find_benchmarks("vnncomp2024_benchmarks")
+    test_dir = Path(__file__).parent
+    benchmarks_dir = test_dir / "vnncomp2024_benchmarks"
+    benchmarks = find_benchmarks(str(benchmarks_dir))
     models = find_models(benchmarks, max_per_benchmark=20)
     return [str(m) for m in models]
 
@@ -40,10 +41,7 @@ def get_benchmark_models():
 def is_known_failure(model_path):
     """Check if model is a known failure."""
     model_name = Path(model_path).stem
-    for failures in KNOWN_FAILURES.values():
-        if model_name in failures:
-            return True
-    return False
+    return any(model_name in failures for failures in KNOWN_FAILURES.values())
 
 
 def run_onnx_model(model_path: str, inputs: np.ndarray) -> dict:
@@ -57,7 +55,7 @@ def run_onnx_model(model_path: str, inputs: np.ndarray) -> dict:
     input_name = session.get_inputs()[0].name
     outputs = session.run(None, {input_name: inputs})
     output_names = [out.name for out in session.get_outputs()]
-    return {name: output for name, output in zip(output_names, outputs)}
+    return dict(zip(output_names, outputs, strict=False))
 
 
 def compare_outputs(
@@ -74,7 +72,7 @@ def compare_outputs(
     max_diff = 0.0
     all_diffs = []
 
-    for key1, key2 in zip(outputs1.keys(), outputs2.keys()):
+    for key1, key2 in zip(outputs1.keys(), outputs2.keys(), strict=False):
         out1 = outputs1[key1]
         out2 = outputs2[key2]
 
@@ -105,7 +103,8 @@ def optimize_model_with_slimonnx(model_path: str) -> tuple[str, dict]:
     original_node_count = len(model.graph.node)
 
     # Save to results directory
-    output_path = Path("results") / benchmark_name / model_name
+    test_dir = Path(__file__).parent
+    output_path = test_dir / "results" / benchmark_name / model_name
     output_path.parent.mkdir(parents=True, exist_ok=True)
 
     # Create temporary file for optimization
@@ -122,9 +121,7 @@ def optimize_model_with_slimonnx(model_path: str) -> tuple[str, dict]:
         optimized_node_count = len(optimized_model.graph.node)
 
         reduction = original_node_count - optimized_node_count
-        reduction_pct = (
-            (reduction / original_node_count * 100) if original_node_count > 0 else 0.0
-        )
+        reduction_pct = (reduction / original_node_count * 100) if original_node_count > 0 else 0.0
 
         stats = {
             "benchmark": benchmark_name,
@@ -151,11 +148,8 @@ def save_baseline(model_path: str, stats: dict, max_diff: float, mean_diff: floa
     :param max_diff: Maximum difference between original and optimized outputs
     :param mean_diff: Mean difference between original and optimized outputs
     """
-    baseline_path = (
-        Path("baselines")
-        / stats["benchmark"]
-        / f"{Path(model_path).stem}.json"
-    )
+    test_dir = Path(__file__).parent
+    baseline_path = test_dir / "baselines" / stats["benchmark"] / f"{Path(model_path).stem}.json"
     baseline_path.parent.mkdir(parents=True, exist_ok=True)
 
     baseline_data = {
@@ -173,7 +167,7 @@ def save_baseline(model_path: str, stats: dict, max_diff: float, mean_diff: floa
         },
     }
 
-    with open(baseline_path, "w") as f:
+    with Path(baseline_path).open("w") as f:
         json.dump(baseline_data, f, indent=2)
 
 

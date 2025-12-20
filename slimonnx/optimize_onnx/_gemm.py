@@ -6,8 +6,8 @@ __all__ = ["_simplify_gemm"]
 import onnx.numpy_helper
 from onnx import NodeProto, TensorProto
 
-from ._constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
-from ._onnx_attrs import get_onnx_attrs
+from slimonnx.slimonnx.optimize_onnx._constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
+from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 
 
 def _normalize_gemm_matrix_input(
@@ -104,9 +104,7 @@ def _swap_gemm_inputs_if_needed(
         weight_tensor = initializers[weight_name]
         weight_array = onnx.numpy_helper.to_array(weight_tensor)
         weight_array = weight_array.copy().T
-        initializers[weight_name] = onnx.numpy_helper.from_array(
-            weight_array, weight_name
-        )
+        initializers[weight_name] = onnx.numpy_helper.from_array(weight_array, weight_name)
 
     return var_name, weight_name
 

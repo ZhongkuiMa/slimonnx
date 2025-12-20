@@ -10,7 +10,7 @@ __all__ = ["detect_benchmark_optimizations", "generate_preset_config"]
 from collections import defaultdict
 from pathlib import Path
 
-from slimonnx import SlimONNX, OptimizationConfig
+from slimonnx import OptimizationConfig, SlimONNX
 from slimonnx.test.benchmark_utils import find_onnx_files_from_instances
 from slimonnx.test.utils import if_has_batch_dim
 
@@ -35,7 +35,7 @@ def detect_benchmark_optimizations(benchmark_dir: str, max_models: int = 5) -> d
     print("=" * 70)
 
     slimonnx = SlimONNX()
-    pattern_totals = defaultdict(int)
+    pattern_totals: defaultdict[str, int] = defaultdict(int)
     has_batch_dim_count = 0
 
     for i, onnx_path in enumerate(onnx_files, 1):
@@ -94,42 +94,23 @@ def generate_preset_config(detection_result: dict) -> str:
     :return: Python code string for OptimizationConfig
     """
     patterns = detection_result["patterns"]
-    has_batch_dim = detection_result["has_batch_dim"]
 
-    optimizations = []
+    # Pattern to optimization flag mapping
+    pattern_to_flag = {
+        "matmul_add": "fuse_matmul_add=True",
+        "conv_bn": "fuse_conv_bn=True",
+        "bn_conv": "fuse_bn_conv=True",
+        "convtransposed_bn": "fuse_convtransposed_bn=True",
+        "bn_convtransposed": "fuse_bn_convtransposed=True",
+        "gemm_reshape_bn": "fuse_gemm_reshape_bn=True",
+        "bn_reshape_gemm": "fuse_bn_reshape_gemm=True",
+        "bn_gemm": "fuse_bn_gemm=True",
+        "transpose_bn_transpose": "fuse_transpose_bn_transpose=True",
+        "gemm_gemm": "fuse_gemm_gemm=True",
+        "conv_to_flatten_gemm": "simplify_conv_to_flatten_gemm=True",
+    }
 
-    if "matmul_add" in patterns:
-        optimizations.append("fuse_matmul_add=True")
-
-    if "conv_bn" in patterns:
-        optimizations.append("fuse_conv_bn=True")
-
-    if "bn_conv" in patterns:
-        optimizations.append("fuse_bn_conv=True")
-
-    if "convtransposed_bn" in patterns:
-        optimizations.append("fuse_convtransposed_bn=True")
-
-    if "bn_convtransposed" in patterns:
-        optimizations.append("fuse_bn_convtransposed=True")
-
-    if "gemm_reshape_bn" in patterns:
-        optimizations.append("fuse_gemm_reshape_bn=True")
-
-    if "bn_reshape_gemm" in patterns:
-        optimizations.append("fuse_bn_reshape_gemm=True")
-
-    if "bn_gemm" in patterns:
-        optimizations.append("fuse_bn_gemm=True")
-
-    if "transpose_bn_transpose" in patterns:
-        optimizations.append("fuse_transpose_bn_transpose=True")
-
-    if "gemm_gemm" in patterns:
-        optimizations.append("fuse_gemm_gemm=True")
-
-    if "conv_to_flatten_gemm" in patterns:
-        optimizations.append("simplify_conv_to_flatten_gemm=True")
+    optimizations = [flag for pattern, flag in pattern_to_flag.items() if pattern in patterns]
 
     if any("redundant" in p for p in patterns):
         optimizations.append("remove_redundant_operations=True")
@@ -137,8 +118,7 @@ def generate_preset_config(detection_result: dict) -> str:
     optimizations.append("constant_folding=True")
 
     config_lines = ["OptimizationConfig("]
-    for opt in optimizations:
-        config_lines.append(f"    {opt},")
+    config_lines.extend(f"    {opt}," for opt in optimizations)
     config_lines.append(")")
 
     return "\n".join(config_lines)
@@ -149,7 +129,9 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         print("Usage: python detect_optimizations.py <benchmark_dir>")
-        print("Example: python detect_optimizations.py ../../tests/vnncomp2024/benchmarks/ml4acopf_2023")
+        print(
+            "Example: python detect_optimizations.py ../../tests/vnncomp2024/benchmarks/ml4acopf_2023"
+        )
         sys.exit(1)
 
     benchmark_dir = sys.argv[1]
@@ -158,4 +140,4 @@ if __name__ == "__main__":
     print("\n" + "=" * 70)
     print("RECOMMENDED PRESET CONFIGURATION")
     print("=" * 70)
-    print(f"\"{result['benchmark_name']}\": {generate_preset_config(result)}")
+    print(f'"{result["benchmark_name"]}": {generate_preset_config(result)}')

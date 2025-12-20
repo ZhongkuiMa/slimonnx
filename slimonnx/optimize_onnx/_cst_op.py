@@ -1,252 +1,411 @@
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_constant_nodes"]
 
+from typing import cast
+
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from ._constants import ONNX_DTYPE_TO_NUMPY
-from ._onnx_attrs import get_onnx_attrs
+from slimonnx.slimonnx.optimize_onnx._constants import ONNX_DTYPE_TO_NUMPY
+from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
+
+
+def _execute_gather_slice_unsqueeze(
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
+    shapes: dict[str, int | list[int]],
+    nodes_dict: dict[str, NodeProto],
+) -> np.ndarray:
+    """Execute Gather, Slice, or Unsqueeze operation.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :param shapes: Dictionary of tensor shapes
+    :param nodes_dict: Dictionary mapping output names to nodes
+    :return: Computed value
+    """
+    op_type = node.op_type
+    pre_node_type = nodes_dict[node.input[0]].op_type
+
+    if pre_node_type == "Shape":
+        output_shape = shapes[node.output[0]]
+        # Convert int to list if needed
+        if isinstance(output_shape, int):
+            output_shape = [output_shape]
+        return np.array(output_shape, dtype=np.int64)
+
+    tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+
+    if op_type == "Gather":
+        axis = get_onnx_attrs(node, initializers)["axis"]
+        indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
+        return np.take(tensor, indices, axis=axis)
+
+    if op_type == "Slice":
+        starts = onnx.numpy_helper.to_array(initializers[node.input[1]])
+        ends = onnx.numpy_helper.to_array(initializers[node.input[2]])
+        axes_tensor = initializers.get(node.input[3]) if len(node.input) > 3 else None
+        axes = (
+            onnx.numpy_helper.to_array(axes_tensor)
+            if axes_tensor is not None
+            else np.arange(len(starts))
+        )
+        steps_tensor = initializers.get(node.input[4]) if len(node.input) > 4 else None
+        steps = (
+            onnx.numpy_helper.to_array(steps_tensor)
+            if steps_tensor is not None
+            else np.ones_like(starts)
+        )
+        slices = [slice(None)] * len(tensor.shape)
+        for i, axis in enumerate(axes):
+            slices[axis] = slice(starts[i], ends[i], steps[i])
+        return tensor[tuple(slices)]
+
+    # Unsqueeze
+    axes_array = onnx.numpy_helper.to_array(initializers[node.input[1]])
+    return np.expand_dims(tensor, axis=tuple(axes_array))
+
+
+def _execute_range(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
+    """Execute Range operation.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :return: Computed value or None if inputs not available
+    """
+    if (
+        node.input[0] not in initializers
+        or node.input[1] not in initializers
+        or node.input[2] not in initializers
+    ):
+        return None
+
+    start_array = onnx.numpy_helper.to_array(initializers[node.input[0]])
+    limit_array = onnx.numpy_helper.to_array(initializers[node.input[1]])
+    delta_array = onnx.numpy_helper.to_array(initializers[node.input[2]])
+
+    start = start_array.item() if start_array.ndim == 0 or start_array.size == 1 else None
+    limit = limit_array.item() if limit_array.ndim == 0 or limit_array.size == 1 else None
+    delta = delta_array.item() if delta_array.ndim == 0 or delta_array.size == 1 else None
+
+    if not (start is not None and limit is not None and delta is not None):
+        return None
+
+    return np.arange(start, limit, delta)
+
+
+def _execute_reduce_sum(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray:
+    """Execute ReduceSum operation.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :return: Computed value
+    """
+    tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+    attrs = get_onnx_attrs(node, initializers)
+
+    if len(node.input) > 1:
+        axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
+        keepdims = attrs["keepdims"]
+        return cast(np.ndarray, np.sum(tensor, axis=tuple(axes), keepdims=keepdims))
+
+    if attrs["noop_with_empty_axes"]:
+        return tensor
+
+    axes_list = np.arange(len(tensor.shape))
+    keepdims = attrs["keepdims"]
+    return cast(np.ndarray, np.sum(tensor, axis=tuple(axes_list), keepdims=keepdims))
+
+
+def _execute_concat(
+    node: NodeProto, initializers: dict[str, TensorProto], shapes: dict[str, int | list[int]]
+) -> np.ndarray:
+    """Execute Concat operation.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :param shapes: Dictionary of tensor shapes
+    :return: Computed value
+    """
+    is_concat_shape = all(input_name in initializers for input_name in node.input)
+
+    if is_concat_shape:
+        output_shape = shapes[node.output[0]]
+        # Convert int to list if needed
+        if isinstance(output_shape, int):
+            output_shape = [output_shape]
+        return np.array(output_shape, dtype=np.int64)
+
+    tensor_list = [onnx.numpy_helper.to_array(initializers[name]) for name in node.input]
+    axis = get_onnx_attrs(node, initializers)["axis"]
+    return np.concatenate(tensor_list, axis=axis)
+
+
+def _execute_binary_arithmetic(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray:
+    """Execute binary arithmetic operations.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :return: Computed value
+    """
+    tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
+    tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
+    op_type = node.op_type
+
+    if op_type == "Add":
+        return cast(np.ndarray, tensor1 + tensor2)
+    if op_type == "Sub":
+        return cast(np.ndarray, tensor1 - tensor2)
+    if op_type == "Mul":
+        return cast(np.ndarray, tensor1 * tensor2)
+    if op_type == "Div":
+        if np.issubdtype(tensor1.dtype, np.integer) and np.issubdtype(tensor2.dtype, np.integer):
+            return cast(np.ndarray, tensor1 // tensor2)
+        return cast(np.ndarray, tensor1 / tensor2)
+    if op_type == "MatMul":
+        return cast(np.ndarray, np.matmul(tensor1, tensor2))
+    # Pow
+    return cast(np.ndarray, np.power(tensor1, tensor2))
+
+
+def _can_fold_node(
+    node: NodeProto, initializers: dict[str, TensorProto], nodes_to_delete: list[str]
+) -> bool:
+    """Check if all node inputs are available for constant folding.
+
+    :param node: Node to check
+    :param initializers: Dictionary of initializers
+    :param nodes_to_delete: List of nodes marked for deletion
+    :return: True if node can be folded
+    """
+    return all(
+        input_name in initializers or input_name in nodes_to_delete for input_name in node.input
+    )
+
+
+def _execute_shape_manipulation_ops(
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
+    shapes: dict[str, int | list[int]],
+    nodes_dict: dict[str, NodeProto],
+) -> np.ndarray | None:
+    """Execute shape manipulation operations.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :param shapes: Dictionary of tensor shapes
+    :param nodes_dict: Dictionary mapping output names to nodes
+    :return: Computed value or None if not a shape manipulation op
+    """
+    op_type = node.op_type
+
+    if op_type in {"Gather", "Slice", "Unsqueeze"}:
+        return _execute_gather_slice_unsqueeze(node, initializers, shapes, nodes_dict)
+
+    if op_type == "Reshape":
+        data = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        shape = onnx.numpy_helper.to_array(initializers[node.input[1]])
+        return data.reshape(shape)
+
+    return None
+
+
+def _execute_generation_ops(
+    node: NodeProto, initializers: dict[str, TensorProto]
+) -> np.ndarray | None:
+    """Execute generation operations.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :return: Computed value or None if not a generation op
+    """
+    op_type = node.op_type
+
+    if op_type == "Range":
+        return _execute_range(node, initializers)
+
+    if op_type == "ConstantOfShape":
+        shape_tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        shape = shape_tensor.tolist() if shape_tensor.ndim > 0 else [int(shape_tensor)]
+        value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
+        return np.full(shape, value, dtype=value.dtype)
+
+    return None
+
+
+def _execute_aggregation_ops(
+    node: NodeProto, initializers: dict[str, TensorProto], shapes: dict[str, int | list[int]]
+) -> np.ndarray | None:
+    """Execute aggregation operations.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :param shapes: Dictionary of tensor shapes
+    :return: Computed value or None if not an aggregation op
+    """
+    op_type = node.op_type
+
+    if op_type == "ReduceSum":
+        return _execute_reduce_sum(node, initializers)
+
+    if op_type == "Concat":
+        return _execute_concat(node, initializers, shapes)
+
+    return None
+
+
+def _execute_elementwise_ops(
+    node: NodeProto, initializers: dict[str, TensorProto]
+) -> np.ndarray | None:
+    """Execute element-wise operations.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :return: Computed value or None if not an element-wise op
+    """
+    op_type = node.op_type
+
+    if op_type in {"Relu", "Neg"}:
+        tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        return np.maximum(tensor, 0) if op_type == "Relu" else -tensor
+
+    if op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Pow"}:
+        return _execute_binary_arithmetic(node, initializers)
+
+    return None
+
+
+def _execute_type_and_logic_ops(
+    node: NodeProto, initializers: dict[str, TensorProto], shapes: dict[str, int | list[int]]
+) -> np.ndarray | None:
+    """Execute type conversion and logic operations.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :param shapes: Dictionary of tensor shapes
+    :return: Computed value or None if not a type/logic op
+    """
+    op_type = node.op_type
+
+    if op_type == "Cast":
+        target_dtype = get_onnx_attrs(node, initializers)["to"]
+        value = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        if target_dtype not in ONNX_DTYPE_TO_NUMPY:
+            raise ValueError(f"Unsupported Cast dtype: {target_dtype}")
+        return value.astype(ONNX_DTYPE_TO_NUMPY[target_dtype])
+
+    if op_type == "Equal":
+        tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
+        return np.equal(tensor1, tensor2)
+
+    if op_type == "Where":
+        condition = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        operand_x = onnx.numpy_helper.to_array(initializers[node.input[1]])
+        operand_y = onnx.numpy_helper.to_array(initializers[node.input[2]])
+        return np.where(condition, operand_x, operand_y)
+
+    if op_type == "Expand":
+        ipt = onnx.numpy_helper.to_array(initializers[node.input[0]])
+        shape = shapes[node.output[0]]
+        # Convert int to list/tuple if needed
+        if isinstance(shape, int):
+            shape = [shape]
+        return np.broadcast_to(ipt, shape)
+
+    return None
+
+
+def _execute_constant_operation(
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
+    shapes: dict[str, int | list[int]],
+    nodes_dict: dict[str, NodeProto],
+) -> np.ndarray | None:
+    """Execute a constant operation and return the result.
+
+    :param node: Node to execute
+    :param initializers: Dictionary of initializers
+    :param shapes: Dictionary of tensor shapes
+    :param nodes_dict: Dictionary mapping output names to nodes
+    :return: Computed value or None if cannot execute
+    """
+    result = _execute_shape_manipulation_ops(node, initializers, shapes, nodes_dict)
+    if result is not None:
+        return result
+
+    result = _execute_generation_ops(node, initializers)
+    if result is not None:
+        return result
+
+    result = _execute_aggregation_ops(node, initializers, shapes)
+    if result is not None:
+        return result
+
+    result = _execute_elementwise_ops(node, initializers)
+    if result is not None:
+        return result
+
+    result = _execute_type_and_logic_ops(node, initializers, shapes)
+    if result is not None:
+        return result
+
+    raise NotImplementedError(f"Not supported node type: {node.op_type}.")
 
 
 def _fuse_constant_nodes(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    shapes: dict[str, list[int]],
+    shapes: dict[str, int | list[int]],
 ) -> tuple[list[NodeProto], dict[str, TensorProto]]:
-    """
-    Trace the shape node and make it as a direct constant.
-    """
+    """Trace the shape node and make it as a direct constant.
 
-    """
     Currently, there are the following cases:
-    (1) We extract the shape to construct a constant tensor. We can make such 
+    (1) We extract the shape to construct a constant tensor. We can make such
         constant tensor as a frozen initializer.
     (2) We extract the shape to reshape a tensor. We can make such shape as a frozen
         initializer.
     """
-
     nodes_dict = {node.output[0]: node for node in nodes}
+    nodes_to_delete: list[str] = []
 
-    nodes_to_delete = []
-    # Iterate over value_info to check tensor names and their shapes
     for node in nodes:
         op_type = node.op_type
+        value: np.ndarray | None = None
 
         if op_type == "Shape":
-
             value = np.array(shapes[node.output[0]], dtype=np.int64)
             if len(value) == 1 and value[0] == 0:
-                # This is a dynamic shape, we do not need to convert it to a constant.
-
                 continue
 
             initializer = onnx.numpy_helper.from_array(value, node.output[0])
             initializers[node.output[0]] = initializer
             nodes_to_delete.append(node.output[0])
-
             continue
 
-        if any(
-            input_name not in initializers and input_name not in nodes_to_delete
-            for input_name in node.input
-        ):
-            # If any input is not an initializer and not a node to delete,
-            # we cannot convert the node to an initializer.
+        if not _can_fold_node(node, initializers, nodes_to_delete):
             continue
 
-        """
-        NOTE: The key ideas are
-        (1) Make all constants be initializers.
-        (2) If all inputs are initializers: 
-            (a) make itself an initializer;
-            (b) delete the input initializers.
-        """
+        try:
+            value = _execute_constant_operation(node, initializers, shapes, nodes_dict)
+        except (NotImplementedError, KeyError):
+            continue
 
-        if op_type in {"Gather", "Slice", "Unsqueeze"}:
-
-            pre_node_type = nodes_dict[node.input[0]].op_type
-            if pre_node_type == "Shape":
-                value = np.array(shapes[node.output[0]], dtype=np.int64)
-            else:
-                tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
-                if op_type == "Gather":
-                    axis = get_onnx_attrs(node, initializers)["axis"]
-                    indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
-                    value = np.take(tensor, indices, axis=axis)
-                elif op_type == "Slice":
-                    starts = onnx.numpy_helper.to_array(initializers[node.input[1]])
-                    ends = onnx.numpy_helper.to_array(initializers[node.input[2]])
-                    axes = (
-                        initializers.get(node.input[3]) if len(node.input) > 3 else None
-                    )
-                    if axes is not None:
-                        axes = onnx.numpy_helper.to_array(axes)
-                    else:
-                        axes = np.arange(len(starts))
-                    steps = (
-                        initializers.get(node.input[4]) if len(node.input) > 4 else None
-                    )
-                    if steps is not None:
-                        steps = onnx.numpy_helper.to_array(steps)
-                    else:
-                        steps = np.ones_like(starts)
-                    slices = [slice(None)] * len(tensor.shape)
-                    for i, axis in enumerate(axes):
-                        slices[axis] = slice(starts[i], ends[i], steps[i])
-                    value = tensor[tuple(slices)]
-                elif op_type == "Unsqueeze":
-                    axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
-                    value = np.expand_dims(tensor, axis=tuple(axes))
-
-        elif op_type == "Reshape":
-
-            data = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            shape = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            value = data.reshape(shape)
-
-        elif op_type == "Range":
-            if node.input[0] not in initializers:
-                continue
-            if node.input[1] not in initializers:
-                continue
-            if node.input[2] not in initializers:
-                continue
-
-            start_array = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            limit_array = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            delta_array = onnx.numpy_helper.to_array(initializers[node.input[2]])
-
-            start = start_array.item() if start_array.ndim == 0 or start_array.size == 1 else None
-            limit = limit_array.item() if limit_array.ndim == 0 or limit_array.size == 1 else None
-            delta = delta_array.item() if delta_array.ndim == 0 or delta_array.size == 1 else None
-
-            if not (start is not None and limit is not None and delta is not None):
-                continue
-
-            value = np.arange(start, limit, delta)
-
-        elif op_type == "ConstantOfShape":
-
-            # Get shape from input tensor (which contains the shape values)
-            shape_tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            shape = shape_tensor.tolist() if shape_tensor.ndim > 0 else [int(shape_tensor)]
-            value = onnx.numpy_helper.to_array(node.attribute[0].t)[0]
-            value = np.full(shape, value, dtype=value.dtype)
-
-        elif op_type == "ReduceSum":
-
-            tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            attrs = get_onnx_attrs(node, initializers)
-            if len(node.input[1]) > 1:
-                axes = onnx.numpy_helper.to_array(initializers[node.input[1]])
-                keepdims = attrs["keepdims"]
-                value = np.sum(tensor, axis=tuple(axes), keepdims=keepdims)
-            else:
-                noop_with_empty_axes = attrs["noop_with_empty_axes"]
-                if noop_with_empty_axes:
-                    value = tensor
-                else:
-                    axes = list(range(len(tensor.shape)))
-                    keepdims = attrs["keepdims"]
-                    value = np.sum(tensor, axis=tuple(axes), keepdims=keepdims)
-
-        elif op_type == "Concat":
-
-            is_concat_shape = True
-            for input_name in node.input:
-                if input_name not in initializers:
-                    is_concat_shape = False
-                    break
-
-            if is_concat_shape:
-                value = np.array(shapes[node.output[0]], dtype=np.int64)
-            else:
-                tensor_list = []
-                for input_name in node.input:
-                    tensor = onnx.numpy_helper.to_array(initializers[input_name])
-                    tensor_list.append(tensor)
-                axis = get_onnx_attrs(node, initializers)["axis"]
-                value = np.concatenate(tensor_list, axis=axis)
-
-        elif op_type in {"Relu", "Neg"}:
-
-            tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            if op_type == "Relu":
-                value = np.maximum(tensor, 0)
-            elif op_type == "Neg":
-                value = -tensor
-
-        elif op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Pow"}:
-
-            tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            if op_type == "Add":
-                value = tensor1 + tensor2
-            elif op_type == "Sub":
-                value = tensor1 - tensor2
-            elif op_type == "Mul":
-                value = tensor1 * tensor2
-            elif op_type == "Div":
-                if np.issubdtype(tensor1.dtype, np.integer) and np.issubdtype(
-                    tensor2.dtype, np.integer
-                ):
-                    value = tensor1 // tensor2
-                else:
-                    value = tensor1 / tensor2
-            elif op_type == "MatMul":
-                value = np.matmul(tensor1, tensor2)
-            elif op_type == "Pow":
-                value = np.power(tensor1, tensor2)
-
-        elif op_type == "Cast":
-            target_dtype = get_onnx_attrs(node, initializers)["to"]
-            value = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            if target_dtype not in ONNX_DTYPE_TO_NUMPY:
-                raise ValueError(f"Unsupported Cast dtype: {target_dtype}")
-            value = value.astype(ONNX_DTYPE_TO_NUMPY[target_dtype])
-
-        elif op_type == "Equal":
-
-            tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            tensor2 = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            value = np.equal(tensor1, tensor2)
-        elif op_type == "Where":
-
-            condition = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            operand_x = onnx.numpy_helper.to_array(initializers[node.input[1]])
-            operand_y = onnx.numpy_helper.to_array(initializers[node.input[2]])
-            value = np.where(condition, operand_x, operand_y)
-        elif op_type == "Expand":
-
-            ipt = onnx.numpy_helper.to_array(initializers[node.input[0]])
-            shape = shapes[node.output[0]]
-            value = np.broadcast_to(ipt, shape)
-        else:
-            raise NotImplementedError(f"Not supported node type: {op_type}.")
+        if value is None:
+            continue
 
         initializer = onnx.numpy_helper.from_array(value, node.output[0])
         initializers[node.output[0]] = initializer
         nodes_to_delete.append(node.output[0])
 
-    new_nodes = []
-    for node in nodes:
-        if len(node.output) == 1 and node.output[0] in nodes_to_delete:
-            # If the node has only one output, and it is in the nodes to delete,
-            # we can remove the node.
-            continue
-        new_nodes.append(node)
-    nodes = new_nodes
+    new_nodes = [
+        node for node in nodes if not (len(node.output) == 1 and node.output[0] in nodes_to_delete)
+    ]
 
-    # Remove all unused initializers
-    all_inputs = []
-    for node in nodes:
-        for input_name in node.input:
-            all_inputs.append(input_name)
-    new_initializers = {}
-    for name, initializer in initializers.items():
-        if name in all_inputs:
-            new_initializers[name] = initializer
-    initializers = new_initializers
+    all_inputs = [input_name for node in new_nodes for input_name in node.input]
+    initializers = {
+        name: initializer for name, initializer in initializers.items() if name in all_inputs
+    }
 
-    return nodes, initializers
+    return new_nodes, initializers

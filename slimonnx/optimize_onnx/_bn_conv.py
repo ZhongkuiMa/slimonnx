@@ -5,11 +5,11 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from ._utils import (
-    _is_only_next_node,
+from slimonnx.slimonnx.optimize_onnx._utils import (
     _get_batchnorm_params,
     _get_conv_params,
     _get_convtranspose_params,
+    _is_only_next_node,
     compute_batchnorm_fusion_params,
 )
 
@@ -28,14 +28,12 @@ def _fuse_conv_bn_or_bn_conv(
             pre_node = node
             continue
 
-        if is_conv_bn and not (
-            (pre_node.op_type == "Conv" and node.op_type == "BatchNormalization")
-        ):
+        if is_conv_bn and not (pre_node.op_type == "Conv" and node.op_type == "BatchNormalization"):
             pre_node = node
             continue
 
         if not is_conv_bn and not (
-            (pre_node.op_type == "BatchNormalization" and node.op_type == "Conv")
+            pre_node.op_type == "BatchNormalization" and node.op_type == "Conv"
         ):
             pre_node = node
             continue
@@ -51,7 +49,7 @@ def _fuse_conv_bn_or_bn_conv(
 
         # Check if Conv has padding BEFORE calling _get_*_params to avoid modifying
         # initializers
-        _, _, attrs = _get_conv_params(conv_node, initializers, False)
+        _, _, attrs = _get_conv_params(conv_node, initializers, remove_initializers=False)
 
         # Skip fusion if Conv has padding (fusion is incorrect with padding when
         # bn_bias != 0)
@@ -64,9 +62,9 @@ def _fuse_conv_bn_or_bn_conv(
 
         # Now get params with get_from_initializers=True
         epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
-            bn_node, initializers, True
+            bn_node, initializers, remove_initializers=True
         )
-        weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
+        weight, bias, attrs = _get_conv_params(conv_node, initializers, remove_initializers=True)
 
         # Preserve dtype from weight tensor to avoid float32/float64 mismatch
         target_dtype = weight.dtype
@@ -76,14 +74,10 @@ def _fuse_conv_bn_or_bn_conv(
 
         # If the bias is None, we have create a zero tensor in the above functions.
         if is_conv_bn:
-            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(target_dtype, copy=False)
             new_bias = (bias * bn_weight + bn_bias).astype(target_dtype, copy=False)
         else:
-            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(target_dtype, copy=False)
             new_bias = (
                 bias + np.sum(weight * bn_bias.reshape(1, -1, 1, 1), axis=(1, 2, 3))
             ).astype(target_dtype, copy=False)
@@ -131,19 +125,13 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
             continue
 
         if is_convtranspose_bn and not (
-            (
-                pre_node.op_type == "ConvTranspose"
-                and node.op_type == "BatchNormalization"
-            )
+            pre_node.op_type == "ConvTranspose" and node.op_type == "BatchNormalization"
         ):
             pre_node = node
             continue
 
         if not is_convtranspose_bn and not (
-            (
-                pre_node.op_type == "BatchNormalization"
-                and node.op_type == "ConvTranspose"
-            )
+            pre_node.op_type == "BatchNormalization" and node.op_type == "ConvTranspose"
         ):
             pre_node = node
             continue
@@ -158,9 +146,11 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
             conv_node, bn_node = node, pre_node
 
         epsilon, scale, b, mean, var = _get_batchnorm_params(
-            bn_node, initializers, True
+            bn_node, initializers, remove_initializers=True
         )
-        weight, bias, attrs = _get_convtranspose_params(conv_node, initializers, True)
+        weight, bias, attrs = _get_convtranspose_params(
+            conv_node, initializers, remove_initializers=True
+        )
 
         # Preserve dtype from weight tensor to avoid float32/float64 mismatch
         target_dtype = weight.dtype
@@ -169,14 +159,10 @@ def _fuse_convtranspose_bn_or_bn_convtranspose(
         )
 
         if is_convtranspose_bn:
-            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(target_dtype, copy=False)
             new_bias = (bias * bn_weight + bn_bias).astype(target_dtype, copy=False)
         else:
-            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(target_dtype, copy=False)
             new_bias = (
                 bias + np.sum(weight * bn_bias.reshape(-1, 1, 1, 1), axis=(0, 2, 3))
             ).astype(target_dtype, copy=False)

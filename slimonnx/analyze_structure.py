@@ -10,12 +10,11 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
-
-from . import utils
-from .model_validate import validate_model
-from .pattern_detect import detect_all_patterns
-from .preprocess import load_and_preprocess
-from .structure_analysis import (
+from slimonnx.slimonnx import utils
+from slimonnx.slimonnx.model_validate import validate_model
+from slimonnx.slimonnx.pattern_detect import detect_all_patterns
+from slimonnx.slimonnx.preprocess import load_and_preprocess
+from slimonnx.slimonnx.structure_analysis import (
     analyze_structure,
     export_topology_json,
     generate_json_report,
@@ -55,9 +54,7 @@ def analyze_model(
 
     # Infer shapes using shapeonnx
     initializers = utils.get_initializers(model)
-    input_nodes = utils.get_input_nodes(
-        model, initializers, has_batch_dim=has_batch_dim
-    )
+    input_nodes = utils.get_input_nodes(model, initializers, has_batch_dim=has_batch_dim)
     output_nodes = utils.get_output_nodes(model, has_batch_dim=has_batch_dim)
     nodes = list(model.graph.node)
 
@@ -81,12 +78,8 @@ def analyze_model(
     structure = analyze_structure(model, data_shapes)
 
     # Calculate optimization opportunities
-    total_fusible = sum(
-        p["count"] for p in patterns.values() if p["category"] == "fusion"
-    )
-    total_redundant = sum(
-        p["count"] for p in patterns.values() if p["category"] == "redundant"
-    )
+    total_fusible = sum(p["count"] for p in patterns.values() if p["category"] == "fusion")
+    total_redundant = sum(p["count"] for p in patterns.values() if p["category"] == "redundant")
 
     # Build complete report
     report = {
@@ -153,9 +146,7 @@ def compare_models(
     original_nodes = original_report["structure"]["node_count"]
     optimized_nodes = optimized_report["structure"]["node_count"]
     node_reduction = original_nodes - optimized_nodes
-    node_reduction_pct = (
-        (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
-    )
+    node_reduction_pct = (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
 
     return {
         "original": original_report,

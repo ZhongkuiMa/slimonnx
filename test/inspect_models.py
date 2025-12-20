@@ -46,14 +46,14 @@ def _parse_instances_csv(csv_path: Path) -> set[str]:
     """
     unique_models = set()
     try:
-        with open(csv_path, encoding="utf-8") as file_handle:
+        with Path(csv_path).open(encoding="utf-8") as file_handle:
             for line in file_handle.readlines()[1:]:
                 line = line.strip()
                 if line:
                     parts = line.split(",")
                     if len(parts) >= 2:
                         unique_models.add(parts[0].strip())
-    except (IOError, OSError) as error:
+    except OSError as error:
         print(f"Error reading {csv_path}: {error}")
     return unique_models
 
@@ -134,14 +134,104 @@ def inspect_model(onnx_path: str) -> dict | None:
             "initializer_dtypes": sorted(initializer_dtypes),
         }
 
-    except (IOError, OSError, ValueError, AttributeError) as error:
+    except (OSError, ValueError, AttributeError) as error:
         print(f"Error inspecting {onnx_path}: {error}")
         return None
 
 
-def inspect_all_models(
-    benchmarks_dir: str = "benchmarks", max_per_benchmark: int = 20
+def _print_model_info(info: dict, benchmark_name: str, model_name: str) -> None:
+    """Print model information.
+
+    :param info: Model info dictionary
+    :param benchmark_name: Benchmark name
+    :param model_name: Model name
+    """
+    print(f"\n  {model_name}:")
+    print(f"    IR version: {info['ir_version']}")
+    print(f"    Opset version: {info['opset_version']}")
+    print(f"    Producer: {info['producer']}")
+    print(f"    Nodes: {info['node_count']}, Initializers: {info['initializer_count']}")
+
+    for inp in info["inputs"]:
+        shape_str = str(inp["shape"]).replace("-1", "dynamic")
+        print(f"    Input '{inp['name']}': {shape_str} {inp['dtype']}")
+
+    for out in info["outputs"]:
+        shape_str = str(out["shape"]).replace("-1", "dynamic")
+        print(f"    Output '{out['name']}': {shape_str} {out['dtype']}")
+
+
+def _collect_model_diagnostics(
+    info: dict, benchmark_name: str, model_name: str, lists: dict
 ) -> None:
+    """Collect diagnostic information from model.
+
+    :param info: Model info dictionary
+    :param benchmark_name: Benchmark name
+    :param model_name: Model name
+    :param lists: Dictionary containing diagnostic lists
+    """
+    for inp in info["inputs"]:
+        if inp["has_dynamic"]:
+            lists["dynamic_shapes"].append(f"{benchmark_name}/{model_name}")
+            break
+
+    if info["ir_version"] > IR_VERSION_THRESHOLD:
+        lists["high_ir_version"].append(f"{benchmark_name}/{model_name} (IR {info['ir_version']})")
+
+    if info["opset_version"] and info["opset_version"] > OPSET_VERSION_THRESHOLD:
+        lists["high_opset_version"].append(
+            f"{benchmark_name}/{model_name} (opset {info['opset_version']})"
+        )
+
+    if "float64" in info["initializer_dtypes"]:
+        lists["float64_models"].append(f"{benchmark_name}/{model_name}")
+
+
+def _print_model_list(title: str, model_list: list) -> None:
+    """Print a list of models with truncation.
+
+    :param title: Section title
+    :param model_list: List of model identifiers
+    """
+    if not model_list:
+        return
+
+    print(f"\n{title} ({len(model_list)}):")
+    for model in model_list[:MAX_DISPLAY_ITEMS]:
+        print(f"  - {model}")
+    if len(model_list) > MAX_DISPLAY_ITEMS:
+        print(f"  ... and {len(model_list) - MAX_DISPLAY_ITEMS} more")
+
+
+def _print_diagnostic_summary(
+    total_inspected: int,
+    total_failed: int,
+    high_ir_version: list,
+    high_opset_version: list,
+    dynamic_shapes: list,
+    float64_models: list,
+) -> None:
+    """Print diagnostic summary.
+
+    :param total_inspected: Number of models inspected
+    :param total_failed: Number of failed models
+    :param high_ir_version: Models with high IR version
+    :param high_opset_version: Models with high opset version
+    :param dynamic_shapes: Models with dynamic shapes
+    :param float64_models: Models with float64 initializers
+    """
+    print("\n" + "=" * 80)
+    print(f"Total models inspected: {total_inspected}")
+    print(f"Total failed: {total_failed}")
+
+    _print_model_list(f"Models with IR version > {IR_VERSION_THRESHOLD}", high_ir_version)
+    _print_model_list(f"Models with opset > {OPSET_VERSION_THRESHOLD}", high_opset_version)
+    _print_model_list("Models with dynamic shapes", dynamic_shapes)
+    _print_model_list("Models with float64 initializers", float64_models)
+
+
+def inspect_all_models(benchmarks_dir: str = "benchmarks", max_per_benchmark: int = 20) -> None:
     """Inspect all ONNX models in benchmarks and print summary.
 
     :param benchmarks_dir: Root directory containing benchmark subdirectories
@@ -163,10 +253,12 @@ def inspect_all_models(
 
     total_inspected = 0
     total_failed = 0
-    high_ir_version = []
-    high_opset_version = []
-    dynamic_shapes = []
-    float64_models = []
+    diagnostic_lists: dict[str, list[str]] = {
+        "high_ir_version": [],
+        "high_opset_version": [],
+        "dynamic_shapes": [],
+        "float64_models": [],
+    }
 
     for benchmark_dir in benchmark_dirs:
         benchmark_name = benchmark_dir.name
@@ -202,75 +294,17 @@ def inspect_all_models(
 
             total_inspected += 1
 
-            print(f"\n  {model_name}:")
-            print(f"    IR version: {info['ir_version']}")
-            print(f"    Opset version: {info['opset_version']}")
-            print(f"    Producer: {info['producer']}")
-            print(
-                f"    Nodes: {info['node_count']}, Initializers: {info['initializer_count']}"
-            )
+            _print_model_info(info, benchmark_name, model_name)
+            _collect_model_diagnostics(info, benchmark_name, model_name, diagnostic_lists)
 
-            for inp in info["inputs"]:
-                shape_str = str(inp["shape"]).replace("-1", "dynamic")
-                print(f"    Input '{inp['name']}': {shape_str} {inp['dtype']}")
-                if inp["has_dynamic"]:
-                    dynamic_shapes.append(f"{benchmark_name}/{model_name}")
-
-            for out in info["outputs"]:
-                shape_str = str(out["shape"]).replace("-1", "dynamic")
-                print(f"    Output '{out['name']}': {shape_str} {out['dtype']}")
-
-            if info["ir_version"] > IR_VERSION_THRESHOLD:
-                high_ir_version.append(
-                    f"{benchmark_name}/{model_name} (IR {info['ir_version']})"
-                )
-
-            if (
-                info["opset_version"]
-                and info["opset_version"] > OPSET_VERSION_THRESHOLD
-            ):
-                high_opset_version.append(
-                    f"{benchmark_name}/{model_name} (opset {info['opset_version']})"
-                )
-
-            if "float64" in info["initializer_dtypes"]:
-                float64_models.append(f"{benchmark_name}/{model_name}")
-
-    print("\n" + "=" * 80)
-    print(f"Total models inspected: {total_inspected}")
-    print(f"Total failed: {total_failed}")
-
-    if high_ir_version:
-        print(
-            f"\nModels with IR version > {IR_VERSION_THRESHOLD} ({len(high_ir_version)}):"
-        )
-        for model in high_ir_version[:MAX_DISPLAY_ITEMS]:
-            print(f"  - {model}")
-        if len(high_ir_version) > MAX_DISPLAY_ITEMS:
-            print(f"  ... and {len(high_ir_version) - MAX_DISPLAY_ITEMS} more")
-
-    if high_opset_version:
-        print(
-            f"\nModels with opset > {OPSET_VERSION_THRESHOLD} ({len(high_opset_version)}):"
-        )
-        for model in high_opset_version[:MAX_DISPLAY_ITEMS]:
-            print(f"  - {model}")
-        if len(high_opset_version) > MAX_DISPLAY_ITEMS:
-            print(f"  ... and {len(high_opset_version) - MAX_DISPLAY_ITEMS} more")
-
-    if dynamic_shapes:
-        print(f"\nModels with dynamic shapes ({len(dynamic_shapes)}):")
-        for model in dynamic_shapes[:MAX_DISPLAY_ITEMS]:
-            print(f"  - {model}")
-        if len(dynamic_shapes) > MAX_DISPLAY_ITEMS:
-            print(f"  ... and {len(dynamic_shapes) - MAX_DISPLAY_ITEMS} more")
-
-    if float64_models:
-        print(f"\nModels with float64 initializers ({len(float64_models)}):")
-        for model in float64_models[:MAX_DISPLAY_ITEMS]:
-            print(f"  - {model}")
-        if len(float64_models) > MAX_DISPLAY_ITEMS:
-            print(f"  ... and {len(float64_models) - MAX_DISPLAY_ITEMS} more")
+    _print_diagnostic_summary(
+        total_inspected,
+        total_failed,
+        diagnostic_lists["high_ir_version"],
+        diagnostic_lists["high_opset_version"],
+        diagnostic_lists["dynamic_shapes"],
+        diagnostic_lists["float64_models"],
+    )
 
 
 if __name__ == "__main__":

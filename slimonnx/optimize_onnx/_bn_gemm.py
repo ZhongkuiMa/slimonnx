@@ -9,11 +9,10 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-
-from ._utils import (
-    _is_only_next_node,
-    _get_gemm_params,
+from slimonnx.slimonnx.optimize_onnx._utils import (
     _get_batchnorm_params,
+    _get_gemm_params,
+    _is_only_next_node,
     compute_batchnorm_fusion_params,
 )
 
@@ -22,10 +21,7 @@ def _fuse_gemm_reshape_bn(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
-    """
-    Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape
-    node.
-    """
+    """Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape node."""
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -43,29 +39,27 @@ def _fuse_gemm_reshape_bn(
             new_nodes.pop()
 
             bn_node, reshape_node, gemm_node = node, pre_node, pre_pre_node
-            alpha, beta, transA, transB, weight, bias = _get_gemm_params(
-                gemm_node, initializers, True
+            alpha, beta, trans_a, trans_b, weight, bias = _get_gemm_params(
+                gemm_node, initializers, remove_initializers=True
             )
             epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
-                bn_node, initializers, True
+                bn_node, initializers, remove_initializers=True
             )
             reshape_shape = (
-                onnx.numpy_helper.to_array(initializers[reshape_node.input[1]])
-                .astype(int)
-                .tolist()
+                onnx.numpy_helper.to_array(initializers[reshape_node.input[1]]).astype(int).tolist()
             )
-            if transA != 0:
+            if trans_a != 0:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for Gemm-Reshape-BN fusion."
+                    f"Gemm node {gemm_node.name} has unsupported transA={trans_a}. Only transA=0 is supported for Gemm-Reshape-BN fusion."
                 )
             num_features = bias.shape[0]
-            weight = weight.T if transB == 1 else weight
+            weight = weight.T if trans_b == 1 else weight
 
             """
             IDEA
             GEMM: (M, K) @ (K, N) + (N,) => (M, N)
             Reshape: (M, N) => (M, c, h, w)
-            BN: 
+            BN:
             bn_weight: (c,) = scale / np.sqrt(var + epsilon)
             bn_bias: (c,) = b - (mean * bn_weight)
 
@@ -87,12 +81,8 @@ def _fuse_gemm_reshape_bn(
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
                 epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
-            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
-            new_bias = (bias + bn_bias.reshape(-1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(1, -1, 1, 1)).astype(target_dtype, copy=False)
+            new_bias = (bias + bn_bias.reshape(-1, 1, 1)).astype(target_dtype, copy=False)
             new_weight = new_weight.reshape((-1, num_features)).T
             new_bias = new_bias.reshape((num_features,))
 
@@ -130,10 +120,7 @@ def _fuse_bn_reshape_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
-    """
-    Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm
-    node.
-    """
+    """Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm node."""
     new_nodes = []
     pre_pre_node = None
     pre_node = None
@@ -150,20 +137,20 @@ def _fuse_bn_reshape_gemm(
             new_nodes.pop()
             new_nodes.pop()
             bn_node, reshape_node, gemm_node = pre_pre_node, pre_node, node
-            alpha, beta, transA, transB, weight, bias = _get_gemm_params(
-                gemm_node, initializers, True
+            alpha, beta, trans_a, trans_b, weight, bias = _get_gemm_params(
+                gemm_node, initializers, remove_initializers=True
             )
             epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
-                bn_node, initializers, True
+                bn_node, initializers, remove_initializers=True
             )
             # reshape_shape = onnx.numpy_helper.to_array(
             # initializers[reshape_node.input[1]])
             # reshape_shape = reshape_shape.tolist()
-            if transA != 0:
+            if trans_a != 0:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for BN-Reshape-Gemm fusion."
+                    f"Gemm node {gemm_node.name} has unsupported transA={trans_a}. Only transA=0 is supported for BN-Reshape-Gemm fusion."
                 )
-            weight = weight.T if transB == 1 else weight
+            weight = weight.T if trans_b == 1 else weight
 
             """
             IDEA
@@ -193,12 +180,10 @@ def _fuse_bn_reshape_gemm(
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
                 epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
-            new_weight = (bn_weight.reshape(-1, 1, 1) * weight).astype(
+            new_weight = (bn_weight.reshape(-1, 1, 1) * weight).astype(target_dtype, copy=False)
+            new_bias = (bias + np.sum(bn_bias.reshape(-1, 1, 1) * weight, axis=(0, 1))).astype(
                 target_dtype, copy=False
             )
-            new_bias = (
-                bias + np.sum(bn_bias.reshape(-1, 1, 1) * weight, axis=(0, 1))
-            ).astype(target_dtype, copy=False)
             new_weight = new_weight.reshape(*gemm_shape).T
 
             new_weight_name = gemm_node.input[1]
@@ -235,9 +220,7 @@ def _fuse_bn_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
 ) -> list[NodeProto]:
-    """
-    Fuse a BatchNormalization and a Gemm node into a Gemm node.
-    """
+    """Fuse a BatchNormalization and a Gemm node into a Gemm node."""
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -251,17 +234,17 @@ def _fuse_bn_gemm(
             new_nodes.pop()
 
             gemm_node, bn_node = node, pre_node
-            alpha, beta, transA, transB, weight, bias = _get_gemm_params(
-                gemm_node, initializers, True
+            alpha, beta, trans_a, trans_b, weight, bias = _get_gemm_params(
+                gemm_node, initializers, remove_initializers=True
             )
             epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
-                bn_node, initializers, True
+                bn_node, initializers, remove_initializers=True
             )
-            if transA != 0:
+            if trans_a != 0:
                 raise ValueError(
-                    f"Gemm node {gemm_node.name} has unsupported transA={transA}. Only transA=0 is supported for BN-Gemm fusion."
+                    f"Gemm node {gemm_node.name} has unsupported transA={trans_a}. Only transA=0 is supported for BN-Gemm fusion."
                 )
-            weight = weight.T if transB == 1 else weight
+            weight = weight.T if trans_b == 1 else weight
 
             """
             IDEA
@@ -280,9 +263,7 @@ def _fuse_bn_gemm(
             bn_weight, bn_bias = compute_batchnorm_fusion_params(
                 epsilon, scale, bn_param_bias, mean, var, target_dtype
             )
-            new_weight = (bn_weight.reshape(-1, 1) * weight).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (bn_weight.reshape(-1, 1) * weight).astype(target_dtype, copy=False)
             new_bias = (bias + np.sum(bn_bias.reshape(-1, 1) * weight, axis=0)).astype(
                 target_dtype, copy=False
             )
@@ -300,9 +281,7 @@ def _fuse_bn_gemm(
             new_node.CopyFrom(gemm_node)
             new_node.ClearField("input")
             new_node.ClearField("attribute")
-            new_node.input.extend(
-                [bn_node.input[0], gemm_node.input[1], gemm_node.input[2]]
-            )
+            new_node.input.extend([bn_node.input[0], gemm_node.input[1], gemm_node.input[2]])
 
         new_nodes.append(new_node)
         pre_node = node

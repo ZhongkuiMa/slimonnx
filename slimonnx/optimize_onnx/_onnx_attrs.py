@@ -55,14 +55,11 @@ def check_pads_symmetric(pads: tuple[int, ...]) -> None:
     for i in range(dims):
         if pads[i] != pads[i + dims]:
             raise ValueError(
-                f"Asymmetric padding {pads} is not supported; "
-                "start and end padding must be equal"
+                f"Asymmetric padding {pads} is not supported; start and end padding must be equal"
             )
 
 
-def infer_kernel_defaults(
-    attrs: dict[str, Any], kernel_shape: tuple[int, ...]
-) -> dict[str, Any]:
+def infer_kernel_defaults(attrs: dict[str, Any], kernel_shape: tuple[int, ...]) -> dict[str, Any]:
     """
     Infer default values for dilations, strides, and pads.
 
@@ -91,24 +88,17 @@ def validate_auto_pad(auto_pad: str, op_name: str) -> None:
         raise ValueError(f"{op_name} with auto_pad={auto_pad} is not supported")
 
 
-def get_attrs_argmax(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_argmax(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract ArgMax operator attributes."""
-    attrs = scan_attrs(
-        {"axis": 0, "keepdims": 1, "select_last_index": 0}, node.attribute
-    )
+    attrs = scan_attrs({"axis": 0, "keepdims": 1, "select_last_index": 0}, node.attribute)
     if attrs["select_last_index"] != 0:
         raise ValueError(
-            f"ArgMax with select_last_index={attrs['select_last_index']} "
-            "is not supported"
+            f"ArgMax with select_last_index={attrs['select_last_index']} is not supported"
         )
     return attrs
 
 
-def get_attrs_avgpool(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_avgpool(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract AveragePool operator attributes."""
     attrs = scan_attrs(
         {
@@ -130,28 +120,19 @@ def get_attrs_avgpool(
     return attrs
 
 
-def get_attrs_batchnorm(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_batchnorm(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract BatchNormalization operator attributes."""
-    attrs = scan_attrs(
-        {"epsilon": 1e-5, "momentum": 0.9, "training_mode": 0}, node.attribute
-    )
+    attrs = scan_attrs({"epsilon": 1e-5, "momentum": 0.9, "training_mode": 0}, node.attribute)
     if attrs["training_mode"] != 0:
         raise ValueError(
-            f"BatchNormalization with training_mode={attrs['training_mode']} "
-            "is not supported"
+            f"BatchNormalization with training_mode={attrs['training_mode']} is not supported"
         )
     if len(node.output) > 1:
-        raise ValueError(
-            f"BatchNormalization with {len(node.output)} outputs is not supported"
-        )
+        raise ValueError(f"BatchNormalization with {len(node.output)} outputs is not supported")
     return attrs
 
 
-def get_attrs_cast(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_cast(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Cast operator attributes."""
     attrs = scan_attrs({"saturate": 1, "to": None}, node.attribute)
     if attrs["to"] is None:
@@ -161,9 +142,7 @@ def get_attrs_cast(
     return attrs
 
 
-def get_attrs_concat(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_concat(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Concat operator attributes."""
     attrs = scan_attrs({"axis": None}, node.attribute)
     if attrs["axis"] is None:
@@ -171,9 +150,7 @@ def get_attrs_concat(
     return attrs
 
 
-def get_attrs_conv(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_conv(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Conv operator attributes."""
     attrs = scan_attrs(
         {
@@ -199,9 +176,7 @@ def get_attrs_conv(
 
 def get_attrs_constant(*args, **kwargs) -> dict[str, Any]:
     """Extract Constant operator attributes."""
-    raise RuntimeError(
-        "Constant nodes are not supported; convert them to initializers first"
-    )
+    raise RuntimeError("Constant nodes are not supported; convert them to initializers first")
 
 
 def get_attrs_convtranspose(
@@ -254,17 +229,13 @@ def get_attrs_simple(defaults: dict[str, Any]) -> Callable:
     :return: Attribute extraction function
     """
 
-    def extractor(
-        node: NodeProto, initializers: dict[str, TensorProto]
-    ) -> dict[str, Any]:
+    def extractor(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
         return scan_attrs(defaults, node.attribute)
 
     return extractor
 
 
-def get_attrs_maxpool(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_maxpool(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract MaxPool operator attributes."""
     attrs = scan_attrs(
         {
@@ -281,9 +252,7 @@ def get_attrs_maxpool(
     if attrs["kernel_shape"] is None:
         raise ValueError("MaxPool kernel_shape is required")
     if attrs["storage_order"] != 0:
-        raise ValueError(
-            f"MaxPool with storage_order={attrs['storage_order']} is not supported"
-        )
+        raise ValueError(f"MaxPool with storage_order={attrs['storage_order']} is not supported")
     validate_auto_pad(attrs["auto_pad"], "MaxPool")
     infer_kernel_defaults(attrs, attrs["kernel_shape"])
     check_pads_symmetric(attrs["pads"])
@@ -301,9 +270,7 @@ def get_attrs_reduce(op_name: str) -> Callable:
     :return: Attribute extraction function
     """
 
-    def extractor(
-        node: NodeProto, initializers: dict[str, TensorProto]
-    ) -> dict[str, Any]:
+    def extractor(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
         attrs = scan_attrs({"keepdims": 1, "noop_with_empty_axes": 0}, node.attribute)
         if attrs["noop_with_empty_axes"] != 0:
             raise ValueError(
@@ -315,21 +282,15 @@ def get_attrs_reduce(op_name: str) -> Callable:
     return extractor
 
 
-def get_attrs_reshape(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_reshape(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Reshape operator attributes."""
     attrs = scan_attrs({"allowzero": 0}, node.attribute)
     if attrs["allowzero"] != 0:
-        raise ValueError(
-            f"Reshape with allowzero={attrs['allowzero']} is not supported"
-        )
+        raise ValueError(f"Reshape with allowzero={attrs['allowzero']} is not supported")
     return attrs
 
 
-def get_attrs_resize(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_resize(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Resize operator attributes."""
     return scan_attrs(
         {
@@ -347,9 +308,7 @@ def get_attrs_resize(
     )
 
 
-def get_attrs_scatter(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_scatter(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Scatter operator attributes."""
     return get_attrs_scatterelement(node, initializers)
 
@@ -360,27 +319,19 @@ def get_attrs_scatterelement(
     """Extract ScatterElements operator attributes."""
     attrs = scan_attrs({"axis": 0, "reduction": "none"}, node.attribute)
     if attrs["reduction"] != "none":
-        raise ValueError(
-            f"ScatterElements with reduction={attrs['reduction']} is not supported"
-        )
+        raise ValueError(f"ScatterElements with reduction={attrs['reduction']} is not supported")
     return attrs
 
 
-def get_attrs_scatternd(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_scatternd(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract ScatterND operator attributes."""
     attrs = scan_attrs({"reduction": "none"}, node.attribute)
     if attrs["reduction"] != "none":
-        raise ValueError(
-            f"ScatterND with reduction={attrs['reduction']} is not supported"
-        )
+        raise ValueError(f"ScatterND with reduction={attrs['reduction']} is not supported")
     return attrs
 
 
-def get_attrs_shape(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_shape(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Shape operator attributes."""
     attrs = scan_attrs({"end": -1, "start": 0}, node.attribute)
     if attrs["end"] != -1:
@@ -390,9 +341,7 @@ def get_attrs_shape(
     return attrs
 
 
-def get_attrs_transpose(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_attrs_transpose(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract Transpose operator attributes."""
     attrs = scan_attrs({"perm": None}, node.attribute)
     if attrs["perm"] is None:
@@ -400,9 +349,7 @@ def get_attrs_transpose(
     return attrs
 
 
-EXTRACT_ATTRS_MAP: dict[
-    str, Callable[[NodeProto, dict[str, TensorProto]], dict[str, Any]]
-] = {
+EXTRACT_ATTRS_MAP: dict[str, Callable[[NodeProto, dict[str, TensorProto]], dict[str, Any]]] = {
     "ArgMax": get_attrs_argmax,
     "AveragePool": get_attrs_avgpool,
     "BatchNormalization": get_attrs_batchnorm,
@@ -436,9 +383,7 @@ EXTRACT_ATTRS_MAP: dict[
 }
 
 
-def get_onnx_attrs(
-    node: NodeProto, initializers: dict[str, TensorProto]
-) -> dict[str, Any]:
+def get_onnx_attrs(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """
     Extract attributes from an ONNX node.
 

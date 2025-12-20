@@ -9,11 +9,9 @@ This module provides regression tests that:
 __docformat__ = "restructuredtext"
 
 import json
-import os
-import time
 from pathlib import Path
+from typing import Any, cast
 
-import numpy as np
 import pytest
 
 from slimonnx.test.benchmark_utils import (
@@ -22,22 +20,23 @@ from slimonnx.test.benchmark_utils import (
     get_model_benchmark_name,
 )
 from slimonnx.test.test_slimonnx import (
+    compare_outputs,
     optimize_model_with_slimonnx,
     run_onnx_model,
-    compare_outputs,
-    is_known_failure,
 )
 from slimonnx.test.utils import load_test_inputs
 
 
 def get_benchmark_models():
     """Collect all models from vnncomp2024 benchmarks."""
-    benchmarks = find_benchmarks("vnncomp2024_benchmarks")
+    test_dir = Path(__file__).parent
+    benchmarks_dir = test_dir / "vnncomp2024_benchmarks"
+    benchmarks = find_benchmarks(str(benchmarks_dir))
     models = find_models(benchmarks, max_per_benchmark=20)
     return [str(m) for m in models]
 
 
-def get_baseline_path(model_path: str, baselines_dir: str = "baselines") -> str:
+def get_baseline_path(model_path: str, baselines_dir: str | Path) -> str:
     """Get baseline JSON path for a model.
 
     :param model_path: Path to ONNX model file
@@ -49,17 +48,18 @@ def get_baseline_path(model_path: str, baselines_dir: str = "baselines") -> str:
     return str(Path(baselines_dir) / benchmark_name / f"{model_path_obj.stem}.json")
 
 
-def load_baseline(baseline_path: str) -> dict | None:
+def load_baseline(baseline_path: str) -> dict[str, Any] | None:
     """Load baseline data from JSON file.
 
     :param baseline_path: Path to baseline JSON file
     :return: Baseline data dictionary, or None if file not found
     """
-    if not os.path.exists(baseline_path):
+    baseline_file = Path(baseline_path)
+    if not baseline_file.exists():
         return None
 
-    with open(baseline_path, "r") as f:
-        return json.load(f)
+    with baseline_file.open() as f:
+        return cast(dict[str, Any], json.load(f))
 
 
 def compare_optimization_stats(current: dict, baseline: dict) -> list[str]:
@@ -91,7 +91,8 @@ def compare_optimization_stats(current: dict, baseline: dict) -> list[str]:
 @pytest.fixture(scope="session")
 def baselines_dir():
     """Baseline directory for storing regression test data."""
-    return "baselines"
+    test_dir = Path(__file__).parent
+    return test_dir / "baselines"
 
 
 @pytest.mark.parametrize("model_path", get_benchmark_models())
@@ -144,14 +145,14 @@ def test_create_baseline(model_path, baselines_dir):
     }
 
     # Save baseline
-    baseline_path = get_baseline_path(model_path, baselines_dir)
-    os.makedirs(os.path.dirname(baseline_path), exist_ok=True)
+    baseline_file = Path(get_baseline_path(model_path, baselines_dir))
+    baseline_file.parent.mkdir(parents=True, exist_ok=True)
 
-    with open(baseline_path, "w") as f:
+    with baseline_file.open("w") as f:
         json.dump(baseline_data, f, indent=2)
 
     # Verify baseline was created
-    assert os.path.exists(baseline_path)
+    assert baseline_file.exists()
 
 
 @pytest.mark.parametrize("model_path", get_benchmark_models())
@@ -166,7 +167,7 @@ def test_verify_baseline(model_path, baselines_dir):
 
     # Skip if no baseline exists yet
     if baseline_data is None:
-        pytest.skip(f"No baseline for {os.path.basename(model_path)}")
+        pytest.skip(f"No baseline for {Path(model_path).name}")
 
     baseline_stats = baseline_data["optimization_stats"]
 
@@ -187,7 +188,7 @@ def test_verify_baseline(model_path, baselines_dir):
 
     if differences:
         pytest.fail(
-            f"Optimization differs from baseline:\n" + "\n".join(f"  - {d}" for d in differences)
+            "Optimization differs from baseline:\n" + "\n".join(f"  - {d}" for d in differences)
         )
 
     # If we get here, stats match baseline

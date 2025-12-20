@@ -4,6 +4,7 @@ __docformat__ = "restructuredtext"
 __all__ = ["generate_text_report", "generate_json_report", "print_node_graph"]
 
 import json
+from pathlib import Path
 
 from onnx import NodeProto
 
@@ -118,5 +119,5 @@ def generate_json_report(
     :param analysis: Analysis results dictionary
     :param output_path: JSON output path
     """
-    with open(output_path, "w") as f:
+    with Path(output_path).open("w") as f:
         json.dump(analysis, f, indent=2)

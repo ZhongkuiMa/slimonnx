@@ -5,14 +5,13 @@ __all__ = [
     "_fuse_depthwise_conv_bn_or_bn_depthwise_conv",
 ]
 
-import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from ._utils import (
-    _is_only_next_node,
+from slimonnx.slimonnx.optimize_onnx._utils import (
     _get_batchnorm_params,
     _get_conv_params,
+    _is_only_next_node,
     compute_batchnorm_fusion_params,
 )
 
@@ -25,7 +24,7 @@ def _get_conv_group_attr(node: NodeProto) -> int:
     """
     for attr in node.attribute:
         if attr.name == "group":
-            return attr.i
+            return int(attr.i)
     return 1
 
 
@@ -51,14 +50,14 @@ def _is_depthwise_conv(node: NodeProto, initializers: dict[str, TensorProto]) ->
         return False
 
     weight_tensor = initializers[node.input[1]]
-    weight_shape = list(weight_tensor.dims)
+    weight_shape = [int(d) for d in weight_tensor.dims]
 
     # Conv weight shape: [out_channels, in_channels/group, kH, kW]
     out_channels = weight_shape[0]
     in_channels_per_group = weight_shape[1]
 
     # Depthwise condition
-    return in_channels_per_group == 1 and group == out_channels
+    return bool(in_channels_per_group == 1 and group == out_channels)
 
 
 def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
@@ -99,13 +98,11 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         # Check pattern: DepthwiseConv + BN or BN + DepthwiseConv
         if is_conv_bn:
             is_pattern = (
-                _is_depthwise_conv(pre_node, initializers)
-                and node.op_type == "BatchNormalization"
+                _is_depthwise_conv(pre_node, initializers) and node.op_type == "BatchNormalization"
             )
         else:
-            is_pattern = (
-                pre_node.op_type == "BatchNormalization"
-                and _is_depthwise_conv(node, initializers)
+            is_pattern = pre_node.op_type == "BatchNormalization" and _is_depthwise_conv(
+                node, initializers
             )
 
         if not is_pattern:
@@ -123,11 +120,11 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
 
         # Get BatchNorm parameters
         epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
-            bn_node, initializers, True
+            bn_node, initializers, remove_initializers=True
         )
 
         # Get Conv parameters
-        weight, bias, attrs = _get_conv_params(conv_node, initializers, True)
+        weight, bias, attrs = _get_conv_params(conv_node, initializers, remove_initializers=True)
 
         # Preserve dtype from weight tensor to avoid float32/float64 mismatch
         target_dtype = weight.dtype
@@ -140,16 +137,12 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
         # BN parameters are [C]
         if is_conv_bn:
             # DepthwiseConv + BN
-            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(target_dtype, copy=False)
             new_bias = (bias * bn_weight + bn_bias).astype(target_dtype, copy=False)
         else:
             # BN + DepthwiseConv
             # For depthwise, each channel is independent
-            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(
-                target_dtype, copy=False
-            )
+            new_weight = (weight * bn_weight.reshape(-1, 1, 1, 1)).astype(target_dtype, copy=False)
             new_bias = (bias + bn_bias).astype(target_dtype, copy=False)
 
         # Update initializers

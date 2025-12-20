@@ -5,6 +5,7 @@ __all__ = ["validate_with_onnxruntime"]
 
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import numpy as np
 import onnx
@@ -38,7 +39,7 @@ def validate_with_onnxruntime(
         onnx.save(model, tmp_path)
         session = ort.InferenceSession(tmp_path, providers=["CPUExecutionProvider"])
 
-        result = {
+        result: dict[str, Any] = {
             "can_load": True,
             "can_infer": False,
             "error": None,
@@ -55,7 +56,7 @@ def validate_with_onnxruntime(
 
         return result
 
-    except (IOError, OSError, RuntimeError, ValueError) as error:
+    except (OSError, RuntimeError, ValueError) as error:
         return {
             "can_load": False,
             "can_infer": False,

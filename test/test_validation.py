@@ -19,10 +19,10 @@ __all__ = [
 from collections import defaultdict
 from pathlib import Path
 
-from slimonnx import SlimONNX, OptimizationConfig
+from slimonnx import OptimizationConfig, SlimONNX
 from slimonnx.test.benchmark_utils import (
-    find_onnx_files_from_instances,
     find_benchmark_folders,
+    find_onnx_files_from_instances,
     get_benchmark_name,
 )
 from slimonnx.test.utils import if_has_batch_dim
@@ -72,7 +72,7 @@ def run_preprocess_test(onnx_path: str, target_opset: int | None = None) -> dict
             "error": None,
         }
 
-    except (IOError, ValueError, AttributeError) as error:
+    except (OSError, ValueError, AttributeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -100,16 +100,14 @@ def run_all_preprocess(
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)
-    onnx_files = find_onnx_files_from_instances(
-        benchmark_dirs, num_limit=max_per_benchmark
-    )
+    onnx_files = find_onnx_files_from_instances(benchmark_dirs, num_limit=max_per_benchmark)
 
     print(f"Testing preprocessing on {len(onnx_files)} models")
     print("=" * 70)
 
     success_count = 0
     failed_count = 0
-    opset_counts = defaultdict(int)
+    opset_counts: defaultdict[int, int] = defaultdict(int)
     models_with_shapes = 0
 
     for i, onnx_path in enumerate(onnx_files, 1):
@@ -141,7 +139,7 @@ def run_all_preprocess(
     print(f"Failed: {failed_count}")
     print()
     print(
-        f"Models with shape inference: {models_with_shapes}/{success_count} ({models_with_shapes/success_count*100:.1f}%)"
+        f"Models with shape inference: {models_with_shapes}/{success_count} ({models_with_shapes / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
@@ -187,7 +185,7 @@ def run_validation_test(onnx_path: str) -> dict:
             "error": None,
         }
 
-    except (IOError, ValueError, AttributeError, RuntimeError) as error:
+    except (OSError, ValueError, AttributeError, RuntimeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -203,9 +201,7 @@ def run_validation_test(onnx_path: str) -> dict:
         }
 
 
-def run_all_validation(
-    benchmark_dir: str = "benchmarks", max_per_benchmark: int = 20
-) -> dict:
+def run_all_validation(benchmark_dir: str = "benchmarks", max_per_benchmark: int = 20) -> dict:
     """Test validation on all benchmark models.
 
     :param benchmark_dir: Root directory of benchmarks
@@ -213,9 +209,7 @@ def run_all_validation(
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)
-    onnx_files = find_onnx_files_from_instances(
-        benchmark_dirs, num_limit=max_per_benchmark
-    )
+    onnx_files = find_onnx_files_from_instances(benchmark_dirs, num_limit=max_per_benchmark)
 
     print(f"Testing validation on {len(onnx_files)} models")
     print("=" * 70)
@@ -269,17 +263,17 @@ def run_all_validation(
     print(f"Failed: {failed_count}")
     print()
     print(
-        f"Valid models: {valid_count}/{success_count} ({valid_count/success_count*100:.1f}%)"
+        f"Valid models: {valid_count}/{success_count} ({valid_count / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
     print(
-        f"ONNX checker valid: {checker_valid_count}/{success_count} ({checker_valid_count/success_count*100:.1f}%)"
+        f"ONNX checker valid: {checker_valid_count}/{success_count} ({checker_valid_count / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
     print(
-        f"Runtime loadable: {runtime_loadable_count}/{success_count} ({runtime_loadable_count/success_count*100:.1f}%)"
+        f"Runtime loadable: {runtime_loadable_count}/{success_count} ({runtime_loadable_count / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
@@ -301,8 +295,9 @@ def run_all_validation(
 
 def test_preprocess_benchmarks() -> None:
     """Pytest: Test preprocessing on all benchmark models."""
-    import pytest
     from pathlib import Path
+
+    import pytest
 
     benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
     if not benchmark_dir.exists():
@@ -315,8 +310,9 @@ def test_preprocess_benchmarks() -> None:
 
 def test_validation_benchmarks() -> None:
     """Pytest: Test validation on all benchmark models."""
-    import pytest
     from pathlib import Path
+
+    import pytest
 
     benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
     if not benchmark_dir.exists():
@@ -325,11 +321,13 @@ def test_validation_benchmarks() -> None:
     result = run_all_validation(str(benchmark_dir))
     assert result["success"] > 0, "No models successfully validated"
     assert result["failed"] == 0, f"Validation failed for {result['failed']} models"
-    assert result["valid_count"] == result["success"], f"Some models are invalid: {result['success'] - result['valid_count']} models"
+    assert result["valid_count"] == result["success"], (
+        f"Some models are invalid: {result['success'] - result['valid_count']} models"
+    )
 
 
 def main() -> None:
-    """Main entry point for script execution."""
+    """Run the validation script."""
     import sys
 
     if "--preprocess-only" in sys.argv:

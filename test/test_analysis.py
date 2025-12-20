@@ -22,11 +22,11 @@ from pathlib import Path
 import numpy as np
 import onnx
 
-from slimonnx import SlimONNX, OptimizationConfig
+from slimonnx import OptimizationConfig, SlimONNX
 from slimonnx.slimonnx.structure_analysis.topology import build_topology
 from slimonnx.test.benchmark_utils import (
-    find_onnx_files_from_instances,
     find_benchmark_folders,
+    find_onnx_files_from_instances,
     get_benchmark_name,
 )
 from slimonnx.test.utils import if_has_batch_dim
@@ -47,12 +47,8 @@ def run_pattern_detection_test(onnx_path: str) -> dict:
     try:
         patterns = slimonnx.detect_patterns(onnx_path, config=config)
 
-        fusion_count = sum(
-            p["count"] for p in patterns.values() if p["category"] == "fusion"
-        )
-        redundant_count = sum(
-            p["count"] for p in patterns.values() if p["category"] == "redundant"
-        )
+        fusion_count = sum(p["count"] for p in patterns.values() if p["category"] == "fusion")
+        redundant_count = sum(p["count"] for p in patterns.values() if p["category"] == "redundant")
         total_count = fusion_count + redundant_count
 
         pattern_summary = {
@@ -91,9 +87,7 @@ def run_all_pattern_detection(
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)
-    onnx_files = find_onnx_files_from_instances(
-        benchmark_dirs, num_limit=max_per_benchmark
-    )
+    onnx_files = find_onnx_files_from_instances(benchmark_dirs, num_limit=max_per_benchmark)
 
     print(f"Testing pattern detection on {len(onnx_files)} models")
     print("=" * 70)
@@ -102,7 +96,7 @@ def run_all_pattern_detection(
     failed_count = 0
     total_fusion = 0
     total_redundant = 0
-    pattern_counts = defaultdict(int)
+    pattern_counts: defaultdict[str, int] = defaultdict(int)
 
     for i, onnx_path in enumerate(onnx_files, 1):
         basename = Path(onnx_path).name
@@ -140,9 +134,7 @@ def run_all_pattern_detection(
 
     if pattern_counts:
         print("\nPattern breakdown:")
-        sorted_patterns = sorted(
-            pattern_counts.items(), key=lambda x: x[1], reverse=True
-        )
+        sorted_patterns = sorted(pattern_counts.items(), key=lambda x: x[1], reverse=True)
         for pattern_name, count in sorted_patterns:
             print(f"  {pattern_name}: {count}")
 
@@ -154,6 +146,61 @@ def run_all_pattern_detection(
         "total_redundant": total_redundant,
         "pattern_counts": dict(pattern_counts),
     }
+
+
+def _infer_model_shapes(model: onnx.ModelProto, has_batch_dim: bool) -> tuple[dict | None, bool]:
+    """Infer shapes for model.
+
+    :param model: ONNX model
+    :param has_batch_dim: Whether model has batch dimension
+    :return: Tuple of (data_shapes dict, has_shapes bool)
+    """
+    try:
+        from shapeonnx import infer_onnx_shape
+        from shapeonnx.shapeonnx.utils import (
+            convert_constant_to_initializer,
+            get_initializers,
+            get_input_nodes,
+            get_output_nodes,
+        )
+
+        initializers = get_initializers(model)
+        input_nodes = get_input_nodes(model, initializers, has_batch_dim)
+        output_nodes = get_output_nodes(model, has_batch_dim)
+        nodes = list(model.graph.node)
+        nodes = convert_constant_to_initializer(nodes, initializers)
+
+        data_shapes = infer_onnx_shape(
+            input_nodes, output_nodes, nodes, initializers, has_batch_dim, verbose=False
+        )
+        return data_shapes, True
+    except (ImportError, ValueError, AttributeError, KeyError, RuntimeError) as error:
+        print(f"Shape inference failed: {error}")
+        return None, False
+
+
+def _calculate_memory_stats(model: onnx.ModelProto) -> tuple[int, float]:
+    """Calculate total parameters and memory usage.
+
+    :param model: ONNX model
+    :return: Tuple of (total_parameters, memory_mb)
+    """
+    total_parameters = 0
+    total_bytes = 0
+    for tensor in model.graph.initializer:
+        size = 1
+        for dim in tensor.dims:
+            size *= dim
+        total_parameters += size
+
+        if tensor.data_type == 1:
+            total_bytes += size * 4
+        elif tensor.data_type == 11:
+            total_bytes += size * 8
+        else:
+            total_bytes += size * 4
+
+    return total_parameters, total_bytes / (1024 * 1024)
 
 
 def run_structure_analysis_test(onnx_path: str) -> dict:
@@ -178,39 +225,11 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
         ]
         outputs = list(model.graph.output)
 
-        op_types = defaultdict(int)
+        op_types: defaultdict[str, int] = defaultdict(int)
         for node in model.graph.node:
             op_types[node.op_type] += 1
 
-        try:
-            from shapeonnx import infer_onnx_shape
-            from shapeonnx.shapeonnx.utils import (
-                get_initializers,
-                get_input_nodes,
-                get_output_nodes,
-                convert_constant_to_initializer,
-            )
-
-            initializers = get_initializers(model)
-            input_nodes = get_input_nodes(model, initializers, has_batch_dim)
-            output_nodes = get_output_nodes(model, has_batch_dim)
-            nodes = list(model.graph.node)
-            nodes = convert_constant_to_initializer(nodes, initializers)
-
-            data_shapes = infer_onnx_shape(
-                input_nodes, output_nodes, nodes, initializers, has_batch_dim, False
-            )
-            has_shapes = True
-        except (
-            ImportError,
-            ValueError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-        ) as error:
-            print(f"Shape inference failed: {error}")
-            data_shapes = None
-            has_shapes = False
+        data_shapes, has_shapes = _infer_model_shapes(model, has_batch_dim)
 
         topology = build_topology(model.graph.node)
         predecessors_counts = [len(info["predecessors"]) for info in topology.values()]
@@ -220,9 +239,7 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
             "avg_predecessors": (
                 float(np.mean(predecessors_counts)) if predecessors_counts else 0.0
             ),
-            "avg_successors": (
-                float(np.mean(successors_counts)) if successors_counts else 0.0
-            ),
+            "avg_successors": (float(np.mean(successors_counts)) if successors_counts else 0.0),
             "max_fan_in": max(predecessors_counts) if predecessors_counts else 0,
             "max_fan_out": max(successors_counts) if successors_counts else 0,
         }
@@ -233,26 +250,9 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
                 if any(out in data_shapes for out in node.output):
                     nodes_with_shapes += 1
 
-        shape_coverage_pct = (
-            (nodes_with_shapes / node_count * 100) if node_count > 0 else 0.0
-        )
+        shape_coverage_pct = (nodes_with_shapes / node_count * 100) if node_count > 0 else 0.0
 
-        total_parameters = 0
-        total_bytes = 0
-        for tensor in model.graph.initializer:
-            size = 1
-            for dim in tensor.dims:
-                size *= dim
-            total_parameters += size
-
-            if tensor.data_type == 1:
-                total_bytes += size * 4
-            elif tensor.data_type == 11:
-                total_bytes += size * 8
-            else:
-                total_bytes += size * 4
-
-        memory_mb = total_bytes / (1024 * 1024)
+        total_parameters, memory_mb = _calculate_memory_stats(model)
 
         sorted_ops = sorted(op_types.items(), key=lambda x: x[1], reverse=True)
         top_ops = dict(sorted_ops[:10])
@@ -279,7 +279,7 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
             "error": None,
         }
 
-    except (IOError, ValueError, AttributeError) as error:
+    except (OSError, ValueError, AttributeError) as error:
         return {
             "success": False,
             "benchmark": benchmark_name,
@@ -297,9 +297,7 @@ def run_all_structure_analysis(
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)
-    onnx_files = find_onnx_files_from_instances(
-        benchmark_dirs, num_limit=max_per_benchmark
-    )
+    onnx_files = find_onnx_files_from_instances(benchmark_dirs, num_limit=max_per_benchmark)
 
     print(f"Testing structure analysis on {len(onnx_files)} models")
     print("=" * 70)
@@ -343,15 +341,11 @@ def run_all_structure_analysis(
     print(f"Failed: {failed_count}")
     print()
     print(f"Total nodes: {total_nodes}")
-    print(
-        f"Avg nodes per model: {total_nodes/success_count:.1f}"
-        if success_count > 0
-        else "N/A"
-    )
+    print(f"Avg nodes per model: {total_nodes / success_count:.1f}" if success_count > 0 else "N/A")
     print(f"Total parameters: {total_params:,}")
     print(f"Total memory: {total_memory:.2f} MB")
     print(
-        f"Models with shape inference: {models_with_shapes}/{success_count} ({models_with_shapes/success_count*100:.1f}%)"
+        f"Models with shape inference: {models_with_shapes}/{success_count} ({models_with_shapes / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
@@ -369,8 +363,9 @@ def run_all_structure_analysis(
 
 def test_pattern_detection_benchmarks() -> None:
     """Pytest: Test pattern detection on all benchmark models."""
-    import pytest
     from pathlib import Path
+
+    import pytest
 
     benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
     if not benchmark_dir.exists():
@@ -383,8 +378,9 @@ def test_pattern_detection_benchmarks() -> None:
 
 def test_structure_analysis_benchmarks() -> None:
     """Pytest: Test structure analysis on all benchmark models."""
-    import pytest
     from pathlib import Path
+
+    import pytest
 
     benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
     if not benchmark_dir.exists():
@@ -396,7 +392,7 @@ def test_structure_analysis_benchmarks() -> None:
 
 
 def main() -> None:
-    """Main entry point for script execution."""
+    """Run the main script."""
     import sys
 
     if "--patterns-only" in sys.argv:

@@ -26,8 +26,7 @@ def analyze_inputs_outputs(model: ModelProto) -> dict:
     inputs_info = []
     for inp in model.graph.input:
         shape = [
-            d.dim_value if d.HasField("dim_value") else "?"
-            for d in inp.type.tensor_type.shape.dim
+            d.dim_value if d.HasField("dim_value") else "?" for d in inp.type.tensor_type.shape.dim
         ]
         inputs_info.append(
             {
@@ -40,8 +39,7 @@ def analyze_inputs_outputs(model: ModelProto) -> dict:
     outputs_info = []
     for out in model.graph.output:
         shape = [
-            d.dim_value if d.HasField("dim_value") else "?"
-            for d in out.type.tensor_type.shape.dim
+            d.dim_value if d.HasField("dim_value") else "?" for d in out.type.tensor_type.shape.dim
         ]
         outputs_info.append(
             {
@@ -73,7 +71,7 @@ def analyze_structure(
     op_type_counts = count_op_types(nodes)
     io_info = analyze_inputs_outputs(model)
 
-    from .. import utils
+    from slimonnx.slimonnx import utils
 
     initializers = utils.get_initializers(model)
 

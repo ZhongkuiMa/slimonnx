@@ -8,7 +8,7 @@ import warnings
 import onnx
 from onnx import ModelProto, version_converter
 
-from .. import utils
+from slimonnx.slimonnx import utils
 
 # Recommended opset range based on shapeonnx compatibility testing
 RECOMMENDED_OPSET = 20
@@ -90,7 +90,7 @@ def load_and_preprocess(
         try:
             onnx.checker.check_model(model)
         except (ValueError, AttributeError, TypeError) as error:
-            raise ValueError(f"Invalid ONNX model: {error}")
+            raise ValueError(f"Invalid ONNX model: {error}") from error
 
     # Convert opset version if requested
     if target_opset is not None:

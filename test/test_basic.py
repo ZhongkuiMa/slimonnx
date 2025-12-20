@@ -9,9 +9,8 @@ from pathlib import Path
 import numpy as np
 import onnx
 import onnxruntime as ort
-import pytest
 
-from slimonnx import SlimONNX, OptimizationConfig
+from slimonnx import OptimizationConfig, SlimONNX
 
 # Test tolerance constants
 NUMERICAL_RTOL = 1e-5
@@ -33,13 +32,14 @@ def create_test_model() -> onnx.ModelProto:
         "output", onnx.TensorProto.FLOAT, [1, 64, 112, 112]
     )
 
-    conv_w = np.random.randn(64, 3, 7, 7).astype(np.float32)
+    rng = np.random.default_rng()
+    conv_w = rng.standard_normal((64, 3, 7, 7)).astype(np.float32)
     conv_w_init = onnx.numpy_helper.from_array(conv_w, name="conv_w")
 
-    bn_scale = np.random.randn(64).astype(np.float32) + 1.0
-    bn_bias = np.random.randn(64).astype(np.float32)
-    bn_mean = np.random.randn(64).astype(np.float32)
-    bn_var = np.abs(np.random.randn(64).astype(np.float32)) + 0.1
+    bn_scale = rng.standard_normal(64).astype(np.float32) + 1.0
+    bn_bias = rng.standard_normal(64).astype(np.float32)
+    bn_mean = rng.standard_normal(64).astype(np.float32)
+    bn_var = np.abs(rng.standard_normal(64).astype(np.float32)) + 0.1
 
     bn_scale_init = onnx.numpy_helper.from_array(bn_scale, name="bn_scale")
     bn_bias_init = onnx.numpy_helper.from_array(bn_bias, name="bn_bias")
@@ -84,11 +84,13 @@ def _get_model_input_name(model_path: str) -> str:
     :return: Input name
     """
     model = onnx.load(model_path)
-    return [
-        inp.name
-        for inp in model.graph.input
-        if not any(init.name == inp.name for init in model.graph.initializer)
-    ][0]
+    return str(
+        [
+            inp.name
+            for inp in model.graph.input
+            if not any(init.name == inp.name for init in model.graph.initializer)
+        ][0]
+    )
 
 
 def _run_model(model_path: str, inputs: dict) -> dict:
@@ -101,7 +103,7 @@ def _run_model(model_path: str, inputs: dict) -> dict:
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
     outputs = session.run(None, inputs)
     output_names = [out.name for out in session.get_outputs()]
-    return {name: output for name, output in zip(output_names, outputs)}
+    return dict(zip(output_names, outputs, strict=False))
 
 
 def _prepare_optimized_model(model_path: str) -> None:
@@ -145,7 +147,8 @@ def test_basic_optimization() -> None:
         _prepare_optimized_model(optimized_path)
         print("OK: Optimized model loaded and converted")
 
-        test_input = np.random.randn(1, 3, 224, 224).astype(np.float32)
+        rng = np.random.default_rng()
+        test_input = rng.standard_normal((1, 3, 224, 224)).astype(np.float32)
 
         original_input_name = _get_model_input_name(original_path)
         optimized_input_name = _get_model_input_name(optimized_path)
@@ -153,27 +156,23 @@ def test_basic_optimization() -> None:
         print(f"Running inference on original model (input: {original_input_name})...")
         original_outputs = _run_model(original_path, {original_input_name: test_input})
 
-        print(
-            f"Running inference on optimized model (input: {optimized_input_name})..."
-        )
-        optimized_outputs = _run_model(
-            optimized_path, {optimized_input_name: test_input}
-        )
+        print(f"Running inference on optimized model (input: {optimized_input_name})...")
+        optimized_outputs = _run_model(optimized_path, {optimized_input_name: test_input})
 
         original_output_list = list(original_outputs.values())
         optimized_output_list = list(optimized_outputs.values())
 
-        assert len(original_output_list) == len(
-            optimized_output_list
-        ), f"Output count mismatch: {len(original_output_list)} vs {len(optimized_output_list)}"
+        assert len(original_output_list) == len(optimized_output_list), (
+            f"Output count mismatch: {len(original_output_list)} vs {len(optimized_output_list)}"
+        )
 
         for i, (orig_out, opt_out) in enumerate(
-            zip(original_output_list, optimized_output_list)
+            zip(original_output_list, optimized_output_list, strict=False)
         ):
             assert orig_out.shape == opt_out.shape, f"Shape mismatch for output {i}"
-            assert np.allclose(
-                orig_out, opt_out, rtol=NUMERICAL_RTOL, atol=NUMERICAL_ATOL
-            ), f"Output values mismatch for output {i}"
+            assert np.allclose(orig_out, opt_out, rtol=NUMERICAL_RTOL, atol=NUMERICAL_ATOL), (
+                f"Output values mismatch for output {i}"
+            )
 
         print("OK: Outputs match between original and optimized models")
 
@@ -208,14 +207,13 @@ def test_conv_bn_fusion() -> None:
         optimized_node_count = len(optimized_model.graph.node)
         print(f"Optimized model: {optimized_node_count} nodes")
 
-        assert (
-            optimized_node_count < original_node_count
-        ), f"Node count not reduced: {original_node_count} -> {optimized_node_count}"
-        print(
-            f"OK: Node count reduced from {original_node_count} to {optimized_node_count}"
+        assert optimized_node_count < original_node_count, (
+            f"Node count not reduced: {original_node_count} -> {optimized_node_count}"
         )
+        print(f"OK: Node count reduced from {original_node_count} to {optimized_node_count}")
 
-        test_input = np.random.randn(1, 3, 224, 224).astype(np.float32)
+        rng = np.random.default_rng()
+        test_input = rng.standard_normal((1, 3, 224, 224)).astype(np.float32)
 
         original_input_name = _get_model_input_name(original_path)
         optimized_input_name = _get_model_input_name(optimized_path)
@@ -223,30 +221,24 @@ def test_conv_bn_fusion() -> None:
         print(f"Running inference on original model (input: {original_input_name})...")
         original_outputs = _run_model(original_path, {original_input_name: test_input})
 
-        print(
-            f"Running inference on optimized model (input: {optimized_input_name})..."
-        )
-        optimized_outputs = _run_model(
-            optimized_path, {optimized_input_name: test_input}
-        )
+        print(f"Running inference on optimized model (input: {optimized_input_name})...")
+        optimized_outputs = _run_model(optimized_path, {optimized_input_name: test_input})
 
         original_output_list = list(original_outputs.values())
         optimized_output_list = list(optimized_outputs.values())
 
-        assert len(original_output_list) == len(
-            optimized_output_list
-        ), "Output count mismatch"
+        assert len(original_output_list) == len(optimized_output_list), "Output count mismatch"
 
         for i, (orig_out, opt_out) in enumerate(
-            zip(original_output_list, optimized_output_list)
+            zip(original_output_list, optimized_output_list, strict=False)
         ):
             assert orig_out.shape == opt_out.shape, f"Shape mismatch for output {i}"
 
             max_diff = np.max(np.abs(orig_out - opt_out))
             print(f"Max difference for output {i}: {max_diff:.2e}")
 
-            assert np.allclose(
-                orig_out, opt_out, rtol=NUMERICAL_RTOL, atol=NUMERICAL_ATOL
-            ), f"Output values mismatch for output {i}, max diff: {max_diff}"
+            assert np.allclose(orig_out, opt_out, rtol=NUMERICAL_RTOL, atol=NUMERICAL_ATOL), (
+                f"Output values mismatch for output {i}, max diff: {max_diff}"
+            )
 
         print("OK: Outputs match after Conv-BN fusion")
