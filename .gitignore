@@ -38,6 +38,7 @@ coverage.xml
 # === pytest / unittest ===
 .pytest_cache/
 tests/.pytest_cache/
+tests/results/
 tests/__pycache__/
 
 # === mypy, pylint, etc ===
@@ -67,8 +68,18 @@ Thumbs.db
 # === GitHub Codespaces ===
 .devcontainer/
 
+# === Model or data files ===
+#*.onnx
+#*.pt
+#*.pb
+#*.ckpt
+#*.pkl
+#*.pickle
+#*.npz
+#*.npy
+
 # === Test directories (large files - auto-generated, not version-controlled) ===
-tests/results/
+# Note: tests/baselines/ contains golden reference .json files (version-controlled)
 tests/data/
 tests/vnncomp2024_benchmarks/
 tests/benchmarks/
