@@ -89,13 +89,6 @@ def compare_optimization_stats(current: dict, baseline: dict) -> list[str]:
     return differences
 
 
-@pytest.fixture(scope="session")
-def baselines_dir():
-    """Baseline directory for storing regression test data."""
-    test_dir = Path(__file__).parent
-    return test_dir / "baselines"
-
-
 @pytest.mark.parametrize("model_path", get_benchmark_models())
 def test_verify_baseline(model_path, baselines_dir):
     """Verify current results match stored baseline.
