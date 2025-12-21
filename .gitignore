@@ -38,7 +38,6 @@ coverage.xml
 # === pytest / unittest ===
 .pytest_cache/
 tests/.pytest_cache/
-tests/results/
 tests/__pycache__/
 
 # === mypy, pylint, etc ===
@@ -60,16 +59,6 @@ tests/__pycache__/
 .DS_Store
 Thumbs.db
 
-# === Model or data files ===
-#*.onnx
-#*.pt
-#*.pb
-#*.ckpt
-#*.pkl
-#*.pickle
-#*.npz
-#*.npy
-
 # === Logs and temporary files ===
 *.log
 *.tmp
@@ -78,9 +67,9 @@ Thumbs.db
 # === GitHub Codespaces ===
 .devcontainer/
 
-# === Test directories (large files) ===
+# === Test directories (large files - auto-generated, not version-controlled) ===
+tests/results/
+tests/data/
 tests/vnncomp2024_benchmarks/
 tests/benchmarks/
-tests/baselines/
-tests/data/
 tests/temp/
