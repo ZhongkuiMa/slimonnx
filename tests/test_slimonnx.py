@@ -140,8 +140,8 @@ def optimize_model_with_slimonnx(model_path: str) -> tuple[str, dict]:
             temp_path.unlink()
 
 
-def save_baseline(model_path: str, stats: dict, max_diff: float, mean_diff: float):
-    """Save optimization results as baseline JSON.
+def save_results_stats(model_path: str, stats: dict, max_diff: float, mean_diff: float):
+    """Save optimization stats to results directory.
 
     :param model_path: Path to original model
     :param stats: Optimization statistics
@@ -149,10 +149,10 @@ def save_baseline(model_path: str, stats: dict, max_diff: float, mean_diff: floa
     :param mean_diff: Mean difference between original and optimized outputs
     """
     test_dir = Path(__file__).parent
-    baseline_path = test_dir / "baselines" / stats["benchmark"] / f"{Path(model_path).stem}.json"
-    baseline_path.parent.mkdir(parents=True, exist_ok=True)
+    results_stats_path = test_dir / "results" / stats["benchmark"] / f"{Path(model_path).stem}.json"
+    results_stats_path.parent.mkdir(parents=True, exist_ok=True)
 
-    baseline_data = {
+    stats_data = {
         "optimization_stats": {
             "original_nodes": stats["original_nodes"],
             "optimized_nodes": stats["optimized_nodes"],
@@ -167,8 +167,8 @@ def save_baseline(model_path: str, stats: dict, max_diff: float, mean_diff: floa
         },
     }
 
-    with Path(baseline_path).open("w") as f:
-        json.dump(baseline_data, f, indent=2)
+    with results_stats_path.open("w") as f:
+        json.dump(stats_data, f, indent=2)
 
 
 @pytest.mark.parametrize("model_path", get_benchmark_models())
@@ -208,8 +208,8 @@ def test_slimonnx_optimization(model_path):
     # Compare outputs
     max_diff, mean_diff = compare_outputs(original_outputs, optimized_outputs)
 
-    # Save baseline
-    save_baseline(model_path, stats, max_diff, mean_diff)
+    # Save results stats
+    save_results_stats(model_path, stats, max_diff, mean_diff)
 
     # Report statistics
     print(

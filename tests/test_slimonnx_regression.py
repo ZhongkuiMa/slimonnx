@@ -1,9 +1,10 @@
 """Regression testing for SlimONNX against baselines.
 
 This module provides regression tests that:
-1. Create baselines with optimization statistics
-2. Verify current results match stored baselines
-3. Track I/O consistency over time
+1. Verify current results match stored baselines
+2. Track I/O consistency over time
+
+To update baselines, run update_baselines.py after generating results with test_slimonnx.py.
 """
 
 __docformat__ = "restructuredtext"
@@ -96,92 +97,42 @@ def baselines_dir():
 
 
 @pytest.mark.parametrize("model_path", get_benchmark_models())
-def test_create_baseline(model_path, baselines_dir):
-    """Create or update baseline for each model.
-
-    This test creates baselines with optimization stats and I/O validation.
-
-    :param model_path: Path to ONNX model file
-    :param baselines_dir: Directory to store baselines
-    """
-    # Load test inputs
-    try:
-        test_inputs = load_test_inputs(model_path)
-    except FileNotFoundError:
-        pytest.skip("No test data available")
-
-    if not test_inputs:
-        pytest.skip("No test inputs found")
-
-    # Take first input for testing
-    inputs = test_inputs[0]
-
-    # Get original outputs
-    original_outputs = run_onnx_model(model_path, inputs)
-
-    # Optimize with SlimONNX
-    optimized_path, stats = optimize_model_with_slimonnx(model_path)
-
-    # Get optimized outputs
-    optimized_outputs = run_onnx_model(optimized_path, inputs)
-
-    # Compare outputs
-    max_diff, mean_diff = compare_outputs(original_outputs, optimized_outputs)
-
-    # Create baseline data
-    baseline_data = {
-        "optimization_stats": {
-            "original_nodes": stats["original_nodes"],
-            "optimized_nodes": stats["optimized_nodes"],
-            "reduction": stats["reduction"],
-            "reduction_pct": stats["reduction_pct"],
-            "time": stats["time"],
-        },
-        "io_validation": {
-            "max_difference": float(max_diff),
-            "mean_difference": float(mean_diff),
-            "passed": bool(max_diff < 1e-5 and mean_diff < 1e-6),
-        },
-    }
-
-    # Save baseline
-    baseline_file = Path(get_baseline_path(model_path, baselines_dir))
-    baseline_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with baseline_file.open("w") as f:
-        json.dump(baseline_data, f, indent=2)
-
-    # Verify baseline was created
-    assert baseline_file.exists()
-
-
-@pytest.mark.parametrize("model_path", get_benchmark_models())
 def test_verify_baseline(model_path, baselines_dir):
-    """Verify current optimization matches stored baseline.
+    """Verify current results match stored baseline.
+
+    Compares results/{benchmark}/{model}.json vs baselines/{benchmark}/{model}.json
 
     :param model_path: Path to ONNX model file
     :param baselines_dir: Directory containing baselines
     """
-    baseline_path = get_baseline_path(model_path, baselines_dir)
-    baseline_data = load_baseline(baseline_path)
+    test_dir = Path(__file__).parent
+    results_dir = test_dir / "results"
+
+    # Get paths
+    model_path_obj = Path(model_path)
+    benchmark_name = get_model_benchmark_name(model_path_obj)
+    model_stem = model_path_obj.stem
+
+    baseline_path = baselines_dir / benchmark_name / f"{model_stem}.json"
+    results_path = results_dir / benchmark_name / f"{model_stem}.json"
 
     # Skip if no baseline exists yet
-    if baseline_data is None:
-        pytest.skip(f"No baseline for {Path(model_path).name}")
+    if not baseline_path.exists():
+        pytest.skip(f"No baseline for {model_stem}")
 
+    # Skip if no results exist yet (need to run test_slimonnx.py first)
+    if not results_path.exists():
+        pytest.skip(f"No results for {model_stem} - run test_slimonnx.py first")
+
+    # Load baseline
+    with baseline_path.open() as f:
+        baseline_data = json.load(f)
     baseline_stats = baseline_data["optimization_stats"]
 
-    # Load test inputs
-    try:
-        test_inputs = load_test_inputs(model_path)
-    except FileNotFoundError:
-        pytest.skip("No test data available")
-
-    if not test_inputs:
-        pytest.skip("No test inputs found")
-
-    # Optimize with SlimONNX
-    optimized_path, current_stats = optimize_model_with_slimonnx(model_path)
+    # Load current results
+    with results_path.open() as f:
+        results_data = json.load(f)
+    current_stats = results_data["optimization_stats"]
 
     # Compare with baseline
     differences = compare_optimization_stats(current_stats, baseline_stats)
