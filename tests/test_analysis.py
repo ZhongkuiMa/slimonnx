@@ -367,7 +367,7 @@ def test_pattern_detection_benchmarks() -> None:
 
     import pytest
 
-    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 
@@ -382,7 +382,7 @@ def test_structure_analysis_benchmarks() -> None:
 
     import pytest
 
-    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 

@@ -296,7 +296,9 @@ def load_test_inputs(
     :raises FileNotFoundError: If no test data is available
     """
     if data_dir is None:
-        data_dir = str(Path(__file__).parent / "data")
+        data_dir_path = Path(__file__).parent / "data"
+    else:
+        data_dir_path = Path(data_dir)
 
     try:
         benchmark_dir = get_benchmark_dir(onnx_path, benchmarks_dir)
@@ -309,7 +311,7 @@ def load_test_inputs(
     from slimonnx.tests.benchmark_utils import get_model_benchmark_name
 
     benchmark_name = get_model_benchmark_name(Path(onnx_path), benchmarks_dir)
-    data_file = Path(data_dir) / benchmark_name / f"{model_name}.npz"
+    data_file = data_dir_path / benchmark_name / f"{model_name}.npz"
     precomputed_inputs = _load_precomputed_data(data_file)
     if precomputed_inputs:
         return precomputed_inputs

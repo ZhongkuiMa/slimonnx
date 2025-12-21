@@ -299,7 +299,7 @@ def test_preprocess_benchmarks() -> None:
 
     import pytest
 
-    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 
@@ -314,7 +314,7 @@ def test_validation_benchmarks() -> None:
 
     import pytest
 
-    benchmark_dir = Path(__file__).parent.parent.parent / "tests" / "vnncomp2024" / "benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 
