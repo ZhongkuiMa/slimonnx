@@ -45,7 +45,10 @@ def _collapse_consecutive_reshapes(nodes: list[NodeProto]) -> list[NodeProto]:
         ):
             if len(pre_node.input) != 2 or len(pre_node.output) != 1 or len(node.input) != 2:
                 raise ValueError(
-                    f"Invalid Reshape node structure: {pre_node.name} inputs={len(pre_node.input)}, outputs={len(pre_node.output)}, {node.name} inputs={len(node.input)}. Expected 2 inputs and 1 output."
+                    f"Invalid Reshape node structure: {pre_node.name} "
+                    f"inputs={len(pre_node.input)}, outputs={len(pre_node.output)}, "
+                    f"{node.name} inputs={len(node.input)}. "
+                    "Expected 2 inputs and 1 output."
                 )
             for _i, output_name in enumerate(pre_pre_node.output):
                 if output_name == pre_node.input[0]:

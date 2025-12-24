@@ -40,7 +40,8 @@ def detect_gemm_gemm(
 
     Pattern: Gemm -> Gemm
     Two consecutive Gemm operations can be merged into single Gemm.
-    This is a form of linear operation merging: (X @ W1 + b1) @ W2 + b2 = X @ (W1 @ W2) + (b1 @ W2 + b2)
+    This is a form of linear operation merging:
+    (X @ W1 + b1) @ W2 + b2 = X @ (W1 @ W2) + (b1 @ W2 + b2)
 
     Requirements:
     - Both Gemm nodes must have alpha=1, beta=1

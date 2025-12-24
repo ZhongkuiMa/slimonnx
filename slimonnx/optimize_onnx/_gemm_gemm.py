@@ -88,18 +88,21 @@ def _fuse_gemm_group(group: list[NodeProto], initializers: dict[str, TensorProto
     for gemm_node in group:
         if gemm_node.input[2] not in initializers:
             raise ValueError(
-                f"Gemm node {gemm_node.name} bias input {gemm_node.input[2]} not found in initializers."
+                f"Gemm node {gemm_node.name} bias input {gemm_node.input[2]} "
+                "not found in initializers."
             )
         alpha, beta, trans_a, trans_b, weight, bias = _get_gemm_params(
             gemm_node, initializers, remove_initializers=True
         )
         if alpha != 1 or beta != 1:
             raise ValueError(
-                f"Gemm node {gemm_node.name} has unsupported alpha={alpha} or beta={beta}. Only alpha=beta=1 is supported for fusion."
+                f"Gemm node {gemm_node.name} has unsupported alpha={alpha} or beta={beta}. "
+                "Only alpha=beta=1 is supported for fusion."
             )
         if trans_a != 0 or trans_b != 0:
             raise ValueError(
-                f"Gemm node {gemm_node.name} has unsupported transA={trans_a} or transB={trans_b}. Only transA=transB=0 is supported for fusion."
+                f"Gemm node {gemm_node.name} has unsupported transA={trans_a} "
+                f"or transB={trans_b}. Only transA=transB=0 is supported for fusion."
             )
         all_weights.append(weight)
         all_biases.append(bias)

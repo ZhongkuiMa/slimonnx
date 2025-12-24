@@ -24,7 +24,8 @@ def _validate_transpose_perm(tp_node: NodeProto, initializers: dict[str, TensorP
     perm = get_onnx_attrs(tp_node, initializers)["perm"]
     if not all(p_i == p_j for p_i, p_j in zip(perm, TRANSPOSE_CHW_TO_CWH, strict=False)):
         raise ValueError(
-            f"Transpose node {tp_node.name} has unsupported perm={perm}. Expected {TRANSPOSE_CHW_TO_CWH}."
+            f"Transpose node {tp_node.name} has unsupported perm={perm}. "
+            f"Expected {TRANSPOSE_CHW_TO_CWH}."
         )
 
 

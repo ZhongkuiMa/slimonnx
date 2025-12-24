@@ -34,7 +34,8 @@ def _reorder_by_strict_topological_order(nodes: list[NodeProto]) -> list[NodePro
 
     if len(nodes) != len(new_nodes):
         raise RuntimeError(
-            f"Node count mismatch after topological ordering: original={len(nodes)}, reordered={len(new_nodes)}."
+            f"Node count mismatch after topological ordering: "
+            f"original={len(nodes)}, reordered={len(new_nodes)}."
         )
 
     return new_nodes

@@ -114,9 +114,12 @@ def run_all_pattern_detection(
             for pattern_name, count in result["pattern_details"].items():
                 pattern_counts[pattern_name] += count
 
-            print(
-                f"OK ({result['total_patterns']} patterns: {result['fusion_patterns']} fusion, {result['redundant_patterns']} redundant)"
+            patterns_str = (
+                f"OK ({result['total_patterns']} patterns: "
+                f"{result['fusion_patterns']} fusion, "
+                f"{result['redundant_patterns']} redundant)"
             )
+            print(patterns_str)
         else:
             failed_count += 1
             print(f"FAILED: {result['error']}")
@@ -344,11 +347,13 @@ def run_all_structure_analysis(
     print(f"Avg nodes per model: {total_nodes / success_count:.1f}" if success_count > 0 else "N/A")
     print(f"Total parameters: {total_params:,}")
     print(f"Total memory: {total_memory:.2f} MB")
-    print(
-        f"Models with shape inference: {models_with_shapes}/{success_count} ({models_with_shapes / success_count * 100:.1f}%)"
+    shape_inference_msg = (
+        f"Models with shape inference: {models_with_shapes}/{success_count} "
+        f"({models_with_shapes / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
+    print(shape_inference_msg)
 
     return {
         "total": len(onnx_files),

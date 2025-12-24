@@ -5,8 +5,8 @@ __all__ = ["optimize_onnx"]
 
 import onnx
 from onnx import ModelProto, NodeProto, TensorProto
-
 from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+
 from slimonnx.slimonnx.optimize_onnx._bn_conv import (
     _fuse_conv_bn_or_bn_conv,
     _fuse_convtranspose_bn_or_bn_convtranspose,

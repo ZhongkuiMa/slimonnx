@@ -87,6 +87,30 @@ def update_benchmark(
     return success, total
 
 
+def get_benchmarks_to_update(benchmark_arg: str | None, results_dir: Path) -> list[str] | None:
+    """Determine which benchmarks to update.
+
+    :param benchmark_arg: Benchmark name from CLI arg (or None for all)
+    :param results_dir: Root results directory
+    :return: List of benchmark names to update, or None on error
+    """
+    if benchmark_arg:
+        benchmark_path = results_dir / benchmark_arg
+        if not benchmark_path.exists():
+            print(f"Error: Benchmark '{benchmark_arg}' not found in results/")
+            print(f"\nAvailable benchmarks in {results_dir}:")
+            for bench in sorted(results_dir.iterdir()):
+                if bench.is_dir():
+                    print(f"  - {bench.name}")
+            return None
+        return [benchmark_arg]
+
+    benchmarks = [
+        bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()
+    ]
+    return benchmarks if benchmarks else None
+
+
 def main():
     """Main entry point."""
     parser = argparse.ArgumentParser(
@@ -121,22 +145,8 @@ def main():
         baselines_dir.mkdir(exist_ok=True)
 
     # Find benchmarks to update
-    if args.benchmark:
-        benchmark_path = results_dir / args.benchmark
-        if not benchmark_path.exists():
-            print(f"Error: Benchmark '{args.benchmark}' not found in results/")
-            print(f"\nAvailable benchmarks in {results_dir}:")
-            for bench in sorted(results_dir.iterdir()):
-                if bench.is_dir():
-                    print(f"  - {bench.name}")
-            return 1
-        benchmarks_to_update = [args.benchmark]
-    else:
-        benchmarks_to_update = [
-            bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()
-        ]
-
-    if not benchmarks_to_update:
+    benchmarks_to_update = get_benchmarks_to_update(args.benchmark, results_dir)
+    if benchmarks_to_update is None:
         print("No benchmarks found in results/")
         return 1
 

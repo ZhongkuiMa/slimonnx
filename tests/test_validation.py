@@ -124,9 +124,11 @@ def run_all_preprocess(
             if result["has_shapes"]:
                 models_with_shapes += 1
 
-            print(
-                f"OK (opset {result['opset']}, IR {result['ir_version']}, {result['node_count']} nodes, shapes: {result['has_shapes']})"
+            status_msg = (
+                f"OK (opset {result['opset']}, IR {result['ir_version']}, "
+                f"{result['node_count']} nodes, shapes: {result['has_shapes']})"
             )
+            print(status_msg)
         else:
             failed_count += 1
             print(f"FAILED: {result['error']}")
@@ -138,11 +140,13 @@ def run_all_preprocess(
     print(f"Success: {success_count}")
     print(f"Failed: {failed_count}")
     print()
-    print(
-        f"Models with shape inference: {models_with_shapes}/{success_count} ({models_with_shapes / success_count * 100:.1f}%)"
+    shape_msg = (
+        f"Models with shape inference: {models_with_shapes}/{success_count} "
+        f"({models_with_shapes / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
+    print(shape_msg)
     print("\nOpset distribution:")
     for opset in sorted(opset_counts.keys()):
         print(f"  Opset {opset}: {opset_counts[opset]}")
@@ -267,16 +271,20 @@ def run_all_validation(benchmark_dir: str = "benchmarks", max_per_benchmark: int
         if success_count > 0
         else "N/A"
     )
-    print(
-        f"ONNX checker valid: {checker_valid_count}/{success_count} ({checker_valid_count / success_count * 100:.1f}%)"
+    checker_msg = (
+        f"ONNX checker valid: {checker_valid_count}/{success_count} "
+        f"({checker_valid_count / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
-    print(
-        f"Runtime loadable: {runtime_loadable_count}/{success_count} ({runtime_loadable_count / success_count * 100:.1f}%)"
+    print(checker_msg)
+    runtime_msg = (
+        f"Runtime loadable: {runtime_loadable_count}/{success_count} "
+        f"({runtime_loadable_count / success_count * 100:.1f}%)"
         if success_count > 0
         else "N/A"
     )
+    print(runtime_msg)
     print()
     print(f"Total dead nodes: {total_dead_nodes}")
     print(f"Total issues: {total_issues}")

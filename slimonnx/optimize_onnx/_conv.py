@@ -118,7 +118,8 @@ def _simplify_conv_to_flatten_gemm(
                 )
                 if weight.ndim != 4:
                     raise ValueError(
-                        f"Conv node {node.name} has unsupported weight dimension {weight.ndim}D. Only 4D weight is supported."
+                        f"Conv node {node.name} has unsupported weight dimension {weight.ndim}D. "
+                        "Only 4D weight is supported."
                     )
 
                 pre_output_shape_raw = data_shapes[pre_conv_node.output[0]]

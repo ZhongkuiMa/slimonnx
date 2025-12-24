@@ -74,9 +74,11 @@ def compare_optimization_stats(current: dict, baseline: dict) -> list[str]:
 
     # Compare node counts
     if current["optimized_nodes"] != baseline["optimized_nodes"]:
-        differences.append(
-            f"Optimized nodes changed: {baseline['optimized_nodes']} -> {current['optimized_nodes']}"
+        node_diff = (
+            f"Optimized nodes changed: {baseline['optimized_nodes']} -> "
+            f"{current['optimized_nodes']}"
         )
+        differences.append(node_diff)
 
     # Compare reduction percentage (allow small variance)
     baseline_pct = baseline.get("reduction_pct", 0.0)

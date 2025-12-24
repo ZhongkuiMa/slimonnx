@@ -129,9 +129,11 @@ if __name__ == "__main__":
 
     if len(sys.argv) < 2:
         print("Usage: python detect_optimizations.py <benchmark_dir>")
-        print(
-            "Example: python detect_optimizations.py ../../tests/vnncomp2024/benchmarks/ml4acopf_2023"
+        example_cmd = (
+            "python detect_optimizations.py "
+            "../../tests/vnncomp2024/benchmarks/ml4acopf_2023"
         )
+        print(f"Example: {example_cmd}")
         sys.exit(1)
 
     benchmark_dir = sys.argv[1]

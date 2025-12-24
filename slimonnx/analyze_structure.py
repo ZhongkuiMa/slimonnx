@@ -10,6 +10,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+
 from slimonnx.slimonnx import utils
 from slimonnx.slimonnx.model_validate import validate_model
 from slimonnx.slimonnx.pattern_detect import detect_all_patterns

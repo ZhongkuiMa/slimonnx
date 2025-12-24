@@ -16,7 +16,11 @@ from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 
 
 def _is_only_next_node(pre_node: NodeProto, cur_node: NodeProto, nodes: list[NodeProto]) -> bool:
-    """Check the pre_node and node are in a single path. Because if there are multiple paths, we cannot fuse the nodes to avoid changing the computation graph."""
+    """Check the pre_node and node are in a single path.
+
+    Because if there are multiple paths, we cannot fuse the nodes to avoid changing
+    the computation graph.
+    """
     pre_node_name = pre_node.output[0]
     return all(not (pre_node_name in node.input and node != cur_node) for node in nodes)
 
