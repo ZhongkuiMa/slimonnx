@@ -110,7 +110,7 @@ def get_benchmarks_to_update(benchmark_arg: str | None, results_dir: Path) -> li
 
 
 def main():
-    """Main entry point."""
+    """Update baselines from results directory."""
     parser = argparse.ArgumentParser(
         description="Update baselines by copying .json stats from results/ to baselines/",
         epilog="Example: python update_baselines.py --benchmark acasxu_2023",

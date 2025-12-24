@@ -65,6 +65,7 @@ select = [
 ignore = [
     "E501", "B008", "RET504", "SIM108", "FBT001", "FBT002",
     "D100", "D104", "TD002", "TD003",
+    "T201", "PLR0913", "ERA001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
