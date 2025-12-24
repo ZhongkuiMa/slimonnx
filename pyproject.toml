@@ -55,9 +55,39 @@ exclude = [
 ]
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "C90", "UP", "PT", "PIE"]
-ignore = []
-per-file-ignores = {"__init__.py" = ["F401"]}
+# Comprehensive rule set (matches main rover project)
+select = [
+    "E", "W", "F", "I", "N", "UP", "B", "C4", "PIE", "RET", "SIM", "TID",
+    "A", "BLE", "C90", "FBT", "ICN", "ISC", "PGH", "Q", "RSE", "SLF",
+    "TD", "D", "PERF", "FURB", "PT", "T10", "PTH", "INP", "NPY",
+]
+
+ignore = [
+    "E501", "B008", "RET504", "SIM108", "FBT001", "FBT002",
+    "D100", "D104", "TD002", "TD003",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401", "F403"]
+"tests/**" = ["INP001", "D103"]
+"**/test/**" = ["INP001", "D103"]
+"**/tests/**" = ["INP001", "D103"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["slimonnx"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+docstring-quotes = "double"
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
 
 [tool.mypy]
 python_version = "3.11"
