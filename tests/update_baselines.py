@@ -105,9 +105,7 @@ def get_benchmarks_to_update(benchmark_arg: str | None, results_dir: Path) -> li
             return None
         return [benchmark_arg]
 
-    benchmarks = [
-        bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()
-    ]
+    benchmarks = [bench.name for bench in sorted(results_dir.iterdir()) if bench.is_dir()]
     return benchmarks if benchmarks else None
 
 

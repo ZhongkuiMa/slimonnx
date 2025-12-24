@@ -84,3 +84,5 @@ tests/data/
 tests/vnncomp2024_benchmarks/
 tests/benchmarks/
 tests/temp/
+# === Claude Code / Serena tool cache ===
+.serena/
