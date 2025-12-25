@@ -16,4 +16,4 @@ __all__ = [
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
 from slimonnx.preprocess import MAX_TESTED_OPSET, RECOMMENDED_OPSET, SLIMONNX_VERSION
 from slimonnx.presets import all_optimizations, get_preset
-from slimonnx import SlimONNX
+from slimonnx.slimonnx.slimonnx import SlimONNX
