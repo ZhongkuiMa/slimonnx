@@ -1,4 +1,4 @@
-from slimonnx.slimonnx import (
+from slimonnx import (
     MAX_TESTED_OPSET,
     RECOMMENDED_OPSET,
     SLIMONNX_VERSION,

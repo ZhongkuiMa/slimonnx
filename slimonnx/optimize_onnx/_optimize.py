@@ -5,33 +5,33 @@ __all__ = ["optimize_onnx"]
 
 import onnx
 from onnx import ModelProto, NodeProto, TensorProto
-from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+from shapeonnx.infer_shape import infer_onnx_shape
 
-from slimonnx.slimonnx.optimize_onnx._bn_conv import (
+from slimonnx.optimize_onnx._bn_conv import (
     _fuse_conv_bn_or_bn_conv,
     _fuse_convtranspose_bn_or_bn_convtranspose,
 )
-from slimonnx.slimonnx.optimize_onnx._bn_gemm import (
+from slimonnx.optimize_onnx._bn_gemm import (
     _fuse_bn_gemm,
     _fuse_bn_reshape_gemm,
     _fuse_gemm_reshape_bn,
 )
-from slimonnx.slimonnx.optimize_onnx._bn_transpose import _fuse_transpose_batchnorm_transpose
-from slimonnx.slimonnx.optimize_onnx._conv import _simplify_conv_to_flatten_gemm
-from slimonnx.slimonnx.optimize_onnx._cst2initer import _constant_to_initializer
-from slimonnx.slimonnx.optimize_onnx._cst_op import _fuse_constant_nodes
-from slimonnx.slimonnx.optimize_onnx._depthwise_conv import (
+from slimonnx.optimize_onnx._bn_transpose import _fuse_transpose_batchnorm_transpose
+from slimonnx.optimize_onnx._conv import _simplify_conv_to_flatten_gemm
+from slimonnx.optimize_onnx._cst2initer import _constant_to_initializer
+from slimonnx.optimize_onnx._cst_op import _fuse_constant_nodes
+from slimonnx.optimize_onnx._depthwise_conv import (
     _fuse_depthwise_conv_bn_or_bn_depthwise_conv,
 )
-from slimonnx.slimonnx.optimize_onnx._dropout import remove_dropout as _remove_dropout
-from slimonnx.slimonnx.optimize_onnx._gemm import _simplify_gemm
-from slimonnx.slimonnx.optimize_onnx._gemm_gemm import _fuse_gemm_gemm
-from slimonnx.slimonnx.optimize_onnx._mm_add import _fuse_matmul_add
-from slimonnx.slimonnx.optimize_onnx._name import _simplify_names
-from slimonnx.slimonnx.optimize_onnx._ordering import _reorder_by_strict_topological_order
-from slimonnx.slimonnx.optimize_onnx._redundant import _remove_redundant_operations
-from slimonnx.slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
-from slimonnx.slimonnx.utils import (
+from slimonnx.optimize_onnx._dropout import remove_dropout as _remove_dropout
+from slimonnx.optimize_onnx._gemm import _simplify_gemm
+from slimonnx.optimize_onnx._gemm_gemm import _fuse_gemm_gemm
+from slimonnx.optimize_onnx._mm_add import _fuse_matmul_add
+from slimonnx.optimize_onnx._name import _simplify_names
+from slimonnx.optimize_onnx._ordering import _reorder_by_strict_topological_order
+from slimonnx.optimize_onnx._redundant import _remove_redundant_operations
+from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
+from slimonnx.utils import (
     clear_onnx_docstring,
     get_initializers,
     get_input_nodes,

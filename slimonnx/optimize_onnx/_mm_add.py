@@ -4,7 +4,7 @@ __all__ = ["_fuse_matmul_add"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._utils import _is_only_next_node
+from slimonnx.optimize_onnx._utils import _is_only_next_node
 
 
 def _extract_matmul_add_params(

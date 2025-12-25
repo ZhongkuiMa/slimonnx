@@ -4,7 +4,7 @@ __all__ = ["_fuse_gemm_gemm"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._utils import _get_gemm_params
+from slimonnx.optimize_onnx._utils import _get_gemm_params
 
 
 def _count_node_connections(gemm_node: NodeProto, nodes: list[NodeProto]) -> tuple[int, int]:

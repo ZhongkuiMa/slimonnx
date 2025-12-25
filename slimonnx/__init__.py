@@ -13,7 +13,7 @@ __all__ = [
     "SLIMONNX_VERSION",
 ]
 
-from slimonnx.slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
-from slimonnx.slimonnx.preprocess import MAX_TESTED_OPSET, RECOMMENDED_OPSET, SLIMONNX_VERSION
-from slimonnx.slimonnx.presets import all_optimizations, get_preset
-from slimonnx.slimonnx.slimonnx import SlimONNX
+from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
+from slimonnx.preprocess import MAX_TESTED_OPSET, RECOMMENDED_OPSET, SLIMONNX_VERSION
+from slimonnx.presets import all_optimizations, get_preset
+from slimonnx import SlimONNX

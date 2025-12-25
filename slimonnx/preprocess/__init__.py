@@ -9,7 +9,7 @@ __all__ = [
     "SLIMONNX_VERSION",
 ]
 
-from slimonnx.slimonnx.preprocess.version_converter import (
+from slimonnx.preprocess.version_converter import (
     MAX_TESTED_OPSET,
     RECOMMENDED_OPSET,
     SLIMONNX_VERSION,

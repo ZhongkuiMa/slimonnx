@@ -8,7 +8,7 @@ import warnings
 import onnx
 from onnx import ModelProto, version_converter
 
-from slimonnx.slimonnx import utils
+from slimonnx import utils
 
 # Recommended opset range based on shapeonnx compatibility testing
 RECOMMENDED_OPSET = 20

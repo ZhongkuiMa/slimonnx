@@ -71,7 +71,7 @@ def analyze_structure(
     op_type_counts = count_op_types(nodes)
     io_info = analyze_inputs_outputs(model)
 
-    from slimonnx.slimonnx import utils
+    from slimonnx import utils
 
     initializers = utils.get_initializers(model)
 

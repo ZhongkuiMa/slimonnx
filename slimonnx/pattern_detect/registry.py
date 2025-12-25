@@ -142,27 +142,27 @@ def detect_all_patterns(
     :return: Detection results per pattern
     """
     # Import all detectors
-    from slimonnx.slimonnx.pattern_detect.constant_ops import detect_constant_foldable
-    from slimonnx.slimonnx.pattern_detect.conv_bn import (
+    from slimonnx.pattern_detect.constant_ops import detect_constant_foldable
+    from slimonnx.pattern_detect.conv_bn import (
         detect_bn_conv,
         detect_bn_convtranspose,
         detect_conv_bn,
         detect_convtranspose_bn,
     )
-    from slimonnx.slimonnx.pattern_detect.depthwise_conv import (
+    from slimonnx.pattern_detect.depthwise_conv import (
         detect_bn_depthwise_conv,
         detect_depthwise_conv,
         detect_depthwise_conv_bn,
     )
-    from slimonnx.slimonnx.pattern_detect.dropout import detect_dropout
-    from slimonnx.slimonnx.pattern_detect.gemm_bn import (
+    from slimonnx.pattern_detect.dropout import detect_dropout
+    from slimonnx.pattern_detect.gemm_bn import (
         detect_bn_gemm,
         detect_bn_reshape_gemm,
         detect_gemm_reshape_bn,
     )
-    from slimonnx.slimonnx.pattern_detect.gemm_chains import detect_gemm_gemm
-    from slimonnx.slimonnx.pattern_detect.matmul_add import detect_matmul_add
-    from slimonnx.slimonnx.pattern_detect.redundant_ops import (
+    from slimonnx.pattern_detect.gemm_chains import detect_gemm_gemm
+    from slimonnx.pattern_detect.matmul_add import detect_matmul_add
+    from slimonnx.pattern_detect.redundant_ops import (
         detect_add_zero,
         detect_div_one,
         detect_identity_reshape,
@@ -170,11 +170,11 @@ def detect_all_patterns(
         detect_pad_zero,
         detect_sub_zero,
     )
-    from slimonnx.slimonnx.pattern_detect.reshape_chains import detect_consecutive_reshape
-    from slimonnx.slimonnx.pattern_detect.reshape_negative_one import (
+    from slimonnx.pattern_detect.reshape_chains import detect_consecutive_reshape
+    from slimonnx.pattern_detect.reshape_negative_one import (
         detect_reshape_with_negative_one,
     )
-    from slimonnx.slimonnx.pattern_detect.transpose_bn import detect_transpose_bn_transpose
+    from slimonnx.pattern_detect.transpose_bn import detect_transpose_bn_transpose
 
     results = {}
 

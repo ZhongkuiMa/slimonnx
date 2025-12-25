@@ -46,7 +46,7 @@ def test_benchmark_has_preset(benchmark_name: str) -> None:
 
     :param benchmark_name: Name of the benchmark
     """
-    from slimonnx.slimonnx.presets import PRESET_NAMES, get_preset
+    from slimonnx.presets import PRESET_NAMES, get_preset
 
     assert benchmark_name in PRESET_NAMES, f"Benchmark {benchmark_name} not in PRESET_NAMES"
 
@@ -60,8 +60,8 @@ def test_benchmark_preset_is_valid(benchmark_name: str) -> None:
 
     :param benchmark_name: Name of the benchmark
     """
-    from slimonnx.slimonnx.configs import OptimizationConfig
-    from slimonnx.slimonnx.presets import get_preset
+    from slimonnx.configs import OptimizationConfig
+    from slimonnx.presets import get_preset
 
     config = get_preset(benchmark_name)
     assert isinstance(config, OptimizationConfig), (

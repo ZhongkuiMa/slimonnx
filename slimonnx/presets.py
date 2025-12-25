@@ -5,7 +5,7 @@ __all__ = ["get_preset", "all_optimizations", "PRESET_NAMES"]
 
 from functools import lru_cache
 
-from slimonnx.slimonnx.configs import OptimizationConfig
+from slimonnx.configs import OptimizationConfig
 
 # Tuple of available preset names
 PRESET_NAMES = (

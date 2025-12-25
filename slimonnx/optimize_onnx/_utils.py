@@ -12,7 +12,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
+from slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 
 
 def _is_only_next_node(pre_node: NodeProto, cur_node: NodeProto, nodes: list[NodeProto]) -> bool:

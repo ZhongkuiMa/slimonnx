@@ -23,7 +23,7 @@ import numpy as np
 import onnx
 
 from slimonnx import OptimizationConfig, SlimONNX
-from slimonnx.slimonnx.structure_analysis.topology import build_topology
+from slimonnx.structure_analysis.topology import build_topology
 from slimonnx.tests.benchmark_utils import (
     find_benchmark_folders,
     find_onnx_files_from_instances,
@@ -160,7 +160,7 @@ def _infer_model_shapes(model: onnx.ModelProto, has_batch_dim: bool) -> tuple[di
     """
     try:
         from shapeonnx import infer_onnx_shape
-        from shapeonnx.shapeonnx.utils import (
+        from shapeonnx.utils import (
             convert_constant_to_initializer,
             get_initializers,
             get_input_nodes,

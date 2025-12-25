@@ -5,9 +5,9 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._constants import TRANSPOSE_CHW_TO_CWH
-from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
-from slimonnx.slimonnx.optimize_onnx._utils import (
+from slimonnx.optimize_onnx._constants import TRANSPOSE_CHW_TO_CWH
+from slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
+from slimonnx.optimize_onnx._utils import (
     _get_batchnorm_params,
     _is_only_next_node,
     compute_batchnorm_fusion_params,

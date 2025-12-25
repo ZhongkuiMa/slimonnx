@@ -3,7 +3,7 @@ __all__ = ["_reorder_by_strict_topological_order"]
 
 from onnx import NodeProto
 
-from slimonnx.slimonnx.utils import get_next_nodes_mapping
+from slimonnx.utils import get_next_nodes_mapping
 
 
 def _reorder_by_strict_topological_order(nodes: list[NodeProto]) -> list[NodeProto]:

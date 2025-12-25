@@ -7,8 +7,8 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._constants import ONNX_DTYPE_TO_NUMPY
-from slimonnx.slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
+from slimonnx.optimize_onnx._constants import ONNX_DTYPE_TO_NUMPY
+from slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 
 
 def _execute_gather_slice_unsqueeze(

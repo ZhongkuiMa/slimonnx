@@ -9,7 +9,7 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._utils import (
+from slimonnx.optimize_onnx._utils import (
     _get_batchnorm_params,
     _get_gemm_params,
     _is_only_next_node,

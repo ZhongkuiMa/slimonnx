@@ -22,9 +22,9 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
 dependencies = [
-    "onnx==1.17.0",
-    "onnxruntime==1.20.0",
-    "numpy==2.2.4",
+    "onnx==1.16.0",
+    "onnxruntime==1.22.0",
+    "numpy==1.26.4",
 ]
 
 [project.optional-dependencies]
@@ -36,8 +36,10 @@ dev = [
     "pyright>=1.1.0",
 ]
 
-[tool.setuptools]
-packages = ["slimonnx"]
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["slimonnx*"]
+exclude = ["tests*", "docs*"]
 
 [tool.setuptools.package-data]
 slimonnx = ["py.typed"]

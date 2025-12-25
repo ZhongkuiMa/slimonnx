@@ -4,7 +4,7 @@ __all__ = ["_simplify_conv_to_flatten_gemm"]
 import onnx
 from onnx import NodeProto, TensorProto
 
-from slimonnx.slimonnx.optimize_onnx._utils import _get_conv_params, _is_only_next_node
+from slimonnx.optimize_onnx._utils import _get_conv_params, _is_only_next_node
 
 
 def _can_simplify_conv(

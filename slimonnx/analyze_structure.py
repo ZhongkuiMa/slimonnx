@@ -9,13 +9,13 @@ from pathlib import Path
 # Add parent to path for shapeonnx import
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+from shapeonnx.infer_shape import infer_onnx_shape
 
-from slimonnx.slimonnx import utils
-from slimonnx.slimonnx.model_validate import validate_model
-from slimonnx.slimonnx.pattern_detect import detect_all_patterns
-from slimonnx.slimonnx.preprocess import load_and_preprocess
-from slimonnx.slimonnx.structure_analysis import (
+from slimonnx import utils
+from slimonnx.model_validate import validate_model
+from slimonnx.pattern_detect import detect_all_patterns
+from slimonnx.preprocess import load_and_preprocess
+from slimonnx.structure_analysis import (
     analyze_structure,
     export_topology_json,
     generate_json_report,

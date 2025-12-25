@@ -9,8 +9,8 @@ from typing import Any, cast
 
 import onnx
 
-from slimonnx.slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
-from slimonnx.slimonnx.optimize_onnx import optimize_onnx
+from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class SlimONNX:
@@ -163,7 +163,7 @@ class SlimONNX:
         original_ir = model.ir_version
 
         # Extract nodes (converts Constant nodes to initializers)
-        from slimonnx.slimonnx import utils
+        from slimonnx import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
@@ -171,7 +171,7 @@ class SlimONNX:
 
         # Infer shapes using shapeonnx
         try:
-            from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+            from shapeonnx.infer_shape import infer_onnx_shape
 
             data_shapes = infer_onnx_shape(
                 input_nodes,
@@ -193,17 +193,17 @@ class SlimONNX:
             shape_inference_success = False
 
         # Validate model
-        from slimonnx.slimonnx.model_validate import validate_model
+        from slimonnx.model_validate import validate_model
 
         validation = validate_model(model, data_shapes=data_shapes)
 
         # Detect patterns
-        from slimonnx.slimonnx.pattern_detect import detect_all_patterns
+        from slimonnx.pattern_detect import detect_all_patterns
 
         patterns = detect_all_patterns(nodes, initializers, data_shapes)
 
         # Analyze structure
-        from slimonnx.slimonnx.structure_analysis import analyze_structure
+        from slimonnx.structure_analysis import analyze_structure
 
         structure = analyze_structure(model, data_shapes)
 
@@ -231,14 +231,14 @@ class SlimONNX:
 
         # Export topology if requested
         if analysis.export_topology:
-            from slimonnx.slimonnx.structure_analysis import export_topology_json
+            from slimonnx.structure_analysis import export_topology_json
 
             topo_path = analysis.topology_path or onnx_path.replace(".onnx", "_topology.json")
             export_topology_json(nodes, topo_path, data_shapes)
 
         # Export full analysis if requested
         if analysis.export_json:
-            from slimonnx.slimonnx.structure_analysis import generate_json_report
+            from slimonnx.structure_analysis import generate_json_report
 
             json_path = analysis.json_path or onnx_path.replace(".onnx", "_analysis.json")
             generate_json_report(report, json_path)
@@ -324,7 +324,7 @@ class SlimONNX:
         :param mark_slimonnx: Mark model as processed by SlimONNX (default: True)
         :return: Preprocessed model
         """
-        from slimonnx.slimonnx.preprocess import load_and_preprocess
+        from slimonnx.preprocess import load_and_preprocess
 
         return load_and_preprocess(
             onnx_path,
@@ -365,7 +365,7 @@ class SlimONNX:
             mark_slimonnx=False,
         )
 
-        from slimonnx.slimonnx import utils
+        from slimonnx import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
@@ -373,7 +373,7 @@ class SlimONNX:
 
         # Infer shapes
         try:
-            from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+            from shapeonnx.infer_shape import infer_onnx_shape
 
             data_shapes = infer_onnx_shape(
                 input_nodes,
@@ -392,7 +392,7 @@ class SlimONNX:
             print(f"Shape inference failed: {error}")
             data_shapes = None
 
-        from slimonnx.slimonnx.model_validate import validate_model
+        from slimonnx.model_validate import validate_model
 
         return validate_model(model, data_shapes=data_shapes)
 
@@ -421,7 +421,7 @@ class SlimONNX:
             mark_slimonnx=False,
         )
 
-        from slimonnx.slimonnx import utils
+        from slimonnx import utils
 
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
@@ -429,7 +429,7 @@ class SlimONNX:
 
         # Infer shapes
         try:
-            from shapeonnx.shapeonnx.infer_shape import infer_onnx_shape
+            from shapeonnx.infer_shape import infer_onnx_shape
 
             data_shapes = infer_onnx_shape(
                 input_nodes,
@@ -448,7 +448,7 @@ class SlimONNX:
             print(f"Shape inference failed: {error}")
             data_shapes = None
 
-        from slimonnx.slimonnx.pattern_detect import detect_all_patterns
+        from slimonnx.pattern_detect import detect_all_patterns
 
         return cast(dict[Any, Any], detect_all_patterns(nodes, initializers, data_shapes))
 
@@ -467,7 +467,7 @@ class SlimONNX:
         """
         validation = validation or ValidationConfig()
 
-        from slimonnx.slimonnx.model_validate import compare_model_outputs
+        from slimonnx.model_validate import compare_model_outputs
 
         return cast(
             dict[Any, Any],

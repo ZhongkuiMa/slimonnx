@@ -29,27 +29,27 @@ __all__ = [
     "detect_reshape_with_negative_one",
 ]
 
-from slimonnx.slimonnx.constant_ops import detect_constant_foldable
-from slimonnx.slimonnx.conv_bn import (
+from slimonnx.constant_ops import detect_constant_foldable
+from slimonnx.conv_bn import (
     detect_bn_conv,
     detect_bn_convtranspose,
     detect_conv_bn,
     detect_convtranspose_bn,
 )
-from slimonnx.slimonnx.depthwise_conv import (
+from slimonnx.depthwise_conv import (
     detect_bn_depthwise_conv,
     detect_depthwise_conv,
     detect_depthwise_conv_bn,
 )
-from slimonnx.slimonnx.dropout import detect_dropout
-from slimonnx.slimonnx.gemm_bn import (
+from slimonnx.dropout import detect_dropout
+from slimonnx.gemm_bn import (
     detect_bn_gemm,
     detect_bn_reshape_gemm,
     detect_gemm_reshape_bn,
 )
-from slimonnx.slimonnx.gemm_chains import detect_gemm_gemm
-from slimonnx.slimonnx.matmul_add import detect_matmul_add
-from slimonnx.slimonnx.redundant_ops import (
+from slimonnx.gemm_chains import detect_gemm_gemm
+from slimonnx.matmul_add import detect_matmul_add
+from slimonnx.redundant_ops import (
     detect_add_zero,
     detect_div_one,
     detect_identity_reshape,
@@ -57,7 +57,7 @@ from slimonnx.slimonnx.redundant_ops import (
     detect_pad_zero,
     detect_sub_zero,
 )
-from slimonnx.slimonnx.registry import PATTERNS, detect_all_patterns
-from slimonnx.slimonnx.reshape_chains import detect_consecutive_reshape
-from slimonnx.slimonnx.reshape_negative_one import detect_reshape_with_negative_one
-from slimonnx.slimonnx.transpose_bn import detect_transpose_bn_transpose
+from slimonnx.registry import PATTERNS, detect_all_patterns
+from slimonnx.reshape_chains import detect_consecutive_reshape
+from slimonnx.reshape_negative_one import detect_reshape_with_negative_one
+from slimonnx.transpose_bn import detect_transpose_bn_transpose

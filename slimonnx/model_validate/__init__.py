@@ -15,20 +15,20 @@ __all__ = [
     "generate_inputs_from_bounds",
 ]
 
-from slimonnx.slimonnx.graph_validator import (
+from slimonnx.graph_validator import (
     check_broken_connections,
     check_dead_nodes,
     check_orphan_initializers,
     check_shape_consistency,
     check_type_consistency,
 )
-from slimonnx.slimonnx.numerical_compare import (
+from slimonnx.numerical_compare import (
     compare_model_outputs,
     generate_inputs_from_bounds,
     run_onnx_inference,
 )
-from slimonnx.slimonnx.onnx_checker import run_onnx_checker
-from slimonnx.slimonnx.runtime_validator import validate_with_onnxruntime
+from slimonnx.onnx_checker import run_onnx_checker
+from slimonnx.runtime_validator import validate_with_onnxruntime
 
 
 def validate_model(
@@ -43,7 +43,7 @@ def validate_model(
     :param test_inputs: Optional test inputs for runtime validation
     :return: Validation results dictionary
     """
-    from slimonnx.slimonnx import utils
+    from slimonnx import utils
 
     nodes = list(model.graph.node)
     initializers = utils.get_initializers(model)

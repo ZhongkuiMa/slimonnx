@@ -128,7 +128,7 @@ def _generate_test_inputs(
         input_shape = tuple(d.dim_value for d in model.graph.input[0].type.tensor_type.shape.dim)
         return generate_inputs_from_bounds(input_bounds, input_shape, num_samples)
 
-    from slimonnx.slimonnx import utils
+    from slimonnx import utils
 
     return utils.generate_random_inputs(model, num_samples)
 
