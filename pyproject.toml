@@ -66,15 +66,15 @@ select = [
 
 ignore = [
     "E501", "B008", "RET504", "SIM108", "FBT001", "FBT002",
-    "D100", "D104", "TD002", "TD003",
+    "D104", "TD002", "TD003",
     "T201", "PLR0913", "ERA001",
 ]
 
 [tool.ruff.lint.per-file-ignores]
-"__init__.py" = ["F401", "F403"]
-"tests/**" = ["INP001", "D103"]
-"**/test/**" = ["INP001", "D103"]
-"**/tests/**" = ["INP001", "D103"]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__ (but still detect undefined names from star imports)
+"tests/**" = ["INP001", "D100", "D103", "D101", "D102", "C901"]  # Test code: allow complex functions
+"**/test/**" = ["INP001", "D100", "D103", "D101", "D102", "C901"]  # Test code: allow complex functions
+"**/tests/**" = ["INP001", "D100", "D103", "D101", "D102", "C901"]  # Test code: allow complex functions
 
 [tool.ruff.lint.isort]
 known-first-party = ["slimonnx"]
