@@ -61,7 +61,7 @@ exclude = [
 select = [
     "E", "W", "F", "I", "N", "UP", "B", "C4", "PIE", "RET", "SIM", "TID",
     "A", "BLE", "C90", "FBT", "ICN", "ISC", "PGH", "Q", "RSE", "SLF",
-    "TD", "D", "PERF", "FURB", "PT", "T10", "PTH", "INP", "NPY",
+    "TD", "D", "PERF", "FURB", "PT", "T10", "PTH", "INP", "NPY", "RUF",
 ]
 
 ignore = [
