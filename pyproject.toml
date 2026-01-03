@@ -1,0 +1,140 @@
+[build-system]
+requires = ["setuptools>=65.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "slimonnx"
+version = "2026.1.0"
+description = "ONNX model optimization and simplification utilities"
+readme = "README.md"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "Zhongkui Ma", email = "zhongkui@example.com"}
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "onnx==1.16.0",
+    "onnxruntime==1.22.0",
+    "numpy==1.26.4",
+    "shapeonnx @ git+https://github.com/ZhongkuiMa/shapeonnx.git@v2026.1.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.0",
+    "pytest-cov>=4.0",
+    "ruff>=0.14.0",
+    "mypy>=1.0",
+]
+
+[tool.setuptools]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["slimonnx*"]
+exclude = ["tests*", "docs*"]
+
+[tool.setuptools.package-data]
+slimonnx = ["py.typed"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+exclude = [
+    ".git",
+    "__pycache__",
+    "build",
+    "dist",
+    ".venv",
+    ".eggs",
+]
+
+[tool.ruff.lint]
+# Comprehensive rule set (matches main rover project)
+select = [
+    "E", "W", "F", "I", "N", "UP", "B", "C4", "PIE", "RET", "SIM", "TID",
+    "A", "BLE", "C90", "FBT", "ICN", "ISC", "PGH", "Q", "RSE", "SLF",
+    "TD", "D", "PERF", "FURB", "PT", "T10", "PTH", "INP", "NPY", "RUF",
+]
+
+ignore = [
+    "E501", "B008", "RET504", "SIM108", "FBT001", "FBT002",
+    "D104", "TD002", "TD003",
+    "T201", "PLR0913", "ERA001",
+]
+
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # Allow unused imports in __init__ (but still detect undefined names from star imports)
+"tests/**" = ["INP001", "D100", "D103", "D101", "D102", "C901", "N806", "NPY002"]  # Test code: allow complex functions, matrix notation, numpy patterns
+"**/test/**" = ["INP001", "D100", "D103", "D101", "D102", "C901", "N806", "NPY002"]  # Test code: allow complex functions, matrix notation, numpy patterns
+"**/tests/**" = ["INP001", "D100", "D103", "D101", "D102", "C901", "N806", "NPY002"]  # Test code: allow complex functions, matrix notation, numpy patterns
+
+[tool.ruff.lint.isort]
+known-first-party = ["slimonnx"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.ruff.lint.mccabe]
+max-complexity = 10
+
+[tool.ruff.lint.flake8-quotes]
+inline-quotes = "double"
+docstring-quotes = "double"
+
+[tool.ruff.lint.pydocstyle]
+convention = "pep257"
+
+[tool.mypy]
+python_version = "3.11"
+mypy_path = "src"
+warn_return_any = true
+warn_unused_configs = true
+warn_unused_ignores = true
+disallow_untyped_defs = false
+ignore_missing_imports = true
+files = ["src/slimonnx"]
+exclude = ["tests", "venv", ".venv", "build", "dist"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+norecursedirs = ["test_benchmarks"]
+python_files = ["test_*.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+timeout = 10
+timeout_method = "thread"
+addopts = [
+    "-v",                    # Verbose: show each test name
+    "--tb=short",            # Short traceback format
+    "-ra",                   # Show summary of all test outcomes
+    "--strict-markers",      # Enforce marker registration
+]
+markers = [
+    "benchmark: Slow benchmark tests for manual runs",
+]
+
+[tool.coverage.run]
+source = ["src/slimonnx"]
+omit = ["*/tests/*", "*/test_*"]
+
+[tool.coverage.paths]
+source = [
+    "src/slimonnx",
+    "*/site-packages/slimonnx",
+]
+
+[project.urls]
+Homepage = "https://github.com/ZhongkuiMa/slimonnx"
+Repository = "https://github.com/ZhongkuiMa/slimonnx.git"
+Documentation = "https://github.com/ZhongkuiMa/slimonnx#readme"
