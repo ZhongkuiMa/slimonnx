@@ -1,0 +1,88 @@
+# === Python bytecode ===
+__pycache__/
+*.py[cod]
+*.pyo
+
+# === Virtual environments ===
+.venv/
+venv/
+env/
+ENV/
+*.egg-info/
+.eggs/
+
+# === Distribution / packaging ===
+build/
+dist/
+*.egg
+*.whl
+*.manifest
+*.spec
+
+# === Installer logs ===
+pip-log.txt
+pip-delete-this-directory.txt
+
+# === Unit test / coverage ===
+htmlcov/
+.tox/
+.nox/
+.coverage
+.coverage.*
+.cache
+nosetests.xml
+coverage.xml
+*.cover
+*.py,cover
+
+# === pytest / unittest ===
+.pytest_cache/
+tests/.pytest_cache/
+tests/results/
+tests/__pycache__/
+
+# === mypy, pylint, etc ===
+.mypy_cache/
+.dmypy.json
+.pyre/
+.pytype/
+
+# === Jupyter Notebook checkpoints ===
+.ipynb_checkpoints/
+
+# === VS Code / IDEs ===
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# === OS-specific ===
+.DS_Store
+Thumbs.db
+
+# === Logs and temporary files ===
+*.log
+*.tmp
+*.bak
+
+# === GitHub Codespaces ===
+.devcontainer/
+
+# === Model or data files ===
+#*.onnx
+#*.pt
+#*.pb
+#*.ckpt
+#*.pkl
+#*.pickle
+#*.npz
+#*.npy
+
+# === Test directories (large files - auto-generated, not version-controlled) ===
+# Note: tests/baselines/ contains golden reference .json files (version-controlled)
+tests/data/
+tests/vnncomp2024_benchmarks/
+tests/benchmarks/
+tests/temp/
+# === Claude Code / Serena tool cache ===
+.serena/

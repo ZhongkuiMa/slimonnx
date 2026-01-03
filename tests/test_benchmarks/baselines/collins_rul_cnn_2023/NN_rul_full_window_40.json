@@ -1,0 +1,14 @@
+{
+  "optimization_stats": {
+    "original_nodes": 14,
+    "optimized_nodes": 14,
+    "reduction": 0,
+    "reduction_pct": 0.0,
+    "time": 0.0055856527760624886
+  },
+  "io_validation": {
+    "max_difference": 3.0517578125e-05,
+    "mean_difference": 3.0517578125e-05,
+    "passed": false
+  }
+}
