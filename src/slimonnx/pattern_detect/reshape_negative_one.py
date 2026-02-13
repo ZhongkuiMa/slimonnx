@@ -62,7 +62,7 @@ def detect_reshape_with_negative_one(
         # This reshape has -1 and can be resolved
         instances.append(
             {
-                "node": node.name if node.name else f"Reshape_{i}",
+                "node": node.name or f"Reshape_{i}",
                 "original_shape": shape_values,
                 "resolved_shape": output_shape,
                 "shape_tensor_name": shape_input_name,

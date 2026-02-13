@@ -39,7 +39,7 @@ def detect_add_zero(
                 if np.all(array == 0):
                     instances.append(
                         {
-                            "node": node.name if node.name else f"Add_{i}",
+                            "node": node.name or f"Add_{i}",
                             "initializer": inp,
                             "shape": list(array.shape),
                         }
@@ -72,7 +72,7 @@ def detect_sub_zero(
             if np.all(array == 0):
                 instances.append(
                     {
-                        "node": node.name if node.name else f"Sub_{i}",
+                        "node": node.name or f"Sub_{i}",
                         "initializer": node.input[1],
                         "shape": list(array.shape),
                     }
@@ -105,7 +105,7 @@ def detect_mul_one(
                 if np.all(array == 1):
                     instances.append(
                         {
-                            "node": node.name if node.name else f"Mul_{i}",
+                            "node": node.name or f"Mul_{i}",
                             "initializer": inp,
                             "shape": list(array.shape),
                         }
@@ -138,7 +138,7 @@ def detect_div_one(
             if np.all(array == 1):
                 instances.append(
                     {
-                        "node": node.name if node.name else f"Div_{i}",
+                        "node": node.name or f"Div_{i}",
                         "initializer": node.input[1],
                         "shape": list(array.shape),
                     }
@@ -170,7 +170,7 @@ def detect_pad_zero(
             if np.all(array == 0):
                 instances.append(
                     {
-                        "node": node.name if node.name else f"Pad_{i}",
+                        "node": node.name or f"Pad_{i}",
                         "pads": list(array),
                     }
                 )
@@ -206,7 +206,7 @@ def detect_identity_reshape(
                 if input_shape == output_shape:
                     instances.append(
                         {
-                            "node": node.name if node.name else f"{node.op_type}_{i}",
+                            "node": node.name or f"{node.op_type}_{i}",
                             "op_type": node.op_type,
                             "shape": input_shape,
                         }

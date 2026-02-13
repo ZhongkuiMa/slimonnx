@@ -20,12 +20,12 @@ def build_topology(nodes: list[NodeProto]) -> dict:
     output_to_node = {}
     for node in nodes:
         for out in node.output:
-            output_to_node[out] = node.name if node.name else f"{node.op_type}_unnamed"
+            output_to_node[out] = node.name or f"{node.op_type}_unnamed"
 
     # Build predecessor/successor relationships
     topology = {}
     for node in nodes:
-        node_name = node.name if node.name else f"{node.op_type}_unnamed"
+        node_name = node.name or f"{node.op_type}_unnamed"
 
         predecessors = [output_to_node[inp] for inp in node.input if inp in output_to_node]
 
@@ -63,7 +63,7 @@ def export_topology_json(
     # Build node list
     node_list = []
     for node in nodes:
-        node_name = node.name if node.name else f"{node.op_type}_unnamed"
+        node_name = node.name or f"{node.op_type}_unnamed"
         node_info: dict[str, Any] = {
             "name": node_name,
             "op_type": node.op_type,
@@ -85,14 +85,14 @@ def export_topology_json(
     # Build edge list
     output_to_node = {}
     for node in nodes:
-        node_name = node.name if node.name else f"{node.op_type}_unnamed"
+        node_name = node.name or f"{node.op_type}_unnamed"
         for out in node.output:
             output_to_node[out] = node_name
 
     edges = [
         {
             "from": output_to_node[inp],
-            "to": node.name if node.name else f"{node.op_type}_unnamed",
+            "to": node.name or f"{node.op_type}_unnamed",
             "tensor": inp,
         }
         for node in nodes

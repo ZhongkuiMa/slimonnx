@@ -21,7 +21,7 @@ def print_node_graph(
     """
     lines = []
     for i, node in enumerate(nodes, 1):
-        node_name = node.name if node.name else f"{node.op_type}_{i}"
+        node_name = node.name or f"{node.op_type}_{i}"
 
         # Format inputs
         inputs_str = []

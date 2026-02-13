@@ -1,7 +1,7 @@
 """SlimONNX: ONNX model optimization and simplification."""
 
 __docformat__ = "restructuredtext"
-__version__ = "2026.1.0"
+__version__ = "2026.2.0"
 
 __all__ = [
     "MAX_TESTED_OPSET",

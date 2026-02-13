@@ -69,7 +69,7 @@ def inspect_model(onnx_path: str) -> dict | None:
 
         ir_version = model.ir_version
         opset_version = model.opset_import[0].version if model.opset_import else None
-        producer_name = model.producer_name if model.producer_name else "Unknown"
+        producer_name = model.producer_name or "Unknown"
 
         inputs_info = []
         for inp in model.graph.input:

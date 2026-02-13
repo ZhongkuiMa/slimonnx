@@ -111,8 +111,8 @@ def detect_matmul_add(
         # Record pattern
         patterns.append(
             {
-                "matmul_node": matmul_node.name if matmul_node.name else f"MatMul_{i}",
-                "add_node": node.name if node.name else f"Add_{i}",
+                "matmul_node": matmul_node.name or f"MatMul_{i}",
+                "add_node": node.name or f"Add_{i}",
                 "weight": weight_input,
                 "bias": bias_input,
                 "can_fuse": can_fuse,

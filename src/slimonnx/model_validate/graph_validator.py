@@ -41,7 +41,7 @@ def check_dead_nodes(
 
     # Find unreachable nodes
     return [
-        node.name if node.name else f"{node.op_type}_unnamed"
+        node.name or f"{node.op_type}_unnamed"
         for node in nodes
         if not any(out in reachable for out in node.output)
     ]
@@ -68,7 +68,7 @@ def check_broken_connections(
 
     return [
         {
-            "node": node.name if node.name else f"{node.op_type}_unnamed",
+            "node": node.name or f"{node.op_type}_unnamed",
             "op_type": node.op_type,
             "missing_input": inp,
         }
@@ -137,7 +137,7 @@ def check_shape_consistency(
     """
     input_errors = [
         {
-            "node": node.name if node.name else f"{node.op_type}_unnamed",
+            "node": node.name or f"{node.op_type}_unnamed",
             "op_type": node.op_type,
             "input": inp,
             "error": "Unknown shape",
@@ -149,7 +149,7 @@ def check_shape_consistency(
 
     output_errors = [
         {
-            "node": node.name if node.name else f"{node.op_type}_unnamed",
+            "node": node.name or f"{node.op_type}_unnamed",
             "op_type": node.op_type,
             "output": out,
             "error": "Unknown shape",

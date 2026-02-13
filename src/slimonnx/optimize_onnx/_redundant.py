@@ -140,7 +140,7 @@ def _remove_redundant_operations(
                 _skip_redundant_node(node, nodes, output_nodes)
                 continue
 
-        elif node.op_type in {"Pad"} and _is_redundant_pad(node, initializers):
+        elif node.op_type == "Pad" and _is_redundant_pad(node, initializers):
             del initializers[node.input[1]]
             _skip_redundant_node(node, nodes, output_nodes)
             continue
