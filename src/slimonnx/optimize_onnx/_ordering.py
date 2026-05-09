@@ -1,3 +1,5 @@
+"""Reorder ONNX graph nodes in strict topological order."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_reorder_by_strict_topological_order"]
 

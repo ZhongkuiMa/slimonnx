@@ -1,3 +1,5 @@
+"""Fuse constant-input operations by pre-computing results."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_constant_nodes"]
 

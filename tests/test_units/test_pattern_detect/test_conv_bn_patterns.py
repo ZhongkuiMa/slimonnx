@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from onnx import helper
 
 from slimonnx.pattern_detect.conv_bn import (
@@ -26,55 +27,41 @@ from conftest import (
 class TestIsConsecutiveNodes:
     """Test _is_consecutive_nodes function for Conv+BN patterns."""
 
-    def test_is_consecutive_conv_bn(self):
-        """Test consecutive Conv->BN detection."""
+    @pytest.mark.parametrize(
+        ("conv_out", "bn_in", "has_branch"),
+        [
+            ("Y", "Y", False),  # consecutive
+            ("Y", "Z", False),  # non-matching
+        ],
+    )
+    def test_connectivity_checks(self, conv_out, bn_in, has_branch):
+        """Test consecutive connectivity detection."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
 
         W = create_initializer("W", np.random.randn(3, 3, 3, 3).astype(np.float32))
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            W,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
-        conv = helper.make_node("Conv", inputs=["X", "W"], outputs=["Y"])
+        conv = helper.make_node("Conv", inputs=["X", "W"], outputs=[conv_out])
         bn = helper.make_node(
             "BatchNormalization",
-            inputs=["Y", "bn_scale", "bn_bias", "bn_mean", "bn_var"],
+            inputs=[bn_in, "bn_scale", "bn_bias", "bn_mean", "bn_var"],
             outputs=["Z"],
         )
 
-        model = create_minimal_onnx_model([conv, bn], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([conv, bn], [X], [Y], [W, *bn_params])
         nodes = list(model.graph.node)
 
+        expected = (conv_out == bn_in) and not has_branch
         is_consecutive = _is_consecutive_nodes(nodes[0], nodes[1], nodes)
-        assert is_consecutive is True
+        assert is_consecutive is expected
 
-    def test_is_consecutive_false_different_outputs(self):
-        """Test non-consecutive when outputs don't match."""
-        X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
-        Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
-
-        W = create_initializer("W", np.random.randn(3, 3, 3, 3).astype(np.float32))
-
-        conv = helper.make_node("Conv", inputs=["X", "W"], outputs=["Y"])
-        relu = helper.make_node("Relu", inputs=["Z"], outputs=["Z"])
-
-        model = create_minimal_onnx_model([conv, relu], [X], [Y], [W])
-        nodes = list(model.graph.node)
-
-        is_consecutive = _is_consecutive_nodes(nodes[0], nodes[1], nodes)
-        assert is_consecutive is False
-
-    def test_is_consecutive_false_multiple_consumers(self):
+    def test_detects_branching_consumers(self):
         """Test non-consecutive when multiple consumers."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Z = create_tensor_value_info("Z", "float32", [1, 3, 32, 32])
@@ -95,23 +82,17 @@ class TestIsConsecutiveNodes:
 class TestDetectConvBn:
     """Test detect_conv_bn function."""
 
-    def test_detect_conv_bn_pattern(self):
+    def test_detects_conv_bn_pattern(self):
         """Test detection of Conv+BN pattern."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
 
         W = create_initializer("W", np.random.randn(3, 3, 3, 3).astype(np.float32))
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            W,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         conv = helper.make_node("Conv", inputs=["X", "W"], outputs=["C"])
@@ -121,7 +102,7 @@ class TestDetectConvBn:
             outputs=["Y"],
         )
 
-        model = create_minimal_onnx_model([conv, bn], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([conv, bn], [X], [Y], [W, *bn_params])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -132,7 +113,7 @@ class TestDetectConvBn:
         assert result[0]["bn_node"] == bn.name
         assert result[0]["can_fuse"] is True
 
-    def test_detect_conv_bn_no_pattern(self):
+    def test_returns_empty_on_no_pattern(self):
         """Test no detection when pattern missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
@@ -147,23 +128,17 @@ class TestDetectConvBn:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_conv_bn_non_consecutive(self):
+    def test_fails_when_nodes_not_consecutive(self):
         """Test no detection when Conv and BN not consecutive."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Z = create_tensor_value_info("Z", "float32", [1, 3, 32, 32])
 
         W = create_initializer("W", np.random.randn(3, 3, 3, 3).astype(np.float32))
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            W,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         conv = helper.make_node("Conv", inputs=["X", "W"], outputs=["C"])
@@ -174,7 +149,7 @@ class TestDetectConvBn:
             outputs=["Z"],
         )
 
-        model = create_minimal_onnx_model([conv, relu, bn], [X], [Z], initializers_list)
+        model = create_minimal_onnx_model([conv, relu, bn], [X], [Z], [W, *bn_params])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -182,21 +157,16 @@ class TestDetectConvBn:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_conv_bn_missing_conv_weight(self):
+    def test_fails_when_conv_weight_missing(self):
         """Test no detection when Conv weight missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
 
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         conv = helper.make_node("Conv", inputs=["X", "missing_weight"], outputs=["C"])
@@ -206,7 +176,7 @@ class TestDetectConvBn:
             outputs=["Y"],
         )
 
-        model = create_minimal_onnx_model([conv, bn], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([conv, bn], [X], [Y], bn_params)
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -214,7 +184,7 @@ class TestDetectConvBn:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_conv_bn_missing_bn_params(self):
+    def test_fails_when_bn_params_missing(self):
         """Test no detection when BN params missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
@@ -236,25 +206,18 @@ class TestDetectConvBn:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_conv_bn_multiple_patterns(self):
+    def test_detects_multiple_patterns(self):
         """Test detection of multiple Conv+BN patterns."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Z = create_tensor_value_info("Z", "float32", [1, 3, 32, 32])
 
         W1 = create_initializer("W1", np.random.randn(3, 3, 3, 3).astype(np.float32))
         W2 = create_initializer("W2", np.random.randn(3, 3, 3, 3).astype(np.float32))
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            W1,
-            W2,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         conv1 = helper.make_node("Conv", inputs=["X", "W1"], outputs=["C1"])
@@ -270,7 +233,7 @@ class TestDetectConvBn:
             outputs=["Z"],
         )
 
-        model = create_minimal_onnx_model([conv1, bn1, conv2, bn2], [X], [Z], initializers_list)
+        model = create_minimal_onnx_model([conv1, bn1, conv2, bn2], [X], [Z], [W1, W2, *bn_params])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -282,23 +245,17 @@ class TestDetectConvBn:
 class TestDetectBnConv:
     """Test detect_bn_conv function."""
 
-    def test_detect_bn_conv_pattern(self):
+    def test_detects_bn_conv_pattern(self):
         """Test detection of BN+Conv pattern."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
 
         W = create_initializer("W", np.random.randn(3, 3, 3, 3).astype(np.float32))
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            W,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         bn = helper.make_node(
@@ -308,7 +265,7 @@ class TestDetectBnConv:
         )
         conv = helper.make_node("Conv", inputs=["B", "W"], outputs=["Y"])
 
-        model = create_minimal_onnx_model([bn, conv], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([bn, conv], [X], [Y], [W, *bn_params])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -318,7 +275,7 @@ class TestDetectBnConv:
         assert result[0]["bn_node"] == bn.name
         assert result[0]["conv_node"] == conv.name
 
-    def test_detect_bn_conv_no_pattern(self):
+    def test_returns_empty_on_no_pattern(self):
         """Test no detection when pattern missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
@@ -333,7 +290,7 @@ class TestDetectBnConv:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_bn_conv_missing_bn_params(self):
+    def test_fails_when_bn_params_missing(self):
         """Test no detection when BN params missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
@@ -355,21 +312,16 @@ class TestDetectBnConv:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_bn_conv_missing_conv_weight(self):
+    def test_fails_when_conv_weight_missing(self):
         """Test no detection when Conv weight missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
 
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         bn = helper.make_node(
@@ -379,7 +331,7 @@ class TestDetectBnConv:
         )
         conv = helper.make_node("Conv", inputs=["B", "missing_weight"], outputs=["Y"])
 
-        model = create_minimal_onnx_model([bn, conv], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([bn, conv], [X], [Y], bn_params)
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -391,23 +343,17 @@ class TestDetectBnConv:
 class TestDetectConvTransposeBn:
     """Test detect_conv_transpose_bn function."""
 
-    def test_detect_conv_transpose_bn_pattern(self):
+    def test_detects_conv_transpose_bn_pattern(self):
         """Test detection of ConvTranspose+BN pattern."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 2, 64, 64])
 
         W = create_initializer("W", np.random.randn(3, 2, 3, 3).astype(np.float32))
-        bn_scale = np.ones(2, dtype=np.float32)
-        bn_bias = np.zeros(2, dtype=np.float32)
-        bn_mean = np.zeros(2, dtype=np.float32)
-        bn_var = np.ones(2, dtype=np.float32)
-
-        initializers_list = [
-            W,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(2, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(2, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(2, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(2, dtype=np.float32)),
         ]
 
         convt = helper.make_node("ConvTranspose", inputs=["X", "W"], outputs=["C"])
@@ -417,7 +363,7 @@ class TestDetectConvTransposeBn:
             outputs=["Y"],
         )
 
-        model = create_minimal_onnx_model([convt, bn], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([convt, bn], [X], [Y], [W, *bn_params])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -426,7 +372,7 @@ class TestDetectConvTransposeBn:
         assert len(result) == 1
         assert result[0]["conv_transpose_node"] == convt.name
 
-    def test_detect_conv_transpose_bn_no_pattern(self):
+    def test_returns_empty_on_no_pattern(self):
         """Test no detection when pattern missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])
@@ -445,23 +391,17 @@ class TestDetectConvTransposeBn:
 class TestDetectBnConvTranspose:
     """Test detect_bn_conv_transpose function."""
 
-    def test_detect_bn_conv_transpose_pattern(self):
+    def test_detects_bn_conv_transpose_pattern(self):
         """Test detection of BN+ConvTranspose pattern."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 2, 64, 64])
 
         W = create_initializer("W", np.random.randn(3, 2, 3, 3).astype(np.float32))
-        bn_scale = np.ones(3, dtype=np.float32)
-        bn_bias = np.zeros(3, dtype=np.float32)
-        bn_mean = np.zeros(3, dtype=np.float32)
-        bn_var = np.ones(3, dtype=np.float32)
-
-        initializers_list = [
-            W,
-            create_initializer("bn_scale", bn_scale),
-            create_initializer("bn_bias", bn_bias),
-            create_initializer("bn_mean", bn_mean),
-            create_initializer("bn_var", bn_var),
+        bn_params = [
+            create_initializer("bn_scale", np.ones(3, dtype=np.float32)),
+            create_initializer("bn_bias", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_mean", np.zeros(3, dtype=np.float32)),
+            create_initializer("bn_var", np.ones(3, dtype=np.float32)),
         ]
 
         bn = helper.make_node(
@@ -471,7 +411,7 @@ class TestDetectBnConvTranspose:
         )
         convt = helper.make_node("ConvTranspose", inputs=["B", "W"], outputs=["Y"])
 
-        model = create_minimal_onnx_model([bn, convt], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([bn, convt], [X], [Y], [W, *bn_params])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
 
@@ -480,7 +420,7 @@ class TestDetectBnConvTranspose:
         assert len(result) == 1
         assert result[0]["bn_node"] == bn.name
 
-    def test_detect_bn_conv_transpose_no_pattern(self):
+    def test_returns_empty_on_no_pattern(self):
         """Test no detection when pattern missing."""
         X = create_tensor_value_info("X", "float32", [1, 3, 32, 32])
         Y = create_tensor_value_info("Y", "float32", [1, 3, 32, 32])

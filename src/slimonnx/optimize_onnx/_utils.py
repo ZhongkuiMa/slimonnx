@@ -1,3 +1,5 @@
+"""Shared utilities for ONNX graph optimization passes."""
+
 __docformat__ = "restructuredtext"
 __all__ = [
     "_get_batchnorm_params",

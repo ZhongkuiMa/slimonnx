@@ -1,8 +1,6 @@
 """Tests for structure analysis report generation."""
 
 import json
-import tempfile
-from pathlib import Path
 from typing import Any
 
 from onnx import TensorProto, helper
@@ -335,7 +333,7 @@ class TestGenerateTextReport:
 class TestGenerateJsonReport:
     """Test generate_json_report function."""
 
-    def test_generate_json_report(self):
+    def test_generate_json_report(self, report_path):
         """Test generating JSON report file."""
         analysis = {
             "model_name": "test_model",
@@ -343,20 +341,19 @@ class TestGenerateJsonReport:
             "num_initializers": 0,
         }
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "report.json"
-            generate_json_report(analysis, str(output_path))
+        output_path = report_path
+        generate_json_report(analysis, str(output_path))
 
-            # File should be created
-            assert output_path.exists()
+        # File should be created
+        assert output_path.exists()
 
-            # Should be valid JSON
-            with output_path.open() as f:
-                parsed = json.load(f)
-            assert parsed["model_name"] == "test_model"
-            assert parsed["num_nodes"] == 1
+        # Should be valid JSON
+        with output_path.open() as f:
+            parsed = json.load(f)
+        assert parsed["model_name"] == "test_model"
+        assert parsed["num_nodes"] == 1
 
-    def test_json_preserves_data(self):
+    def test_json_preserves_data(self, report_path):
         """Test that JSON report preserves all data."""
         analysis = {
             "model_name": "complex_model",
@@ -367,19 +364,18 @@ class TestGenerateJsonReport:
             "statistics": {"avg_node_size": 1024, "total_params": 1000000},
         }
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "report.json"
-            generate_json_report(analysis, str(output_path))
+        output_path = report_path
+        generate_json_report(analysis, str(output_path))
 
-            with output_path.open() as f:
-                parsed = json.load(f)
+        with output_path.open() as f:
+            parsed = json.load(f)
 
-            # All data should be preserved
-            assert parsed["model_name"] == analysis["model_name"]
-            assert parsed["num_nodes"] == analysis["num_nodes"]
-            assert parsed["input_shapes"] == analysis["input_shapes"]
+        # All data should be preserved
+        assert parsed["model_name"] == analysis["model_name"]
+        assert parsed["num_nodes"] == analysis["num_nodes"]
+        assert parsed["input_shapes"] == analysis["input_shapes"]
 
-    def test_json_with_nested_data(self):
+    def test_json_with_nested_data(self, report_path):
         """Test JSON report with nested data structures."""
         analysis = {
             "model": {
@@ -392,37 +388,38 @@ class TestGenerateJsonReport:
             "metrics": {"accuracy": 0.95, "latency": 12.5},
         }
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "report.json"
-            generate_json_report(analysis, str(output_path))
+        output_path = report_path
+        generate_json_report(analysis, str(output_path))
 
-            with output_path.open() as f:
-                parsed = json.load(f)
+        with output_path.open() as f:
+            parsed = json.load(f)
 
-            # Should handle nested structures
-            assert parsed["model"]["layers"][0]["filters"] == 64
+        # Should handle nested structures
+        assert "model" in parsed
+        assert "layers" in parsed["model"]
+        assert len(parsed["model"]["layers"]) > 0
+        assert "filters" in parsed["model"]["layers"][0]
+        assert parsed["model"]["layers"][0]["filters"] == 64
 
-    def test_json_creates_file(self):
+    def test_json_creates_file(self, report_path):
         """Test that JSON report creates a file."""
         analysis = {"test": "data"}
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "output.json"
-            generate_json_report(analysis, str(output_path))
+        output_path = report_path
+        generate_json_report(analysis, str(output_path))
 
-            # File should be created
-            assert output_path.exists()
-            assert output_path.stat().st_size > 0
+        # File should be created
+        assert output_path.exists()
+        assert output_path.stat().st_size > 0
 
-    def test_json_with_empty_analysis(self):
+    def test_json_with_empty_analysis(self, report_path):
         """Test JSON report with empty analysis."""
         analysis: dict[str, Any] = {}
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            output_path = Path(tmpdir) / "report.json"
-            generate_json_report(analysis, str(output_path))
+        output_path = report_path
+        generate_json_report(analysis, str(output_path))
 
-            # Should create valid JSON file
-            with output_path.open() as f:
-                parsed = json.load(f)
-            assert isinstance(parsed, dict)
+        # Should create valid JSON file
+        with output_path.open() as f:
+            parsed = json.load(f)
+        assert isinstance(parsed, dict)

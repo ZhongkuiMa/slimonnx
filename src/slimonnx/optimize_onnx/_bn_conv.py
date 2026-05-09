@@ -1,3 +1,5 @@
+"""Fuse BatchNormalization with Conv and ConvTranspose operators."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_conv_bn_or_bn_conv", "_fuse_conv_transpose_bn_or_bn_conv_transpose"]
 

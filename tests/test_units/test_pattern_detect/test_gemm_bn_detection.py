@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from onnx import helper
 
 from slimonnx.pattern_detect.gemm_bn import (
@@ -25,15 +26,22 @@ from conftest import (
 class TestIsConsecutiveNodes:
     """Test _is_consecutive_nodes helper function."""
 
-    def test_is_consecutive_nodes_true(self):
-        """Test nodes that are consecutive."""
+    @pytest.mark.parametrize(
+        ("node2_inputs", "expected"),
+        [
+            pytest.param(["Y"], True, id="consecutive_nodes"),
+            pytest.param(["Z"], False, id="mismatched_inputs_outputs"),
+        ],
+    )
+    def test_consecutive_detection(self, node2_inputs, expected):
+        """Test consecutive node detection with matching and mismatched inputs."""
         node1 = helper.make_node("Relu", inputs=["X"], outputs=["Y"])
-        node2 = helper.make_node("Relu", inputs=["Y"], outputs=["Z"])
+        node2 = helper.make_node("Relu", inputs=node2_inputs, outputs=["Z"])
         nodes = [node1, node2]
 
-        assert _is_consecutive_nodes(node1, node2, nodes) is True
+        assert _is_consecutive_nodes(node1, node2, nodes) is expected
 
-    def test_is_consecutive_nodes_branching(self):
+    def test_rejects_nodes_with_branching(self):
         """Test nodes with branching (multiple consumers)."""
         node1 = helper.make_node("Relu", inputs=["X"], outputs=["Y"])
         node2 = helper.make_node("Relu", inputs=["Y"], outputs=["Z"])
@@ -42,19 +50,11 @@ class TestIsConsecutiveNodes:
 
         assert _is_consecutive_nodes(node1, node2, nodes) is False
 
-    def test_is_consecutive_nodes_wrong_input_output(self):
-        """Test nodes with mismatched inputs/outputs."""
-        node1 = helper.make_node("Relu", inputs=["X"], outputs=["Y"])
-        node2 = helper.make_node("Relu", inputs=["Z"], outputs=["W"])
-        nodes = [node1, node2]
-
-        assert _is_consecutive_nodes(node1, node2, nodes) is False
-
 
 class TestDetectGemmReshapeBn:
     """Test detect_gemm_reshape_bn pattern detection."""
 
-    def test_detect_gemm_reshape_bn_valid_pattern(self):
+    def test_detects_valid_pattern(self):
         """Test detecting valid Gemm->Reshape->BN pattern."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3, 1, 1])
@@ -86,7 +86,7 @@ class TestDetectGemmReshapeBn:
         assert result[0]["reshape_node"] == reshape.name
         assert result[0]["bn_node"] == bn.name
 
-    def test_detect_gemm_reshape_bn_missing_weights(self):
+    def test_rejects_missing_weights(self):
         """Test no detection when Gemm has missing weight."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3, 1, 1])
@@ -113,7 +113,7 @@ class TestDetectGemmReshapeBn:
         result = detect_gemm_reshape_bn(nodes, init_dict)
         assert len(result) == 0
 
-    def test_detect_gemm_reshape_bn_missing_reshape_shape(self):
+    def test_rejects_missing_reshape_shape(self):
         """Test no detection when Reshape has missing shape."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3, 1, 1])
@@ -141,7 +141,7 @@ class TestDetectGemmReshapeBn:
         result = detect_gemm_reshape_bn(nodes, init_dict)
         assert len(result) == 0
 
-    def test_detect_gemm_reshape_bn_missing_bn_params(self):
+    def test_rejects_missing_bn_params(self):
         """Test no detection when BN has missing parameters."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3, 1, 1])
@@ -162,7 +162,7 @@ class TestDetectGemmReshapeBn:
         result = detect_gemm_reshape_bn(nodes, init_dict)
         assert len(result) == 0
 
-    def test_detect_gemm_reshape_bn_not_consecutive(self):
+    def test_rejects_non_consecutive_nodes(self):
         """Test no detection when nodes are not consecutive."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3, 1, 1])
@@ -196,7 +196,7 @@ class TestDetectGemmReshapeBn:
 class TestDetectBnReshapeGemm:
     """Test detect_bn_reshape_gemm pattern detection."""
 
-    def test_detect_bn_reshape_gemm_valid_pattern(self):
+    def test_detects_valid_pattern(self):
         """Test detecting valid BN->Reshape->Gemm pattern."""
         X = create_tensor_value_info("X", "float32", [2, 3, 1, 1])
         Y = create_tensor_value_info("Y", "float32", [2, 4])
@@ -226,7 +226,7 @@ class TestDetectBnReshapeGemm:
         assert len(result) == 1
         assert result[0]["bn_node"] == bn.name
 
-    def test_detect_bn_reshape_gemm_missing_bn_params(self):
+    def test_rejects_missing_bn_params(self):
         """Test no detection when BN has missing parameters."""
         X = create_tensor_value_info("X", "float32", [2, 3, 1, 1])
         Y = create_tensor_value_info("Y", "float32", [2, 4])
@@ -251,7 +251,7 @@ class TestDetectBnReshapeGemm:
 class TestDetectBnGemm:
     """Test detect_bn_gemm pattern detection."""
 
-    def test_detect_bn_gemm_valid_pattern(self):
+    def test_detects_valid_pattern(self):
         """Test detecting valid BN->Gemm pattern."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 4])
@@ -280,7 +280,7 @@ class TestDetectBnGemm:
         assert result[0]["bn_node"] == bn.name
         assert result[0]["gemm_node"] == gemm.name
 
-    def test_detect_bn_gemm_multiple_instances(self):
+    def test_detects_multiple_instances(self):
         """Test detecting multiple BN->Gemm patterns."""
         X1 = create_tensor_value_info("X1", "float32", [2, 3])
         Y2 = create_tensor_value_info("Y2", "float32", [2, 5])
@@ -334,7 +334,7 @@ class TestDetectBnGemm:
         result = detect_bn_gemm(nodes, init_dict)
         assert len(result) == 2
 
-    def test_detect_bn_gemm_missing_gemm_weight(self):
+    def test_rejects_missing_gemm_weight(self):
         """Test no detection when Gemm has missing weight."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 4])
@@ -359,7 +359,7 @@ class TestDetectBnGemm:
         result = detect_bn_gemm(nodes, init_dict)
         assert len(result) == 0
 
-    def test_detect_bn_gemm_branching(self):
+    def test_rejects_branching(self):
         """Test no detection when BN output has multiple consumers."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y1 = create_tensor_value_info("Y1", "float32", [2, 4])

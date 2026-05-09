@@ -1,6 +1,5 @@
 """Extended tests for ONNX utility functions - missing coverage."""
 
-import sys
 import tempfile
 from pathlib import Path
 
@@ -15,16 +14,12 @@ from slimonnx.utils import (
     load_test_data_from_file,
 )
 
-# Add parent directory to sys.path for conftest imports
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 
 class TestConvertConstantToInitializerExtended:
     """Extended tests for convert_constant_to_initializer."""
 
-    def test_convert_constant_node_float(self):
-        """Test converting a Constant node to initializer."""
-        # Create a Constant node with proper attributes
+    def test_converts_float_constant_node_to_initializer(self):
+        """Test converting a Constant node with float values to initializer."""
         const_value = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
         tensor_proto = numpy_helper.from_array(const_value, "const_out")
         attr = helper.make_attribute("value", tensor_proto)
@@ -36,9 +31,7 @@ class TestConvertConstantToInitializerExtended:
 
         result = convert_constant_to_initializer(nodes, initializers)
 
-        # Constant node should be removed from nodes list
         assert len(result) == 0
-        # Initializer should be added
         assert "const_out" in initializers
         assert np.allclose(numpy_helper.to_array(initializers["const_out"]), const_value)
 
@@ -67,50 +60,24 @@ class TestConvertConstantToInitializerExtended:
 class TestGenerateRandomInputsExtended:
     """Extended tests for generate_random_inputs with different dtypes."""
 
-    def test_generate_float16_input(self):
-        """Test generating float16 input."""
-        # Create model with float16 input
-        graph = helper.make_graph(
-            [helper.make_node("Relu", inputs=["X"], outputs=["Y"])],
-            "test",
-            [helper.make_tensor_value_info("X", TensorProto.FLOAT16, [2, 3])],
-            [helper.make_tensor_value_info("Y", TensorProto.FLOAT16, [2, 3])],
-        )
-        model = helper.make_model(graph)
-
-        result = generate_random_inputs(model, num_samples=1)
-
-        assert len(result) == 1
-        assert "X" in result[0]
-        assert result[0]["X"].dtype == np.float16
-        assert result[0]["X"].shape == (2, 3)
-
-    def test_generate_float64_input(self):
-        """Test generating float64 (double) input."""
-        # Create model with float64 input
-        graph = helper.make_graph(
-            [helper.make_node("Relu", inputs=["X"], outputs=["Y"])],
-            "test",
-            [helper.make_tensor_value_info("X", TensorProto.DOUBLE, [2, 3])],
-            [helper.make_tensor_value_info("Y", TensorProto.DOUBLE, [2, 3])],
-        )
-        model = helper.make_model(graph)
-
-        result = generate_random_inputs(model, num_samples=1)
-
-        assert len(result) == 1
-        assert "X" in result[0]
-        assert result[0]["X"].dtype == np.float64
-        assert result[0]["X"].shape == (2, 3)
-
-    def test_generate_int32_input(self):
-        """Test generating int32 input."""
-        # Create model with int32 input
+    @pytest.mark.parametrize(
+        ("proto_dtype", "np_dtype"),
+        [
+            pytest.param(TensorProto.FLOAT16, np.float16, id="float16"),
+            pytest.param(TensorProto.DOUBLE, np.float64, id="float64"),
+            pytest.param(TensorProto.INT32, np.int32, id="int32"),
+            pytest.param(TensorProto.INT64, np.int64, id="int64"),
+            pytest.param(TensorProto.UINT8, np.uint8, id="uint8"),
+            pytest.param(TensorProto.INT8, np.int8, id="int8"),
+        ],
+    )
+    def test_generate_typed_input(self, proto_dtype, np_dtype):
+        """Verify generate_random_inputs returns the correct numpy dtype for each ONNX TensorProto type."""
         graph = helper.make_graph(
             [helper.make_node("Identity", inputs=["X"], outputs=["Y"])],
             "test",
-            [helper.make_tensor_value_info("X", TensorProto.INT32, [2, 3])],
-            [helper.make_tensor_value_info("Y", TensorProto.INT32, [2, 3])],
+            [helper.make_tensor_value_info("X", proto_dtype, [2, 3])],
+            [helper.make_tensor_value_info("Y", proto_dtype, [2, 3])],
         )
         model = helper.make_model(graph)
 
@@ -118,61 +85,7 @@ class TestGenerateRandomInputsExtended:
 
         assert len(result) == 1
         assert "X" in result[0]
-        assert result[0]["X"].dtype == np.int32
-        assert result[0]["X"].shape == (2, 3)
-
-    def test_generate_int64_input(self):
-        """Test generating int64 input."""
-        # Create model with int64 input
-        graph = helper.make_graph(
-            [helper.make_node("Identity", inputs=["X"], outputs=["Y"])],
-            "test",
-            [helper.make_tensor_value_info("X", TensorProto.INT64, [2, 3])],
-            [helper.make_tensor_value_info("Y", TensorProto.INT64, [2, 3])],
-        )
-        model = helper.make_model(graph)
-
-        result = generate_random_inputs(model, num_samples=1)
-
-        assert len(result) == 1
-        assert "X" in result[0]
-        assert result[0]["X"].dtype == np.int64
-        assert result[0]["X"].shape == (2, 3)
-
-    def test_generate_uint8_input(self):
-        """Test generating uint8 input."""
-        # Create model with uint8 input
-        graph = helper.make_graph(
-            [helper.make_node("Identity", inputs=["X"], outputs=["Y"])],
-            "test",
-            [helper.make_tensor_value_info("X", TensorProto.UINT8, [2, 3])],
-            [helper.make_tensor_value_info("Y", TensorProto.UINT8, [2, 3])],
-        )
-        model = helper.make_model(graph)
-
-        result = generate_random_inputs(model, num_samples=1)
-
-        assert len(result) == 1
-        assert "X" in result[0]
-        assert result[0]["X"].dtype == np.uint8
-        assert result[0]["X"].shape == (2, 3)
-
-    def test_generate_int8_input(self):
-        """Test generating int8 input."""
-        # Create model with int8 input
-        graph = helper.make_graph(
-            [helper.make_node("Identity", inputs=["X"], outputs=["Y"])],
-            "test",
-            [helper.make_tensor_value_info("X", TensorProto.INT8, [2, 3])],
-            [helper.make_tensor_value_info("Y", TensorProto.INT8, [2, 3])],
-        )
-        model = helper.make_model(graph)
-
-        result = generate_random_inputs(model, num_samples=1)
-
-        assert len(result) == 1
-        assert "X" in result[0]
-        assert result[0]["X"].dtype == np.int8
+        assert result[0]["X"].dtype == np_dtype
         assert result[0]["X"].shape == (2, 3)
 
     def test_generate_unknown_dtype_defaults_to_float32(self):
@@ -197,87 +110,53 @@ class TestGenerateRandomInputsExtended:
 class TestLoadTestDataFromFile:
     """Test load_test_data_from_file function."""
 
-    def test_load_npy_1d_array(self):
-        """Test loading 1D numpy array from .npy file."""
-        with tempfile.NamedTemporaryFile(suffix=".npy", delete=False) as f:
-            temp_path = f.name
-            data = np.array([1.0, 2.0, 3.0], dtype=np.float32)
-            np.save(temp_path, data)
+    @pytest.mark.parametrize(
+        ("data", "expected_len"),
+        [
+            pytest.param(np.array([1.0, 2.0, 3.0], dtype=np.float32), 1, id="1d"),
+            pytest.param(
+                np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32),
+                2,
+                id="2d",
+            ),
+        ],
+    )
+    def test_loads_npy_arrays(self, data, expected_len, temp_npy_path):
+        """Test loading numpy arrays from .npy file."""
+        np.save(temp_npy_path, data)
 
-        try:
-            result = load_test_data_from_file(temp_path)
-            assert len(result) == 1
-            assert "input" in result[0]
+        result = load_test_data_from_file(temp_npy_path)
+        assert len(result) == expected_len
+        assert "input" in result[0]
+        if expected_len == 1:
             assert np.allclose(result[0]["input"], data)
-        finally:
-            Path(temp_path).unlink()
-
-    def test_load_npy_2d_array(self):
-        """Test loading 2D numpy array from .npy file."""
-        with tempfile.NamedTemporaryFile(suffix=".npy", delete=False) as f:
-            temp_path = f.name
-            data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
-            np.save(temp_path, data)
-
-        try:
-            result = load_test_data_from_file(temp_path)
-            assert len(result) == 2  # One array per row
-            assert "input" in result[0]
+        else:
             assert np.allclose(result[0]["input"], data[0])
-        finally:
-            Path(temp_path).unlink()
 
-    def test_load_npz_with_inputs_key(self):
-        """Test loading .npz file with 'inputs' key."""
-        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
-            temp_path = f.name
-            inputs_data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
-            np.savez(temp_path, inputs=inputs_data)
+    @pytest.mark.parametrize(
+        "key_name",
+        [
+            pytest.param("inputs", id="inputs_key"),
+            pytest.param("X", id="x_key"),
+            pytest.param("custom_key", id="arbitrary_key"),
+        ],
+    )
+    def test_loads_npz_with_various_keys(self, key_name, temp_npz_path):
+        """Test loading .npz files with various key names."""
+        data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
+        np.savez(temp_npz_path, **{key_name: data})
 
-        try:
-            result = load_test_data_from_file(temp_path)
-            assert len(result) == 2
-            assert "input" in result[0]
-            assert np.allclose(result[0]["input"], inputs_data[0])
-        finally:
-            Path(temp_path).unlink()
+        result = load_test_data_from_file(temp_npz_path)
+        assert len(result) == 2
+        assert "input" in result[0]
+        assert np.allclose(result[0]["input"], data[0])
 
-    def test_load_npz_with_x_key(self):
-        """Test loading .npz file with 'X' key."""
-        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
-            temp_path = f.name
-            x_data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
-            np.savez(temp_path, X=x_data)
-
-        try:
-            result = load_test_data_from_file(temp_path)
-            assert len(result) == 2
-            assert "input" in result[0]
-            assert np.allclose(result[0]["input"], x_data[0])
-        finally:
-            Path(temp_path).unlink()
-
-    def test_load_npz_with_arbitrary_key(self):
-        """Test loading .npz file with arbitrary key."""
-        with tempfile.NamedTemporaryFile(suffix=".npz", delete=False) as f:
-            temp_path = f.name
-            custom_data = np.array([[1.0, 2.0], [3.0, 4.0]], dtype=np.float32)
-            np.savez(temp_path, custom_key=custom_data)
-
-        try:
-            result = load_test_data_from_file(temp_path)
-            assert len(result) == 2
-            assert "input" in result[0]
-            assert np.allclose(result[0]["input"], custom_data[0])
-        finally:
-            Path(temp_path).unlink()
-
-    def test_load_nonexistent_file_raises_error(self):
+    def test_raises_on_nonexistent_file(self):
         """Test that nonexistent file raises FileNotFoundError."""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError, match=r"Test data file not found"):
             load_test_data_from_file("/nonexistent/path/data.npy")
 
-    def test_load_unsupported_format_raises_error(self):
+    def test_raises_on_unsupported_format(self):
         """Test that unsupported file format raises ValueError."""
         with tempfile.NamedTemporaryFile(suffix=".txt", delete=False) as f:
             temp_path = f.name
@@ -293,29 +172,31 @@ class TestLoadTestDataFromFile:
 class TestCompareOutputsExtended:
     """Extended tests for compare_outputs function."""
 
-    def test_compare_missing_output_in_outputs2(self):
-        """Test comparing when output missing in outputs2."""
-        outputs1 = {"Y1": np.array([1.0, 2.0])}
-        outputs2: dict[str, np.ndarray] = {}
-
+    @pytest.mark.parametrize(
+        ("outputs1", "outputs2", "expected_missing_msg"),
+        [
+            pytest.param(
+                {"Y1": np.array([1.0, 2.0])},
+                {},
+                "missing in outputs2",
+                id="missing_in_outputs2",
+            ),
+            pytest.param(
+                {},
+                {"Y1": np.array([1.0, 2.0])},
+                "missing in outputs1",
+                id="missing_in_outputs1",
+            ),
+        ],
+    )
+    def test_detects_missing_outputs(self, outputs1, outputs2, expected_missing_msg):
+        """Test detecting missing outputs in comparisons."""
         match, mismatches = compare_outputs(outputs1, outputs2)
 
         assert match is False
         assert len(mismatches) > 0
         assert any(m.get("type") == "missing_key" for m in mismatches)
-        assert any("missing in outputs2" in m.get("message", "") for m in mismatches)
-
-    def test_compare_missing_output_in_outputs1(self):
-        """Test comparing when output missing in outputs1."""
-        outputs1: dict[str, np.ndarray] = {}
-        outputs2 = {"Y1": np.array([1.0, 2.0])}
-
-        match, mismatches = compare_outputs(outputs1, outputs2)
-
-        assert match is False
-        assert len(mismatches) > 0
-        assert any(m.get("type") == "missing_key" for m in mismatches)
-        assert any("missing in outputs1" in m.get("message", "") for m in mismatches)
+        assert any(expected_missing_msg in m.get("message", "") for m in mismatches)
 
     def test_compare_mixed_missing_keys(self):
         """Test comparing with different missing keys in both outputs."""

@@ -6,7 +6,7 @@ __all__ = ["_simplify_gemm"]
 import onnx.numpy_helper
 from onnx import NodeProto, TensorProto
 
-from slimonnx.optimize_onnx._constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
+from slimonnx.constants import DEFAULT_GEMM_ALPHA, DEFAULT_GEMM_BETA
 from slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 
 

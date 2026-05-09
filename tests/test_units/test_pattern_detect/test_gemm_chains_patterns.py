@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from onnx import helper
 
 from slimonnx.pattern_detect.gemm_chains import (
@@ -24,87 +25,49 @@ from conftest import (
 class TestGetGemmAttributes:
     """Test _get_gemm_attributes function."""
 
-    def test_get_gemm_attributes_defaults(self):
-        """Test extraction of default Gemm attributes."""
+    @pytest.mark.parametrize(
+        ("alpha", "beta", "trans_a", "trans_b"),
+        [
+            (1.0, 1.0, 0, 0),  # defaults
+            (2.0, 0.5, 0, 0),  # custom alpha/beta
+            (1.0, 1.0, 0, 1),  # with trans_b
+            (1.5, 0.75, 1, 1),  # all set
+        ],
+    )
+    def test_extracts_attributes(self, alpha, beta, trans_a, trans_b):
+        """Test extraction of Gemm attributes."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 4])
 
         W = create_initializer("W", np.random.randn(3, 4).astype(np.float32))
         B = create_initializer("B", np.zeros(4, dtype=np.float32))
 
-        gemm = helper.make_node("Gemm", inputs=["X", "W", "B"], outputs=["Y"])
+        kwargs = {}
+        if alpha != 1.0:
+            kwargs["alpha"] = alpha
+        if beta != 1.0:
+            kwargs["beta"] = beta
+        if trans_a != 0:
+            kwargs["transA"] = trans_a
+        if trans_b != 0:
+            kwargs["transB"] = trans_b
+
+        gemm = helper.make_node("Gemm", inputs=["X", "W", "B"], outputs=["Y"], **kwargs)
 
         model = create_minimal_onnx_model([gemm], [X], [Y], [W, B])
         nodes = list(model.graph.node)
 
         attrs = _get_gemm_attributes(nodes[0])
-        assert attrs["alpha"] == 1.0
-        assert attrs["beta"] == 1.0
-        assert attrs["transA"] == 0
-        assert attrs["transB"] == 0
-
-    def test_get_gemm_attributes_custom_alpha_beta(self):
-        """Test extraction of custom alpha and beta values."""
-        X = create_tensor_value_info("X", "float32", [2, 3])
-        Y = create_tensor_value_info("Y", "float32", [2, 4])
-
-        W = create_initializer("W", np.random.randn(3, 4).astype(np.float32))
-        B = create_initializer("B", np.zeros(4, dtype=np.float32))
-
-        gemm = helper.make_node("Gemm", inputs=["X", "W", "B"], outputs=["Y"], alpha=2.0, beta=0.5)
-
-        model = create_minimal_onnx_model([gemm], [X], [Y], [W, B])
-        nodes = list(model.graph.node)
-
-        attrs = _get_gemm_attributes(nodes[0])
-        assert attrs["alpha"] == 2.0
-        assert attrs["beta"] == 0.5
-        assert attrs["transA"] == 0
-        assert attrs["transB"] == 0
-
-    def test_get_gemm_attributes_with_transposition(self):
-        """Test extraction with transA and transB."""
-        X = create_tensor_value_info("X", "float32", [2, 3])
-        Y = create_tensor_value_info("Y", "float32", [2, 4])
-
-        W = create_initializer("W", np.random.randn(4, 3).astype(np.float32))
-        B = create_initializer("B", np.zeros(4, dtype=np.float32))
-
-        gemm = helper.make_node("Gemm", inputs=["X", "W", "B"], outputs=["Y"], transB=1)
-
-        model = create_minimal_onnx_model([gemm], [X], [Y], [W, B])
-        nodes = list(model.graph.node)
-
-        attrs = _get_gemm_attributes(nodes[0])
-        assert attrs["transA"] == 0
-        assert attrs["transB"] == 1
-
-    def test_get_gemm_attributes_all_attributes(self):
-        """Test extraction with all attributes set."""
-        X = create_tensor_value_info("X", "float32", [3, 2])
-        Y = create_tensor_value_info("Y", "float32", [4, 2])
-
-        W = create_initializer("W", np.random.randn(4, 3).astype(np.float32))
-        B = create_initializer("B", np.zeros(4, dtype=np.float32))
-
-        gemm = helper.make_node(
-            "Gemm", inputs=["X", "W", "B"], outputs=["Y"], alpha=1.5, beta=0.75, transA=1, transB=1
-        )
-
-        model = create_minimal_onnx_model([gemm], [X], [Y], [W, B])
-        nodes = list(model.graph.node)
-
-        attrs = _get_gemm_attributes(nodes[0])
-        assert attrs["alpha"] == 1.5
-        assert attrs["beta"] == 0.75
-        assert attrs["transA"] == 1
-        assert attrs["transB"] == 1
+        assert attrs["alpha"] == alpha
+        assert attrs["beta"] == beta
+        assert attrs["transA"] == trans_a
+        assert attrs["transB"] == trans_b
 
 
 class TestIsConsecutiveNodesGemm:
     """Test _is_consecutive_nodes function for Gemm patterns."""
 
-    def test_is_consecutive_gemm_gemm(self):
+    def test_detects_consecutive_gemm_pair(self):
         """Test consecutive Gemm->Gemm detection."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 5])
@@ -123,7 +86,7 @@ class TestIsConsecutiveNodesGemm:
         is_consecutive = _is_consecutive_nodes(nodes[0], nodes[1], nodes)
         assert is_consecutive is True
 
-    def test_is_consecutive_gemm_false_different_outputs(self):
+    def test_fails_with_non_matching_outputs(self):
         """Test non-consecutive when outputs don't match."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 4])
@@ -142,7 +105,7 @@ class TestIsConsecutiveNodesGemm:
         is_consecutive = _is_consecutive_nodes(nodes[0], nodes[1], nodes)
         assert is_consecutive is False
 
-    def test_is_consecutive_gemm_multiple_consumers(self):
+    def test_fails_with_multiple_consumers(self):
         """Test non-consecutive when Gemm output has multiple consumers."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 5])
@@ -166,7 +129,7 @@ class TestIsConsecutiveNodesGemm:
 class TestDetectGemmGemm:
     """Test detect_gemm_gemm function."""
 
-    def test_detect_gemm_gemm_fusible(self):
+    def test_detects_fusible_gemm_pair(self):
         """Test detection of fusible Gemm+Gemm pattern."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 5])
@@ -190,9 +153,16 @@ class TestDetectGemmGemm:
         assert result[0]["gemm2_node"] == gemm2.name
         assert result[0]["can_fuse"] is True
 
-    def test_detect_gemm_gemm_non_fusible_trans_a(self):
-        """Test Gemm+Gemm with transA=1 (non-fusible)."""
-        X = create_tensor_value_info("X", "float32", [3, 2])
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            {"transA": 1},  # transA makes non-fusible
+            {"alpha": 2.0},  # custom alpha makes non-fusible
+        ],
+    )
+    def test_detects_non_fusible_patterns(self, kwargs):
+        """Test Gemm+Gemm with non-fusible attributes."""
+        X = create_tensor_value_info("X", "float32", [2, 3] if "transA" not in kwargs else [3, 2])
         Z = create_tensor_value_info("Z", "float32", [2, 5])
 
         W1 = create_initializer("W1", np.random.randn(3, 4).astype(np.float32))
@@ -200,29 +170,7 @@ class TestDetectGemmGemm:
         W2 = create_initializer("W2", np.random.randn(4, 5).astype(np.float32))
         B2 = create_initializer("B2", np.zeros(5, dtype=np.float32))
 
-        gemm1 = helper.make_node("Gemm", inputs=["X", "W1", "B1"], outputs=["Y"], transA=1)
-        gemm2 = helper.make_node("Gemm", inputs=["Y", "W2", "B2"], outputs=["Z"])
-
-        model = create_minimal_onnx_model([gemm1, gemm2], [X], [Z], [W1, B1, W2, B2])
-        nodes = list(model.graph.node)
-        initializers = {init.name: init for init in model.graph.initializer}
-
-        result = detect_gemm_gemm(nodes, initializers)
-        assert isinstance(result, list)
-        assert len(result) == 1
-        assert result[0]["can_fuse"] is False
-
-    def test_detect_gemm_gemm_non_fusible_alpha(self):
-        """Test Gemm+Gemm with alpha != 1 (non-fusible)."""
-        X = create_tensor_value_info("X", "float32", [2, 3])
-        Z = create_tensor_value_info("Z", "float32", [2, 5])
-
-        W1 = create_initializer("W1", np.random.randn(3, 4).astype(np.float32))
-        B1 = create_initializer("B1", np.zeros(4, dtype=np.float32))
-        W2 = create_initializer("W2", np.random.randn(4, 5).astype(np.float32))
-        B2 = create_initializer("B2", np.zeros(5, dtype=np.float32))
-
-        gemm1 = helper.make_node("Gemm", inputs=["X", "W1", "B1"], outputs=["Y"], alpha=2.0)
+        gemm1 = helper.make_node("Gemm", inputs=["X", "W1", "B1"], outputs=["Y"], **kwargs)
         gemm2 = helper.make_node("Gemm", inputs=["Y", "W2", "B2"], outputs=["Z"])
 
         model = create_minimal_onnx_model([gemm1, gemm2], [X], [Z], [W1, B1, W2, B2])
@@ -249,7 +197,7 @@ class TestDetectGemmGemm:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_gemm_gemm_non_consecutive(self):
+    def test_misses_non_consecutive_gemm_pair(self):
         """Test no detection when Gemm nodes not consecutive."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 5])
@@ -271,7 +219,7 @@ class TestDetectGemmGemm:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_gemm_gemm_missing_weights(self):
+    def test_misses_gemm_pair_with_missing_weights(self):
         """Test no detection when weights missing."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 5])
@@ -290,7 +238,7 @@ class TestDetectGemmGemm:
         assert isinstance(result, list)
         assert len(result) == 0
 
-    def test_detect_gemm_gemm_multiple_chains(self):
+    def test_detects_multiple_gemm_chains(self):
         """Test detection of multiple Gemm+Gemm chains."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 5])

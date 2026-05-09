@@ -1,3 +1,5 @@
+"""Convert Constant nodes to model initializers."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_constant_to_initializer"]
 

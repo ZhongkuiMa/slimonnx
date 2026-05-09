@@ -82,7 +82,6 @@ def load_and_preprocess(
     :param mark_slimonnx: Whether to mark model as processed by SlimONNX
     :return: Preprocessed model
     """
-    # Load model
     model = onnx.load(onnx_path)
 
     # Check model validity

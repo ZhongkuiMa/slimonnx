@@ -34,7 +34,7 @@ class TestPatternDetection:
 
         # Optimize to detect pattern
         optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=True)
-        assert optimized is not None
+        assert optimized
 
     def test_empty_graph(self):
         """Empty graph should not error."""
@@ -44,7 +44,7 @@ class TestPatternDetection:
 
         model = create_minimal_onnx_model([], inputs, outputs, [])
         optimized = optimize_onnx(model, has_batch_dim=True)
-        assert optimized is not None
+        assert optimized
 
     def test_detect_conv_bn_pattern(self):
         """Conv→BN pattern detected."""
@@ -83,7 +83,7 @@ class TestPatternDetection:
 
         # Optimize to detect and handle pattern
         optimized = optimize_onnx(model, fuse_conv_bn=True, has_batch_dim=True)
-        assert optimized is not None
+        assert optimized
 
     def test_detect_gemm_reshape_bn_pattern(self):
         """Gemm→Reshape→BN pattern detected."""
@@ -124,7 +124,7 @@ class TestPatternDetection:
         )
 
         optimized = optimize_onnx(model, fuse_gemm_reshape_bn=True, has_batch_dim=True)
-        assert optimized is not None
+        assert optimized
 
     def test_detect_multiple_patterns_in_graph(self):
         """Graph with 3 different patterns."""
@@ -159,7 +159,7 @@ class TestPatternDetection:
         optimized = optimize_onnx(
             model, fuse_matmul_add=True, constant_folding=True, has_batch_dim=True
         )
-        assert optimized is not None
+        assert optimized
 
     def test_no_false_positives_similar_pattern(self):
         """MatMul→ReLU NOT detected as MatMul→Add."""

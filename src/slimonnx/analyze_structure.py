@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["analyze_model", "compare_models"]
 
+import logging
 import sys
 from pathlib import Path
 
@@ -20,6 +21,8 @@ from slimonnx.structure_analysis import (
     export_topology_json,
     generate_json_report,
 )
+
+logger = logging.getLogger(__name__)
 
 
 def analyze_model(
@@ -65,7 +68,7 @@ def analyze_model(
         )
         shape_inference_success = True
     except (ImportError, ValueError, AttributeError, KeyError, RuntimeError) as error:
-        print(f"Shape inference failed: {error}")
+        logger.warning(f"Shape inference failed: {error}")
         data_shapes = None
         shape_inference_success = False
 

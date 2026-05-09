@@ -6,29 +6,31 @@ __all__ = ["detect_constant_foldable"]
 from onnx import NodeProto, TensorProto
 
 # Operations supported by constant folding (from optimize_onnx/_cst_op.py)
-FOLDABLE_OP_TYPES = {
-    "Shape",
-    "Gather",
-    "Slice",
-    "Unsqueeze",
-    "Reshape",
-    "Range",
-    "ConstantOfShape",
-    "ReduceSum",
-    "Concat",
-    "Relu",
-    "Neg",
-    "Add",
-    "Sub",
-    "Mul",
-    "Div",
-    "MatMul",
-    "Pow",
-    "Cast",
-    "Equal",
-    "Where",
-    "Expand",
-}
+FOLDABLE_OP_TYPES: frozenset[str] = frozenset(
+    {
+        "Shape",
+        "Gather",
+        "Slice",
+        "Unsqueeze",
+        "Reshape",
+        "Range",
+        "ConstantOfShape",
+        "ReduceSum",
+        "Concat",
+        "Relu",
+        "Neg",
+        "Add",
+        "Sub",
+        "Mul",
+        "Div",
+        "MatMul",
+        "Pow",
+        "Cast",
+        "Equal",
+        "Where",
+        "Expand",
+    }
+)
 
 
 def detect_constant_foldable(

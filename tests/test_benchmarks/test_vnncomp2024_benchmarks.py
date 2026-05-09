@@ -13,6 +13,9 @@ __all__ = [
 
 import pytest
 
+from slimonnx.configs import OptimizationConfig
+from slimonnx.presets import PRESET_NAMES, get_preset
+
 # All 22 vnncomp2024 benchmarks
 VNNCOMP2024_BENCHMARKS = [
     "acasxu_2023",
@@ -46,12 +49,10 @@ def test_benchmark_has_preset(benchmark_name: str) -> None:
 
     :param benchmark_name: Name of the benchmark
     """
-    from slimonnx.presets import PRESET_NAMES, get_preset
-
     assert benchmark_name in PRESET_NAMES, f"Benchmark {benchmark_name} not in PRESET_NAMES"
 
     config = get_preset(benchmark_name)
-    assert config is not None, f"Preset configuration is None for {benchmark_name}"
+    assert config, f"Preset configuration is None for {benchmark_name}"
 
 
 @pytest.mark.parametrize("benchmark_name", VNNCOMP2024_BENCHMARKS)
@@ -60,9 +61,6 @@ def test_benchmark_preset_is_valid(benchmark_name: str) -> None:
 
     :param benchmark_name: Name of the benchmark
     """
-    from slimonnx.configs import OptimizationConfig
-    from slimonnx.presets import get_preset
-
     config = get_preset(benchmark_name)
     assert isinstance(config, OptimizationConfig), (
         f"Preset for {benchmark_name} is not OptimizationConfig"

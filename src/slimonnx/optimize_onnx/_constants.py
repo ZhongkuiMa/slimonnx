@@ -1,13 +1,14 @@
-"""Constants and type mappings for ONNX optimizations."""
+"""Constants and type mappings internal to optimize_onnx.
+
+Constants shared with other slimonnx subpackages live in
+``slimonnx.constants``.
+"""
 
 __docformat__ = "restructuredtext"
 __all__ = [
+    "AUTO_PAD_NOTSET",
     "CONV_2D_KERNEL_DIMS",
     "CONV_2D_WEIGHT_DIMS",
-    "DEFAULT_GEMM_ALPHA",
-    "DEFAULT_GEMM_BETA",
-    "DEFAULT_GEMM_TRANS_A",
-    "DEFAULT_GEMM_TRANS_B",
     "GEMM_REQUIRED_RANK",
     "ONNX_DTYPE_TO_NUMPY",
     "TRANSPOSE_CHW_TO_CWH",
@@ -15,8 +16,6 @@ __all__ = [
 
 import numpy as np
 
-# ONNX data type to NumPy dtype mapping
-# Based on ONNX TensorProto.DataType enum
 ONNX_DTYPE_TO_NUMPY: dict[int, type] = {
     1: np.float32,
     2: np.uint8,
@@ -36,16 +35,10 @@ ONNX_DTYPE_TO_NUMPY: dict[int, type] = {
     16: np.float16,  # bfloat16 -> float16 as approximation
 }
 
-# Tensor dimension requirements
+AUTO_PAD_NOTSET = "NOTSET"
+
 CONV_2D_KERNEL_DIMS = 2
 CONV_2D_WEIGHT_DIMS = 4
 GEMM_REQUIRED_RANK = 2
 
-# Default GEMM attributes
-DEFAULT_GEMM_ALPHA = 1.0
-DEFAULT_GEMM_BETA = 1.0
-DEFAULT_GEMM_TRANS_A = 0
-DEFAULT_GEMM_TRANS_B = 0
-
-# Common transpose permutations
 TRANSPOSE_CHW_TO_CWH = (0, 2, 1)

@@ -1,3 +1,5 @@
+"""Fuse consecutive Gemm operators into a single Gemm."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_gemm_gemm"]
 

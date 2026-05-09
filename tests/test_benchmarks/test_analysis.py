@@ -16,11 +16,20 @@ __all__ = [
     "test_structure_analysis_benchmarks",
 ]
 
+import sys
 from collections import defaultdict
 from pathlib import Path
 
 import numpy as np
 import onnx
+import pytest
+from shapeonnx import infer_onnx_shape
+from shapeonnx.utils import (
+    convert_constant_to_initializer,
+    get_initializers,
+    get_input_nodes,
+    get_output_nodes,
+)
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
@@ -160,14 +169,6 @@ def _infer_model_shapes(model: onnx.ModelProto, has_batch_dim: bool) -> tuple[di
     :return: Tuple of (data_shapes dict, has_shapes bool)
     """
     try:
-        from shapeonnx import infer_onnx_shape
-        from shapeonnx.utils import (
-            convert_constant_to_initializer,
-            get_initializers,
-            get_input_nodes,
-            get_output_nodes,
-        )
-
         initializers = get_initializers(model)
         input_nodes = get_input_nodes(model, initializers, has_batch_dim)
         output_nodes = get_output_nodes(model, has_batch_dim)
@@ -178,7 +179,7 @@ def _infer_model_shapes(model: onnx.ModelProto, has_batch_dim: bool) -> tuple[di
             input_nodes, output_nodes, nodes, initializers, has_batch_dim, verbose=False
         )
         return data_shapes, True
-    except (ImportError, ValueError, AttributeError, KeyError, RuntimeError) as error:
+    except (ValueError, AttributeError, KeyError, RuntimeError) as error:
         print(f"Shape inference failed: {error}")
         return None, False
 
@@ -369,10 +370,6 @@ def run_all_structure_analysis(
 
 def test_pattern_detection_benchmarks() -> None:
     """Pytest: Test pattern detection on all benchmark models."""
-    from pathlib import Path
-
-    import pytest
-
     benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
@@ -384,10 +381,6 @@ def test_pattern_detection_benchmarks() -> None:
 
 def test_structure_analysis_benchmarks() -> None:
     """Pytest: Test structure analysis on all benchmark models."""
-    from pathlib import Path
-
-    import pytest
-
     benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
@@ -399,8 +392,6 @@ def test_structure_analysis_benchmarks() -> None:
 
 def main() -> None:
     """Run the main script."""
-    import sys
-
     if "--patterns-only" in sys.argv:
         run_all_pattern_detection()
     elif "--structure-only" in sys.argv:

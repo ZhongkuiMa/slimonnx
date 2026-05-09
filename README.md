@@ -6,636 +6,122 @@
 [![codecov](https://codecov.io/gh/ZhongkuiMa/slimonnx/branch/main/graph/badge.svg)](https://codecov.io/gh/ZhongkuiMa/slimonnx)
 [![Code style: ruff](https://img.shields.io/badge/code%20style-ruff-000000.svg)](https://github.com/astral-sh/ruff)
 [![PRs Welcome](https://img.shields.io/badge/PRs-welcome-brightgreen.svg)](http://makeapullrequest.com)
-[![ONNX 1.16](https://img.shields.io/badge/ONNX-1.16-brightgreen.svg)](https://onnx.ai)
-[![ONNXRuntime 1.22](https://img.shields.io/badge/ONNX%20Runtime-1.22-brightgreen.svg)](https://onnxruntime.ai)
-[![NumPy 1.26](https://img.shields.io/badge/NumPy-1.26-green.svg)](https://numpy.org/)
-[![VNN-COMP 2024](https://img.shields.io/badge/VNN--COMP-2024-orange.svg)](https://sites.google.com/view/vnn2024)
-[![Version](https://img.shields.io/github/v/tag/ZhongkuiMa/slimonnx?sort=semver)](https://github.com/ZhongkuiMa/slimonnx/releases)
 
-SlimONNX is a pure Python toolkit for optimizing and simplifying ONNX neural network models through graph transformations and operator fusion.
-
-**Extensively tested on all benchmarks from [VNN-COMP 2024](https://sites.google.com/view/vnn2024), covering diverse neural network architectures including feedforward networks, convolutional networks, transformers, and graph neural networks.**
-
-## Motivation
-
-ONNX enables cross-framework model deployment but performs minimal optimization during export. Models exported from frameworks like PyTorch and TensorFlow often contain:
-
-- Redundant operations and identity transformations
-- Unfused linear operations that could be combined
-- Inconsistent operator representations across ONNX versions
-- Complex graph structures that obscure model understanding
-
-SlimONNX addresses these issues through a comprehensive optimization pipeline designed primarily for neural network verification workflows, where simplified models with explicit layer structure are essential for manual inspection and formal analysis.
-
-## Features
-
-- **Pure Python Implementation**: No C/C++ dependencies, simple installation
-- **Minimal Dependencies**: Only requires `onnx`, `onnxruntime`, and `numpy`
-- **ONNXRuntime Compatible**: Optimized models remain executable with ONNXRuntime
-- **Framework Agnostic**: Works with models from any framework that exports to ONNX
-- **Composable Optimizations**: Enable specific transformations via configuration
-- **Preset Configurations**: Pre-tuned optimization profiles for 23 VNN-COMP 2024 benchmarks
-- **Validation Support**: Numerical verification of optimization correctness
-- **Analysis Tools**: Model structure inspection and pattern detection
-- **Production Ready**: Tested on hundreds of models from VNN-COMP 2024 competition
+Optimize ONNX models through operator fusion, constant folding, and redundant operation removal for neural network verification workflows.
 
 ## Installation
 
-### Requirements
-
-- Python 3.11 or higher
-- onnx 1.16.0
-- onnxruntime 1.22.0
-- numpy 1.26.4
-
-**Important**: Version compatibility matters. Use the specified versions to avoid ONNX opset compatibility issues. Higher versions of onnx/onnxruntime may introduce breaking changes in operator semantics.
-
-### Setup
-
-**Local Installation (Required - No Public PyPI Release)**
-
-SlimONNX is not published to PyPI. Install from the local repository:
-
 ```bash
-# Clone the repository
 git clone https://github.com/ZhongkuiMa/slimonnx.git
 cd slimonnx
-
-# Install in editable mode
-pip install -e .
-```
-
-The `-e` flag installs in "editable" mode, which:
-- Creates a link to the source code instead of copying files
-- Changes to source code take effect immediately without reinstalling
-- Essential for development and testing
-
-**For Contributors (Install with Development Tools):**
-
-```bash
-# Install with all development dependencies
-# (pytest, ruff, mypy, pre-commit, etc.)
 pip install -e ".[dev]"
 ```
 
-**Verify Installation:**
-
-```bash
-python -c "from slimonnx import SlimONNX; print('SlimONNX installed successfully')"
-```
-
-### Core Dependencies
-
-```bash
-pip install onnx==1.16.0 onnxruntime==1.22.0 numpy==1.26.4
-```
-
-### Why These Specific Versions?
-
-- **onnx 1.16.0**: Balanced compatibility with ONNX opset 17-21 (most stable range)
-- **onnxruntime 1.22.0**: Matches onnx 1.16.0 for consistent operator behavior
-- **numpy 1.26.4**: Required for modern Python 3.11+ compatibility
-
-Using higher versions may cause opset incompatibilities, where optimized models fail to load due to operator definition changes between ONNX versions.
-
-### Optional: Shape Inference Support
-
-For advanced shape inference support, install the companion library:
-
-```bash
-pip install shapeonnx
-```
+Requirements: Python 3.11+, onnx, onnxruntime, numpy, shapeonnx
 
 ## Quick Start
-
-```python
-from slimonnx import SlimONNX, get_preset
-
-slimonnx = SlimONNX()
-
-# Optimize with VNN-COMP 2024 benchmark preset
-config = get_preset("vit_2023")
-slimonnx.slim("model.onnx", "model_optimized.onnx", config=config)
-
-# Or use default optimizations
-slimonnx.slim("model.onnx", "model_simplified.onnx")
-```
-
-The optimized model can be loaded and executed with ONNXRuntime:
-
-```python
-import onnxruntime as ort
-
-session = ort.InferenceSession("model_optimized.onnx")
-outputs = session.run(None, {"input": input_data})
-```
-
-## Supported Optimizations
-
-SlimONNX implements optimizations across several categories:
-
-### Operator Fusion
-
-- **fuse_matmul_add**: Fuse MatMul+Add into Gemm
-- **fuse_gemm_gemm**: Fuse consecutive Gemm operations
-- **fuse_gemm_reshape_bn**: Fuse Gemm-Reshape-BatchNormalization
-- **fuse_bn_reshape_gemm**: Fuse BatchNormalization-Reshape-Gemm
-- **fuse_bn_gemm**: Fuse BatchNormalization-Gemm
-- **fuse_transpose_bn_transpose**: Fuse Transpose-BatchNormalization-Transpose
-- **fuse_conv_bn**: Fuse Conv-BatchNormalization
-- **fuse_bn_conv**: Fuse BatchNormalization-Conv
-- **fuse_convtransposed_bn**: Fuse ConvTranspose-BatchNormalization
-- **fuse_bn_convtransposed**: Fuse BatchNormalization-ConvTranspose
-- **fuse_depthwise_conv_bn**: Fuse depthwise Conv-BatchNormalization
-- **fuse_bn_depthwise_conv**: Fuse BatchNormalization-depthwise Conv
-
-### Simplification
-
-- **simplify_conv_to_flatten_gemm**: Convert Conv to Flatten+Gemm where applicable
-- **remove_redundant_operations**: Remove identity operations (add zero, multiply one, etc.)
-- **constant_folding**: Fold constant expressions into initializers
-
-### Inference Optimizations
-
-- **remove_dropout**: Remove Dropout nodes (enabled by default)
-
-### Graph Transformations
-
-- **simplify_node_name**: Rename nodes sequentially based on topological order
-- **reorder_by_strict_topological_order**: Sort nodes in topological order (always applied)
-- **simplify_gemm**: Normalize Gemm attributes to canonical form (always applied)
-
-### Always Applied
-
-The following optimizations are always enabled:
-
-- Constants are converted to initializers for shape inference
-- Gemm nodes are normalized (alpha=1, beta=1, transA=False, transB=False)
-- Graph nodes are topologically sorted
-
-## Architecture
-
-### Design Principles
-
-- **Immutable Configuration**: Frozen dataclass configurations prevent accidental modifications
-- **Pure Functional Pipeline**: Model transformations as composable functions
-- **Explicit Dependencies**: All optimizations declare their requirements (shapes, batch dimension)
-- **Type Safety**: Complete type hints using Python 3.11+ syntax
-- **Minimal Abstraction**: Direct operations on ONNX protobuf structures
-
-### Performance Characteristics
-
-- **Single-Pass Optimization**: Most optimizations complete in one graph traversal
-- **Lazy Shape Inference**: Shape computation only when required by optimizations
-- **Efficient Pattern Matching**: Pre-compiled patterns for common optimization opportunities
-- **Topological Ordering**: Ensures correctness of graph transformations
-
-### Module Structure
-
-```
-slimonnx/
-├── __init__.py                 # Public API exports
-├── slimonnx.py                 # Main SlimONNX class
-├── configs.py                  # Configuration dataclasses
-├── presets.py                  # Preset configurations for benchmarks
-├── utils.py                    # Common utilities
-├── onnx_attrs.py               # ONNX attribute helpers
-├── preprocess/                 # Model preprocessing
-│   ├── __init__.py
-│   ├── version_converter.py   # ONNX version conversion
-│   └── cleanup.py              # Docstring and metadata cleanup
-├── optimize_onnx/              # Optimization passes
-│   ├── __init__.py
-│   ├── _optimize.py            # Main optimization orchestration
-│   ├── _cst2initer.py          # Constant to initializer conversion
-│   ├── _cst_op.py              # Constant folding
-│   ├── _mm_add.py              # MatMul+Add fusion
-│   ├── _gemm.py                # Gemm simplification
-│   ├── _gemm_gemm.py           # Gemm-Gemm fusion
-│   ├── _bn_gemm.py             # BatchNorm-Gemm fusion patterns
-│   ├── _bn_transpose.py        # Transpose-BN-Transpose fusion
-│   ├── _conv.py                # Conv simplifications
-│   ├── _bn_conv.py             # Conv-BN fusion patterns
-│   ├── _depthwise_conv.py      # Depthwise Conv-BN fusion
-│   ├── _dropout.py             # Dropout removal
-│   ├── _redundant.py           # Redundant operation removal
-│   ├── _ordering.py            # Topological sorting
-│   ├── _name.py                # Node name simplification
-│   ├── _utils.py               # Optimization utilities
-│   └── constants.py            # ONNX constants and mappings
-├── pattern_detect/             # Pattern detection for analysis
-│   ├── __init__.py
-│   ├── registry.py             # Pattern registry
-│   ├── matmul_add.py           # MatMul+Add patterns
-│   ├── gemm_chains.py          # Gemm chain patterns
-│   ├── gemm_bn.py              # Gemm-BN patterns
-│   ├── transpose_bn.py         # Transpose-BN patterns
-│   ├── conv_bn.py              # Conv-BN patterns
-│   ├── depthwise_conv.py       # Depthwise Conv patterns
-│   ├── constant_ops.py         # Constant operation patterns
-│   ├── redundant_ops.py        # Redundant operation patterns
-│   ├── reshape_chains.py       # Reshape chain patterns
-│   └── dropout.py              # Dropout patterns
-├── model_validate/             # Model validation
-│   ├── __init__.py
-│   ├── onnx_checker.py         # ONNX checker validation
-│   ├── runtime_validator.py    # ONNXRuntime validation
-│   ├── graph_validator.py      # Graph structure validation
-│   └── numerical_compare.py    # Numerical output comparison
-└── structure_analysis/         # Model structure analysis
-    ├── __init__.py
-    ├── analyzer.py             # Structure analyzer
-    ├── topology.py             # Topology analysis
-    └── reporter.py             # JSON report generation
-```
-
-### Optimization Pipeline
-
-```
-Input ONNX Model
-    │
-    ├─> Preprocessing
-    │   ├─> Load model
-    │   ├─> Version conversion (target opset)
-    │   ├─> Shape inference
-    │   └─> Clear docstrings
-    │
-    ├─> Optimization Passes (configurable)
-    │   ├─> Constant to initializer (always)
-    │   ├─> Remove dropout
-    │   ├─> Constant folding
-    │   ├─> MatMul+Add → Gemm
-    │   ├─> Gemm simplification (always)
-    │   ├─> Gemm-Gemm fusion
-    │   ├─> BatchNorm-Gemm fusion
-    │   ├─> Transpose-BN-Transpose fusion
-    │   ├─> Conv-BN fusion
-    │   ├─> Depthwise Conv-BN fusion
-    │   ├─> Conv to Flatten+Gemm
-    │   ├─> Remove redundant operations
-    │   ├─> Topological reordering (always)
-    │   └─> Node name simplification
-    │
-    ├─> Validation (optional)
-    │   ├─> ONNX checker
-    │   ├─> ONNXRuntime loading
-    │   └─> Numerical comparison
-    │
-    └─> Save Optimized Model
-```
-
-## Usage
-
-### Basic Example
 
 ```python
 from slimonnx import SlimONNX, OptimizationConfig
 
 slimonnx = SlimONNX()
 
-# Default optimization (only always-applied transformations)
-slimonnx.slim(
-    "model.onnx",
-    "model_simplified.onnx",
-)
+# Default optimization (dropout removal, Gemm normalization, topological sort)
+slimonnx.slim("model.onnx", "model_slim.onnx")
 
-# Custom optimization configuration
-config = OptimizationConfig(
-    fuse_matmul_add=True,
-    fuse_gemm_gemm=True,
-    remove_redundant_operations=True,
-)
-
-slimonnx.slim(
-    "model.onnx",
-    "model_optimized.onnx",
-    config=config,
-)
+# Enable specific fusions
+config = OptimizationConfig(fuse_matmul_add=True, fuse_conv_bn=True, constant_folding=True)
+slimonnx.slim("model.onnx", "model_slim.onnx", config=config)
 ```
 
-### Using Presets
+## Usage Guide
 
-SlimONNX provides pre-tuned configurations for common benchmarks:
+### Pre-tuned Presets
 
 ```python
 from slimonnx import SlimONNX, get_preset
 
-slimonnx = SlimONNX()
-
-# Use preset for specific benchmark
 config = get_preset("vit_2023")
-
-slimonnx.slim(
-    "vit_model.onnx",
-    "vit_model_optimized.onnx",
-    config=config,
-)
-
-# Enable all optimizations
-from slimonnx import all_optimizations
-
-config = all_optimizations(has_batch_dim=True)
-
-slimonnx.slim(
-    "model.onnx",
-    "model_fully_optimized.onnx",
-    config=config,
-)
+SlimONNX().slim("vit_model.onnx", "vit_slim.onnx", config=config)
 ```
 
-Available presets: `acasxu_2023`, `vit_2023`, `cgan_2023`, `cifar100_2024`, `nn4sys_2023`, and more. See `slimonnx/presets.py` for the complete list.
+Use `all_optimizations(has_batch_dim=True)` to enable all flags.
 
-### Validation
-
-Verify that optimization preserves model outputs:
+### Output Validation
 
 ```python
 from slimonnx import SlimONNX, OptimizationConfig, ValidationConfig
 
-slimonnx = SlimONNX()
-
-opt_config = OptimizationConfig(
-    fuse_conv_bn=True,
-    fuse_matmul_add=True,
-)
-
-val_config = ValidationConfig(
-    validate_outputs=True,
-    num_samples=10,
-    rtol=1e-5,
-    atol=1e-6,
-)
-
-result = slimonnx.slim(
+result = SlimONNX().slim(
     "model.onnx",
-    "model_optimized.onnx",
-    config=opt_config,
-    validation=val_config,
+    "model_slim.onnx",
+    config=OptimizationConfig(fuse_conv_bn=True),
+    validation=ValidationConfig(validate_outputs=True, num_samples=10),
 )
-
-print(f"Node reduction: {result['reduction']} ({result['reduction_pct']:.1f}%)")
-print(f"Validation: {result['validation']['all_match']}")
+print(result["validation"]["all_match"])
 ```
 
-### Analysis
+### Optimization Flags
 
-Analyze model structure and detect optimization opportunities:
+All flags default to `False` except `remove_dropout`. Three transforms always run: constant-to-initializer, Gemm normalization, topological reordering.
 
-```python
-from slimonnx import SlimONNX
+| Category | Flags |
+|----------|-------|
+| Conv/BN fusion | `fuse_conv_bn`, `fuse_bn_conv`, `fuse_bn_conv_with_padding`, `fuse_conv_transpose_bn`, `fuse_bn_conv_transpose`, `fuse_depthwise_conv_bn`, `fuse_bn_depthwise_conv` |
+| Gemm fusion | `fuse_matmul_add`, `fuse_gemm_gemm`, `fuse_gemm_reshape_bn`, `fuse_bn_reshape_gemm`, `fuse_bn_gemm`, `fuse_transpose_bn_transpose` |
+| Simplification | `simplify_conv_to_flatten_gemm`, `remove_redundant_operations`, `constant_folding` |
+| Postprocessing | `simplify_node_name`, `remove_dropout` (default: True) |
 
-slimonnx = SlimONNX()
+### API Reference
 
-# Analyze model
-report = slimonnx.analyze("model.onnx")
+| Symbol | Description |
+|--------|-------------|
+| `SlimONNX.slim(onnx_path, target_path, config, validation)` | Optimize and save model |
+| `SlimONNX.analyze(onnx_path, config, analysis)` | Analyze structure and detect patterns |
+| `SlimONNX.compare(original_path, optimized_path)` | Diff two models by structure and patterns |
+| `SlimONNX.validate(onnx_path, config)` | Run ONNX checker, runtime, and graph validation |
+| `SlimONNX.detect_patterns(onnx_path, config)` | Find fusible and redundant patterns |
+| `SlimONNX.validate_outputs(original_path, optimized_path, validation)` | Compare numerical outputs |
+| `SlimONNX.preprocess(onnx_path, target_opset, ...)` | Load, convert opset, and shape-infer a model |
+| `get_preset(benchmark_name, model_name)` | Get pre-tuned `OptimizationConfig` for a VNN-COMP benchmark |
+| `all_optimizations(has_batch_dim)` | Get `OptimizationConfig` with all flags enabled |
 
-print(f"Total nodes: {report['structure']['node_count']}")
-print(f"Input count: {report['structure']['input_count']}")
-print(f"Output count: {report['structure']['output_count']}")
-print(f"Fusible patterns: {report['recommendations']['fusible_patterns']}")
-print(f"Redundant patterns: {report['recommendations']['redundant_patterns']}")
+## Project Structure
 
-# Detect specific patterns
-patterns = slimonnx.detect_patterns("model.onnx")
-for pattern_name, info in patterns.items():
-    if info['count'] > 0:
-        print(f"{pattern_name}: {info['count']} occurrences")
+```
+slimonnx/
+├── src/slimonnx/
+│   ├── slimonnx.py          # SlimONNX class (main entry point)
+│   ├── configs.py           # OptimizationConfig, ValidationConfig, AnalysisConfig
+│   ├── presets.py           # Pre-tuned configs for VNN-COMP benchmarks
+│   ├── utils.py             # Node extraction and shared helpers
+│   ├── preprocess/          # Version conversion, cleanup
+│   ├── optimize_onnx/       # Optimization passes (fusion, folding, simplification)
+│   ├── pattern_detect/      # Pattern detection (fusible, redundant)
+│   ├── model_validate/      # ONNX checker, runtime, numerical comparison
+│   └── structure_analysis/  # Topology analysis, JSON reports
+└── tests/
 ```
 
-### Model Comparison
-
-Compare original and optimized models:
-
-```python
-from slimonnx import SlimONNX
-
-slimonnx = SlimONNX()
-
-comparison = slimonnx.compare(
-    "model_original.onnx",
-    "model_optimized.onnx",
-)
-
-print(f"Node reduction: {comparison['diff']['nodes']['reduction']}")
-print(f"Patterns fixed: {len(comparison['diff']['patterns_fixed'])}")
-```
-
-## API Reference
-
-### SlimONNX Class
-
-Main class providing optimization and analysis methods.
-
-#### slim()
-
-Optimize ONNX model.
-
-**Parameters**:
-- `onnx_path` (str): Path to input ONNX model
-- `target_path` (str | None): Path to save optimized model (default: {input}_simplified.onnx)
-- `config` (OptimizationConfig | None): Optimization configuration
-- `validation` (ValidationConfig | None): Validation configuration
-
-**Returns**: dict | None - Optimization report if validation enabled, else None
-
-#### analyze()
-
-Analyze model structure and detect patterns.
-
-**Parameters**:
-- `onnx_path` (str): Path to ONNX model
-- `config` (OptimizationConfig | None): Configuration for has_batch_dim
-- `analysis` (AnalysisConfig | None): Analysis configuration
-
-**Returns**: dict - Comprehensive analysis report
-
-#### compare()
-
-Compare two ONNX models.
-
-**Parameters**:
-- `original_path` (str): Path to original model
-- `optimized_path` (str): Path to optimized model
-
-**Returns**: dict - Comparison report
-
-#### validate()
-
-Validate model correctness.
-
-**Parameters**:
-- `onnx_path` (str): Path to ONNX model
-- `config` (OptimizationConfig | None): Configuration for has_batch_dim
-
-**Returns**: dict - Validation report
-
-#### detect_patterns()
-
-Detect optimization patterns.
-
-**Parameters**:
-- `onnx_path` (str): Path to ONNX model
-- `config` (OptimizationConfig | None): Configuration for has_batch_dim
-
-**Returns**: dict - Pattern detection report
-
-### Configuration Classes
-
-All configuration classes are immutable frozen dataclasses.
-
-#### OptimizationConfig
-
-Controls which optimizations to apply.
-
-**Key Parameters**:
-- `fuse_matmul_add` (bool): Fuse MatMul+Add to Gemm (default: False)
-- `fuse_conv_bn` (bool): Fuse Conv+BatchNorm (default: False)
-- `constant_folding` (bool): Fold constant operations (default: False)
-- `remove_redundant_operations` (bool): Remove no-op nodes (default: False)
-- `simplify_node_name` (bool): Rename nodes sequentially (default: False)
-- `has_batch_dim` (bool): Model has batch dimension (default: True)
-
-See `slimonnx/configs.py` for complete parameter list.
-
-#### ValidationConfig
-
-Controls output validation.
-
-**Parameters**:
-- `validate_outputs` (bool): Enable validation (default: False)
-- `num_samples` (int): Number of test samples (default: 5)
-- `rtol` (float): Relative tolerance (default: 1e-5)
-- `atol` (float): Absolute tolerance (default: 1e-6)
-- `input_bounds` (tuple | None): Input value bounds
-- `test_data_path` (str | None): Path to test data
-
-#### AnalysisConfig
-
-Controls analysis exports.
-
-**Parameters**:
-- `export_json` (bool): Export analysis JSON (default: False)
-- `json_path` (str | None): JSON export path
-- `export_topology` (bool): Export topology JSON (default: False)
-- `topology_path` (str | None): Topology export path
-
-## Testing
-
-SlimONNX includes comprehensive test suites:
-
-### Run All Tests
+## Tests
 
 ```bash
-cd slimonnx
-python -m pytest tests/
+pytest tests/ -v
+pytest tests/test_validation.py --preprocess-only
+pytest tests/test_benchmarks.py --optimize
+pytest tests/test_benchmarks.py --verify
 ```
-
-### Test Preprocessing
-
-```bash
-python -m pytest tests/test_validation.py --preprocess-only
-```
-
-### Test Validation
-
-```bash
-python -m pytest tests/test_validation.py --validate-only
-```
-
-### Optimize Benchmarks
-
-```bash
-python -m pytest tests/test_benchmarks.py --optimize
-```
-
-### Verify Against Baseline
-
-```bash
-python -m pytest tests/test_benchmarks.py --verify
-```
-
-## ONNX Version Compatibility
-
-- **Recommended Opset**: 20
-- **Maximum Tested**: 21
-- **Minimum Tested**: 17
-
-Models are automatically converted to target opset during preprocessing. Use `onnx.version_converter` for manual version conversion.
-
-### ONNXRuntime Compatibility
-
-All optimizations preserve ONNXRuntime compatibility. Optimized models can be executed with onnxruntime 1.22.0.
-
-**Validation**: Every optimization is tested against ONNXRuntime to ensure numerical equivalence between original and optimized models. The test suite includes:
-
-- Output validation with random inputs
-- Numerical tolerance checks (rtol=1e-5, atol=1e-6)
-- Comparison against baseline models from VNN-COMP 2024
-
-**Note**: While optimized models are ONNXRuntime compatible, version mismatches between onnx and onnxruntime may cause loading failures. Always use matching versions as specified in the installation section.
-
-## Testing and Validation
-
-SlimONNX has been extensively tested on the complete VNN-COMP 2024 benchmark suite:
-
-### VNN-COMP 2024 Benchmarks Coverage
-
-All 23 benchmarks from the International Verification of Neural Networks Competition 2024:
-
-- acasxu_2023
-- cctsdb_yolo_2023
-- cersyve
-- cgan_2023
-- cifar100_2024
-- collins_aerospace_benchmark
-- collins_rul_cnn_2022
-- cora_2024
-- dist_shift_2023
-- linearizenn
-- lsnc
-- lsnc_relu
-- malbeware
-- metaroom_2023
-- ml4acopf_2024
-- nn4sys_2023
-- relusplitter
-- safenlp_2024
-- sat_relu
-- soundnessbench
-- tinyimagenet_2024
-- tllverifybench_2023
-- traffic_signs_recognition_2023
-- vggnet16_2022
-- vit_2023
-- yolo_2023
-
-### Test Results
-
-- **Total Models Tested**: 100+ models across all benchmarks
-- **Optimization Success Rate**: 100% (all models successfully optimized)
-- **ONNXRuntime Compatibility**: 100% (all optimized models loadable and executable)
-- **Numerical Validation**: Validated on models with test data (safenlp, cgan, vit, etc.)
-
-Each benchmark has a tuned preset configuration in `slimonnx/presets.py` optimized for its specific architecture patterns.
 
 ## Known Limitations
 
-- Shape inference requires models with explicit tensor shapes or batch dimension information
-- Some optimizations (like constant folding) require successful shape inference
-- Models with dynamic shapes may have limited optimization opportunities
-- Batch normalization fusion assumes inference mode (training=False)
-
-## Related Projects
-
-- **[ShapeONNX](https://github.com/ZhongkuiMa/shapeonnx)**: Advanced shape inference for ONNX models. SlimONNX uses ShapeONNX for shape-dependent optimizations.
-- **[TorchVNNLIB](https://github.com/ZhongkuiMa/torchvnnlib)**: PyTorch library for neural network verification. Often used in conjunction with SlimONNX for model verification tasks. This convert the VNNLIB data files to `.pth` format for PyTorch or `.npz` format for NumPy.
-- **[VNN-COMP](https://sites.google.com/view/vnn2024)**: International Verification of Neural Networks Competition. SlimONNX is tested on all VNN-COMP 2024 benchmarks.
-- **[ONNX Simplifier](https://github.com/daquexian/onnx-simplifier)**: Alternative ONNX optimization tool with different optimization strategies.
+- Constant folding requires successful shape inference
+- BatchNormalization fusion assumes inference mode (`training=False`)
+- Models with dynamic shapes have limited optimization opportunities
 
 ## Contributing
 
-See [CONTRIBUTING.md](CONTRIBUTING.md) for development setup, testing procedures, code quality standards, and pull request guidelines.
+See [CONTRIBUTING.md](CONTRIBUTING.md).
 
 ## License
 
-MIT License. See LICENSE file for details.
+MIT License — see [LICENSE](LICENSE).

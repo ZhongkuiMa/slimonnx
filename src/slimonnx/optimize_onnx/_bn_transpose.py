@@ -1,3 +1,5 @@
+"""Fuse Transpose-BatchNormalization-Transpose sequences."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_transpose_batchnorm_transpose"]
 

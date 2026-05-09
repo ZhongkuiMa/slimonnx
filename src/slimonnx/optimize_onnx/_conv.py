@@ -1,9 +1,12 @@
+"""Simplify Conv operators to Flatten+Gemm when possible."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_simplify_conv_to_flatten_gemm"]
 
 import onnx
 from onnx import NodeProto, TensorProto
 
+from slimonnx.optimize_onnx._constants import AUTO_PAD_NOTSET
 from slimonnx.optimize_onnx._utils import _get_conv_params, _is_only_next_node
 
 
@@ -39,7 +42,7 @@ def _can_simplify_conv(
         and all(s == 1 for s in strides)
         and all(d == 1 for d in dilations)
         and group == 1
-        and auto_pad == "NOTSET"
+        and auto_pad == AUTO_PAD_NOTSET
     )
 
 
@@ -137,7 +140,7 @@ def _simplify_conv_to_flatten_gemm(
                     attrs["strides"],
                     attrs["dilations"],
                     attrs["group"],
-                    attrs.get("auto_pad", "NOTSET"),
+                    attrs.get("auto_pad", AUTO_PAD_NOTSET),
                 ):
                     conv_nodes_to_replaced_names.append(conv_node.name)
                     conv_nodes_to_replaced_args[node.name] = weight

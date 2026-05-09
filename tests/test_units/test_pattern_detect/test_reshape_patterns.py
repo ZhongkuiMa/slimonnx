@@ -4,6 +4,7 @@ import sys
 from pathlib import Path
 
 import numpy as np
+import pytest
 from onnx import helper
 
 from slimonnx.pattern_detect.reshape_chains import (
@@ -25,12 +26,27 @@ from conftest import (
 class TestDetectReshapeWithNegativeOne:
     """Test detect_reshape_with_negative_one function."""
 
-    def test_detect_reshape_with_negative_one(self):
+    @pytest.mark.parametrize(
+        ("shape_array", "expected_count", "case_id"),
+        [
+            pytest.param(
+                np.array([2, 3, 2], dtype=np.int64),
+                0,
+                "no_negative_one",
+            ),
+            pytest.param(
+                np.array([2, -1, 2], dtype=np.int64),
+                1,
+                "with_negative_one",
+            ),
+        ],
+    )
+    def test_detects_reshape_with_negative_one(self, shape_array, expected_count, case_id):
         """Test detection of reshape with -1 dimension."""
         X = create_tensor_value_info("X", "float32", [2, 6])
         Y = create_tensor_value_info("Y", "float32", [2, 3, 2])
 
-        shape = create_initializer("shape", np.array([2, 3, 2], dtype=np.int64))
+        shape = create_initializer("shape", shape_array)
 
         reshape = helper.make_node("Reshape", inputs=["X", "shape"], outputs=["Y"])
 
@@ -40,43 +56,10 @@ class TestDetectReshapeWithNegativeOne:
         data_shapes = {"X": [2, 6], "Y": [2, 3, 2]}
 
         result = detect_reshape_with_negative_one(nodes, initializers, data_shapes)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == expected_count
 
-    def test_detect_reshape_with_literal_negative_one(self):
-        """Test detection when reshape has -1 in shape."""
-        X = create_tensor_value_info("X", "float32", [2, 6])
-        Y = create_tensor_value_info("Y", "float32", [2, 3, 2])
-
-        shape = create_initializer("shape", np.array([2, -1, 2], dtype=np.int64))
-
-        reshape = helper.make_node("Reshape", inputs=["X", "shape"], outputs=["Y"])
-
-        model = create_minimal_onnx_model([reshape], [X], [Y], [shape])
-        nodes = list(model.graph.node)
-        initializers = {init.name: init for init in model.graph.initializer}
-        data_shapes = {"X": [2, 6], "Y": [2, 3, 2]}
-
-        result = detect_reshape_with_negative_one(nodes, initializers, data_shapes)
-        assert result is None or isinstance(result, list)
-
-    def test_detect_reshape_no_negative_one(self):
-        """Test no detection when reshape has no -1."""
-        X = create_tensor_value_info("X", "float32", [2, 6])
-        Y = create_tensor_value_info("Y", "float32", [2, 3, 2])
-
-        shape = create_initializer("shape", np.array([2, 3, 2], dtype=np.int64))
-
-        reshape = helper.make_node("Reshape", inputs=["X", "shape"], outputs=["Y"])
-
-        model = create_minimal_onnx_model([reshape], [X], [Y], [shape])
-        nodes = list(model.graph.node)
-        initializers = {init.name: init for init in model.graph.initializer}
-        data_shapes = {"X": [2, 6], "Y": [2, 3, 2]}
-
-        result = detect_reshape_with_negative_one(nodes, initializers, data_shapes)
-        assert result is None or isinstance(result, list)
-
-    def test_detect_reshape_in_model_with_other_ops(self):
+    def test_no_detection_in_model_with_other_ops(self):
         """Test reshape detection in model with other operations."""
         X = create_tensor_value_info("X", "float32", [2, 6])
         Z = create_tensor_value_info("Z", "float32", [2, 3, 2])
@@ -92,18 +75,26 @@ class TestDetectReshapeWithNegativeOne:
         data_shapes = {"X": [2, 6], "I": [2, 6], "Z": [2, 3, 2]}
 
         result = detect_reshape_with_negative_one(nodes, initializers, data_shapes)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 0
 
 
 class TestDetectConsecutiveReshape:
     """Test detect_consecutive_reshape function."""
 
-    def test_detect_single_reshape(self):
+    @pytest.mark.parametrize(
+        ("output_shape", "shape_array"),
+        [
+            pytest.param([2, 3, 2], np.array([2, 3, 2], dtype=np.int64), id="to_3d"),
+            pytest.param([12], np.array([12], dtype=np.int64), id="to_1d"),
+        ],
+    )
+    def test_no_chain_with_single_reshape(self, output_shape, shape_array):
         """Test detection with single reshape (not a chain)."""
         X = create_tensor_value_info("X", "float32", [2, 6])
-        Y = create_tensor_value_info("Y", "float32", [2, 3, 2])
+        Y = create_tensor_value_info("Y", "float32", output_shape)
 
-        shape = create_initializer("shape", np.array([2, 3, 2], dtype=np.int64))
+        shape = create_initializer("shape", shape_array)
 
         reshape = helper.make_node("Reshape", inputs=["X", "shape"], outputs=["Y"])
 
@@ -111,9 +102,10 @@ class TestDetectConsecutiveReshape:
         nodes = list(model.graph.node)
 
         result = detect_consecutive_reshape(nodes)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 0
 
-    def test_detect_two_consecutive_reshapes(self):
+    def test_identifies_chain_of_two_reshapes(self):
         """Test detection of consecutive reshape chain."""
         X = create_tensor_value_info("X", "float32", [2, 6])
         Z = create_tensor_value_info("Z", "float32", [6, 2])
@@ -128,9 +120,10 @@ class TestDetectConsecutiveReshape:
         nodes = list(model.graph.node)
 
         result = detect_consecutive_reshape(nodes)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 1
 
-    def test_detect_three_consecutive_reshapes(self):
+    def test_identifies_chain_of_three_reshapes(self):
         """Test detection of long reshape chain."""
         X = create_tensor_value_info("X", "float32", [2, 6])
         W = create_tensor_value_info("W", "float32", [12])
@@ -149,9 +142,10 @@ class TestDetectConsecutiveReshape:
         nodes = list(model.graph.node)
 
         result = detect_consecutive_reshape(nodes)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) >= 1
 
-    def test_detect_reshape_chain_with_other_ops(self):
+    def test_no_chain_with_interleaved_ops(self):
         """Test reshape chain detection with other operations."""
         X = create_tensor_value_info("X", "float32", [2, 6])
         Z = create_tensor_value_info("Z", "float32", [6, 2])
@@ -167,19 +161,7 @@ class TestDetectConsecutiveReshape:
         nodes = list(model.graph.node)
 
         result = detect_consecutive_reshape(nodes)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 0
 
-    def test_detect_no_chain_single_reshape(self):
-        """Test no chain detection with just one reshape."""
-        X = create_tensor_value_info("X", "float32", [2, 6])
-        Y = create_tensor_value_info("Y", "float32", [12])
-
-        shape = create_initializer("shape", np.array([12], dtype=np.int64))
-
-        reshape = helper.make_node("Reshape", inputs=["X", "shape"], outputs=["Y"])
-
-        model = create_minimal_onnx_model([reshape], [X], [Y], [shape])
-        nodes = list(model.graph.node)
-
-        result = detect_consecutive_reshape(nodes)
-        assert result is None or isinstance(result, list)
+    # [REVIEW] Deleted: test_empty_result_for_single_reshape_only — merged into parametrized test_no_chain_with_single_reshape

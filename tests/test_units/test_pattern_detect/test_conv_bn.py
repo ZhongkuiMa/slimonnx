@@ -20,7 +20,7 @@ from conftest import (
 class TestConvBNDetection:
     """Test Conv+BN pattern detection."""
 
-    def test_detect_basic_conv_bn(self):
+    def test_detects_basic_pattern(self):
         """Test detection of basic Conv+BN pattern."""
         inputs = [create_tensor_value_info("X", "float32", [1, 3, 4, 4])]
         outputs = [create_tensor_value_info("Y", "float32", [1, 2, 2, 2])]
@@ -63,7 +63,7 @@ class TestConvBNDetection:
         assert isinstance(instances, list)
         assert len(instances) > 0
 
-    def test_detect_conv_bn_with_padding(self):
+    def test_detects_with_padding(self):
         """Test Conv+BN detection with padding."""
         inputs = [create_tensor_value_info("X", "float32", [1, 3, 4, 4])]
         outputs = [create_tensor_value_info("Y", "float32", [1, 2, 4, 4])]
@@ -103,7 +103,7 @@ class TestConvBNDetection:
         instances = detect_conv_bn(nodes, initializers_dict)
         assert isinstance(instances, list)
 
-    def test_detect_multiple_conv_bn_patterns(self):
+    def test_detects_multiple_patterns_in_sequence(self):
         """Test detection of multiple Conv+BN patterns in sequence."""
         inputs = [create_tensor_value_info("X", "float32", [1, 3, 4, 4])]
         outputs = [create_tensor_value_info("Y", "float32", [1, 2, 2, 2])]
@@ -169,7 +169,7 @@ class TestConvBNDetection:
         instances = detect_conv_bn(nodes, initializers_dict)
         assert isinstance(instances, list)
 
-    def test_detect_no_conv_bn_pattern(self):
+    def test_returns_empty_when_no_pattern(self):
         """Test detection when Conv+BN pattern is not present."""
         inputs = [create_tensor_value_info("X", "float32", [1, 3, 4, 4])]
         outputs = [create_tensor_value_info("Y", "float32", [1, 2, 2, 2])]
@@ -193,7 +193,7 @@ class TestConvBNDetection:
         # May return empty list if Conv not immediately followed by BN
         assert isinstance(instances, list)
 
-    def test_detect_conv_bn_different_channels(self):
+    def test_detects_various_channel_configs(self):
         """Test Conv+BN detection with various channel configurations."""
         inputs = [create_tensor_value_info("X", "float32", [1, 64, 8, 8])]
         outputs = [create_tensor_value_info("Y", "float32", [1, 128, 4, 4])]
@@ -233,7 +233,7 @@ class TestConvBNDetection:
         instances = detect_conv_bn(nodes, initializers_dict)
         assert isinstance(instances, list)
 
-    def test_detect_conv_bn_with_bias(self):
+    def test_detects_conv_with_bias(self):
         """Test Conv+BN where Conv has bias."""
         inputs = [create_tensor_value_info("X", "float32", [1, 3, 4, 4])]
         outputs = [create_tensor_value_info("Y", "float32", [1, 2, 2, 2])]

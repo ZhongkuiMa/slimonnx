@@ -1,3 +1,5 @@
+"""Simplify and normalize ONNX node and tensor names."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_simplify_names"]
 

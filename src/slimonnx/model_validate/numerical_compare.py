@@ -7,9 +7,13 @@ __all__ = [
     "run_onnx_inference",
 ]
 
+import logging
+
 import numpy as np
 import onnx
 import onnxruntime as ort
+
+logger = logging.getLogger(__name__)
 
 
 def generate_inputs_from_bounds(
@@ -106,7 +110,7 @@ def _load_test_inputs_from_file(
         return test_inputs
 
     except (OSError, ValueError, IndexError, KeyError) as error:
-        print(f"Failed to load test data: {error}")
+        logger.warning(f"Failed to load test data: {error}")
         return None
 
 

@@ -25,7 +25,6 @@ class TestModelUtils:
 
         model = create_minimal_onnx_model([], [X], [Y], [])
 
-        assert model is not None
         assert model.graph.name == "test_graph"
         assert len(model.graph.input) == 1
         assert len(model.graph.output) == 1

@@ -33,7 +33,7 @@ from conftest import (
 class TestClearOnnxDocstring:
     """Test clear_onnx_docstring function."""
 
-    def test_clear_docstring_single_node(self):
+    def test_single_node(self):
         """Test clearing docstring from single node."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -44,7 +44,7 @@ class TestClearOnnxDocstring:
         result = clear_onnx_docstring(model)
         assert result.graph.node[0].doc_string == ""
 
-    def test_clear_docstring_multiple_nodes(self):
+    def test_multiple_nodes(self):
         """Test clearing docstrings from multiple nodes."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 3])
@@ -60,7 +60,7 @@ class TestClearOnnxDocstring:
 class TestReformatIOShape:
     """Test reformat_io_shape function."""
 
-    def test_reformat_shape_with_batch(self):
+    def test_with_batch(self):
         """Test reformatting shape with batch dimension."""
         node = create_tensor_value_info("X", "float32", [5, 3])
         result = reformat_io_shape(node, has_batch_dim=True)
@@ -68,19 +68,20 @@ class TestReformatIOShape:
         assert result[0] == 1
         assert result[1] == 3
 
-    def test_reformat_shape_no_batch_dim(self):
-        """Test reformatting shape without batch dimension requirement."""
-        node = create_tensor_value_info("X", "float32", [3])
-        result = reformat_io_shape(node, has_batch_dim=False)
-        assert result == [3]
+    @pytest.mark.parametrize(
+        ("shape", "has_batch_dim", "expected"),
+        [
+            pytest.param([3], False, [3], id="no_batch_dim"),
+            pytest.param([], True, [], id="scalar_shape"),
+        ],
+    )
+    def test_reformat_various_shapes(self, shape, has_batch_dim, expected):
+        """Test reformatting shape with various input shapes and flags."""
+        node = create_tensor_value_info("X", "float32", shape)
+        result = reformat_io_shape(node, has_batch_dim=has_batch_dim)
+        assert result == expected
 
-    def test_reformat_shape_scalar(self):
-        """Test reformatting scalar output."""
-        node = create_tensor_value_info("X", "float32", [])
-        result = reformat_io_shape(node, has_batch_dim=True)
-        assert result == []
-
-    def test_reformat_shape_batch_dim_error(self):
+    def test_batch_dim_error(self):
         """Test error when batch dimension missing."""
         node = create_tensor_value_info("X", "float32", [3])
         with pytest.raises(ValueError, match="batch dimension"):
@@ -90,7 +91,7 @@ class TestReformatIOShape:
 class TestGetInputOutputNodes:
     """Test get_input_nodes and get_output_nodes functions."""
 
-    def test_get_input_nodes_single(self):
+    def test_get_input_single(self):
         """Test getting single input node."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -103,7 +104,7 @@ class TestGetInputOutputNodes:
         assert len(result) == 1
         assert result[0].name == "X"
 
-    def test_get_output_nodes_single(self):
+    def test_get_output_single(self):
         """Test getting single output node."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -119,7 +120,7 @@ class TestGetInputOutputNodes:
 class TestGetInitializers:
     """Test get_initializers function."""
 
-    def test_get_initializers_single(self):
+    def test_returns_named_initializer(self):
         """Test getting single initializer."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -132,7 +133,7 @@ class TestGetInitializers:
         assert "W" in result
         assert result["W"] == W
 
-    def test_get_initializers_empty(self):
+    def test_returns_empty_dict_when_no_initializers(self):
         """Test getting initializers when none exist."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -147,7 +148,7 @@ class TestGetInitializers:
 class TestConvertConstantToInitializer:
     """Test convert_constant_to_initializer function."""
 
-    def test_convert_no_constant_nodes(self):
+    def test_no_constant_nodes(self):
         """Test when no constant nodes present."""
         relu_node = helper.make_node("Relu", inputs=["X"], outputs=["Y"])
         nodes = [relu_node]
@@ -161,7 +162,7 @@ class TestConvertConstantToInitializer:
 class TestExtractNodes:
     """Test extract_nodes function."""
 
-    def test_extract_nodes_basic(self):
+    def test_returns_input_output_and_node_lists(self):
         """Test extracting nodes from model."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -176,7 +177,7 @@ class TestExtractNodes:
         assert input_nodes[0].name == "X"
         assert output_nodes[0].name == "Y"
 
-    def test_extract_nodes_with_initializers(self):
+    def test_with_initializers(self):
         """Test extracting nodes with initializers."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -193,14 +194,14 @@ class TestExtractNodes:
 class TestGetNextNodesMapping:
     """Test get_next_nodes_mapping function."""
 
-    def test_single_node_mapping(self):
+    def test_single_node(self):
         """Test mapping for single node."""
         node = helper.make_node("Relu", inputs=["X"], outputs=["Y"], name="relu_0")
         result = get_next_nodes_mapping([node])
         assert isinstance(result, dict)
         assert "relu_0" in result
 
-    def test_chained_nodes_mapping(self):
+    def test_chained_nodes(self):
         """Test mapping for chained nodes."""
         node1 = helper.make_node("Relu", inputs=["X"], outputs=["Y"], name="relu_0")
         node2 = helper.make_node("Relu", inputs=["Y"], outputs=["Z"], name="relu_1")
@@ -216,15 +217,18 @@ class TestGetNextNodesMapping:
         node3 = helper.make_node("Add", inputs=["Y", "Y"], outputs=["W"], name="add_0")
 
         result = get_next_nodes_mapping([node1, node2, node3])
-        # node1's output Y is consumed by both node2 and node3
+        # node1's output Y is consumed by node2 once and node3 twice (Add inputs=["Y","Y"])
+        # The mapping counts per-input, so add_0 appears twice
         assert "relu_0" in result
-        assert len(result["relu_0"]) >= 1
+        assert len(result["relu_0"]) == 3
+        assert "relu_1" in result["relu_0"]
+        assert result["relu_0"].count("add_0") == 2
 
 
 class TestGenerateRandomInputs:
     """Test generate_random_inputs function."""
 
-    def test_generate_single_input(self):
+    def test_single_input(self):
         """Test generating single input."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -237,7 +241,7 @@ class TestGenerateRandomInputs:
         assert "X" in result[0]
         assert result[0]["X"].shape == (2, 3)
 
-    def test_generate_multiple_samples(self):
+    def test_multiple_samples(self):
         """Test generating multiple samples."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Y = create_tensor_value_info("Y", "float32", [2, 3])
@@ -251,7 +255,7 @@ class TestGenerateRandomInputs:
             assert "X" in sample
             assert sample["X"].shape == (2, 3)
 
-    def test_generate_multiple_inputs(self):
+    def test_multiple_inputs(self):
         """Test generating with multiple input tensors."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         Z = create_tensor_value_info("Z", "float32", [2, 4])
@@ -269,7 +273,7 @@ class TestGenerateRandomInputs:
 class TestExtractAttrMap:
     """Test EXTRACT_ATTR_MAP functionality."""
 
-    def test_extract_attr_map_has_entries(self):
+    def test_has_entries(self):
         """Test EXTRACT_ATTR_MAP has expected entries."""
         assert 0 in EXTRACT_ATTR_MAP  # UNDEFINED
         assert 1 in EXTRACT_ATTR_MAP  # FLOAT
@@ -278,7 +282,7 @@ class TestExtractAttrMap:
         assert 6 in EXTRACT_ATTR_MAP  # FLOATS
         assert 7 in EXTRACT_ATTR_MAP  # INTS
 
-    def test_extract_attr_undefined(self):
+    def test_undefined_extractor_returns_none(self):
         """Test extracting undefined attribute returns None."""
         extractor = EXTRACT_ATTR_MAP[0]
         result = extractor(None)
@@ -288,54 +292,67 @@ class TestExtractAttrMap:
 class TestCompareOutputs:
     """Test compare_outputs function."""
 
-    def test_compare_identical_outputs(self):
-        """Test comparing identical outputs."""
-        outputs1 = {"Y": np.array([1.0, 2.0, 3.0])}
-        outputs2 = {"Y": np.array([1.0, 2.0, 3.0])}
-
-        match, mismatches = compare_outputs(outputs1, outputs2)
-        assert match is True
-        assert len(mismatches) == 0
-
-    def test_compare_close_outputs(self):
-        """Test comparing close outputs within tolerance."""
-        outputs1 = {"Y": np.array([1.0, 2.0, 3.0])}
-        outputs2 = {"Y": np.array([1.0 + 1e-7, 2.0 + 1e-7, 3.0 + 1e-7])}
-
-        match, _ = compare_outputs(outputs1, outputs2, rtol=1e-5, atol=1e-6)
-        assert match is True
-
-    def test_compare_different_outputs(self):
-        """Test comparing different outputs."""
-        outputs1 = {"Y": np.array([1.0, 2.0, 3.0])}
-        outputs2 = {"Y": np.array([1.0, 2.5, 3.0])}
-
-        match, mismatches = compare_outputs(outputs1, outputs2)
-        assert match is False
-        assert len(mismatches) > 0
-
-    def test_compare_multiple_outputs(self):
-        """Test comparing multiple outputs."""
-        outputs1 = {
-            "Y1": np.array([1.0, 2.0]),
-            "Y2": np.array([3.0, 4.0]),
-        }
-        outputs2 = {
-            "Y1": np.array([1.0, 2.0]),
-            "Y2": np.array([3.0, 4.0]),
-        }
-
-        match, _ = compare_outputs(outputs1, outputs2)
-        assert match is True
-
-    def test_compare_missing_output(self):
-        """Test comparing when output missing."""
-        outputs1 = {"Y": np.array([1.0])}
-        outputs2: dict[str, np.ndarray] = {}
-
-        match, mismatches = compare_outputs(outputs1, outputs2)
-        assert match is False
-        assert len(mismatches) > 0
+    @pytest.mark.parametrize(
+        ("outputs1", "outputs2", "rtol", "atol", "should_match"),
+        [
+            pytest.param(
+                {"Y": np.array([1.0, 2.0, 3.0])},
+                {"Y": np.array([1.0, 2.0, 3.0])},
+                1e-5,
+                1e-6,
+                True,
+                id="identical_outputs",
+            ),
+            pytest.param(
+                {"Y": np.array([1.0, 2.0, 3.0])},
+                {"Y": np.array([1.0 + 1e-7, 2.0 + 1e-7, 3.0 + 1e-7])},
+                1e-5,
+                1e-6,
+                True,
+                id="close_outputs_within_tolerance",
+            ),
+            pytest.param(
+                {"Y": np.array([1.0, 2.0, 3.0])},
+                {"Y": np.array([1.0, 2.5, 3.0])},
+                1e-5,
+                1e-6,
+                False,
+                id="different_outputs",
+            ),
+            pytest.param(
+                {
+                    "Y1": np.array([1.0, 2.0]),
+                    "Y2": np.array([3.0, 4.0]),
+                },
+                {
+                    "Y1": np.array([1.0, 2.0]),
+                    "Y2": np.array([3.0, 4.0]),
+                },
+                1e-5,
+                1e-6,
+                True,
+                id="multiple_outputs",
+            ),
+            pytest.param(
+                {"Y": np.array([1.0])},
+                {},
+                1e-5,
+                1e-6,
+                False,
+                id="missing_output",
+            ),
+        ],
+    )
+    def test_returns_match_status_for_various_scenarios(
+        self, outputs1, outputs2, rtol, atol, should_match
+    ):
+        """Test comparing outputs with various scenarios."""
+        match, mismatches = compare_outputs(outputs1, outputs2, rtol=rtol, atol=atol)
+        assert match is should_match
+        if should_match:
+            assert len(mismatches) == 0
+        else:
+            assert len(mismatches) > 0
 
     def test_compare_output_shape_mismatch(self):
         """Test comparing with mismatched shapes."""

@@ -16,8 +16,11 @@ __all__ = [
     "test_validation_benchmarks",
 ]
 
+import sys
 from collections import defaultdict
 from pathlib import Path
+
+import pytest
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
@@ -304,10 +307,6 @@ def run_all_validation(benchmark_dir: str = "benchmarks", max_per_benchmark: int
 
 def test_preprocess_benchmarks() -> None:
     """Pytest: Test preprocessing on all benchmark models."""
-    from pathlib import Path
-
-    import pytest
-
     benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
@@ -319,10 +318,6 @@ def test_preprocess_benchmarks() -> None:
 
 def test_validation_benchmarks() -> None:
     """Pytest: Test validation on all benchmark models."""
-    from pathlib import Path
-
-    import pytest
-
     benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
@@ -337,8 +332,6 @@ def test_validation_benchmarks() -> None:
 
 def main() -> None:
     """Run the validation script."""
-    import sys
-
     if "--preprocess-only" in sys.argv:
         opset = None
         if "--opset" in sys.argv:

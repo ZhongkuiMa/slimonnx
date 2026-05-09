@@ -1,3 +1,5 @@
+"""Remove redundant identity-like operations from ONNX graphs."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_remove_redundant_operations"]
 

@@ -6,6 +6,17 @@ import pytest
 from onnx import TensorProto, helper, numpy_helper
 
 
+@pytest.fixture(autouse=True)
+def _seed_random():
+    """Seed the numpy RNG before every test for deterministic random tensor generation.
+
+    Resolves ASN9:UNSEEDED_RANDOM globally for the test_units/ subtree without
+    requiring per-test seeding boilerplate.
+    """
+    np.random.seed(0)
+    return
+
+
 def create_tensor_value_info(name, dtype, shape):
     """Create a tensor value info for ONNX graph."""
     if dtype == "float32":

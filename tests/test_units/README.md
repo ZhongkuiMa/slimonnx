@@ -1,191 +1,80 @@
 # SlimONNX Unit Tests
 
-Fast unit tests for SlimONNX optimization library, designed for CI/CD pipelines.
-
-## Test Structure
-
-```
-test_units/
-├── test_optimize/          # 7 test files, 63 tests
-│   ├── test_mm_add.py      # MatMul+Add fusion (10 tests) ✓
-│   ├── test_gemm.py        # Gemm normalization (11 tests) ✓
-│   ├── test_redundant.py   # Redundant op removal (14 tests) ✓
-│   ├── test_bn_conv.py     # Conv+BN fusion (10 tests)
-│   ├── test_bn_gemm.py     # Gemm+BN fusion (5 tests)
-│   ├── test_constant_folding.py  # Constant folding (5 tests)
-│   └── test_core_api.py    # SlimONNX API (8 tests) ✓
-├── test_validate/          # 1 test file, 9 tests
-│   └── test_validation.py  # Graph validation (9 tests)
-├── test_pattern_detect/    # 1 test file, 6 tests
-│   └── test_pattern_detection.py  # Pattern detection (6 tests)
-├── test_utils/             # 1 test file, 4 tests
-│   └── test_model_utils.py # Model utilities (4 tests)
-└── conftest.py            # Shared fixtures and utilities
-
-Total: ~82 unit tests, <5 seconds runtime
-```
+Unit tests for SlimONNX ONNX graph optimization passes, pattern detection, validation, and utilities.
 
 ## Running Tests
 
 ```bash
-# Fast unit tests with verbose output
-pytest tests/test_units/ -v --tb=short -ra
+# All unit tests
+pytest slimonnx/tests/test_units/ -v
 
-# Single test file
-pytest tests/test_units/test_optimize/test_mm_add.py -v
+# Single subdirectory
+pytest slimonnx/tests/test_units/test_optimize/ -v
 
-# Specific test function
-pytest tests/test_units/test_optimize/test_mm_add.py::TestMatMulAddFusion::test_basic_fusion_success -v
+# Single file
+pytest slimonnx/tests/test_units/test_optimize/test_mm_add.py -v
+
+# Specific test
+pytest slimonnx/tests/test_units/test_optimize/test_mm_add.py::TestMatMulAddFusion::test_basic_fusion_success -v
 
 # With coverage
-pytest tests/test_units/ --cov=slimonnx --cov-report=term-missing
+pytest slimonnx/tests/test_units/ --cov=slimonnx --cov-report=term-missing
 ```
 
-## Test Design Principles
+## Test Subdirectories
 
-### 1. Broad Code Coverage
-- Test public APIs: `SlimONNX.slim()`, `optimize_onnx()`
-- Test main optimization paths
-- Skip internal helper functions
+| Directory | Files | What it tests |
+|-----------|-------|---------------|
+| `test_optimize/` | 29 | Graph optimization passes (fusion, folding, simplification, removal) |
+| `test_pattern_detect/` | 19 | Pattern detection for fuseable op sequences |
+| `test_validate/` | 4 | Graph validation, runtime validation, numerical output comparison |
+| `test_utils/` | 3 | Model manipulation utility functions |
+| `test_api/` | 2 | Public `SlimONNX` class API |
+| `test_analyze/` | 2 | Graph structure analysis |
+| `test_preprocess/` | 2 | Preprocessing passes (cleanup, opset version conversion) |
+| `test_structure_analysis/` | 2 | Topology analysis and structure reporting |
 
-### 2. Complete Logic Coverage
-- Success paths: Happy path optimization
-- Failure paths: Conditions that prevent optimization (e.g., rank > 2)
-- Edge cases: alpha=0, beta=0, zero padding
-- Boundary conditions: Near-zero variance, large matrices
+Top-level `test_presets.py` tests optimization preset configurations.
 
-### 3. Expected Error Testing
-- Use `pytest.raises()` for ValueError, TypeError
-- Test graceful skips (operations not optimized but no error)
-- Test error handling for invalid presets, opsets
+### test_optimize/ highlights
 
-### 4. Small Fast Inputs
-- 2x3 matrices for MatMul/Gemm tests
-- 1x3x4x4 tensors for Conv tests
+| File | Pass tested |
+|------|-------------|
+| `test_mm_add.py` | MatMul+Add -> Gemm fusion |
+| `test_gemm.py` | Gemm normalization |
+| `test_bn_conv.py`, `test_bn_conv_fusion.py` | Conv+BatchNorm fusion |
+| `test_bn_gemm.py`, `test_bn_gemm_fusion.py` | Gemm+BatchNorm fusion |
+| `test_bn_convtranspose.py` | ConvTranspose+BatchNorm fusion |
+| `test_bn_transpose_fusion.py` | Transpose+BatchNorm fusion |
+| `test_constant_folding.py` | Constant folding |
+| `test_constant_ops.py`, `test_constant_to_initializer.py` | Constant op handling |
+| `test_dropout_removal.py` | Dropout removal |
+| `test_gemm_gemm_fusion.py` | Gemm chain fusion |
+| `test_reshape_optimization.py` | Reshape simplification |
+| `test_depthwise_conv.py`, `test_depthwise_conv_fusion.py` | Depthwise conv optimization |
+| `test_conv_simplification.py` | Conv simplification |
+| `test_gemm_simplification.py` | Gemm simplification |
+| `test_redundant.py`, `test_redundant_operations_removal.py` | Redundant op removal |
+| `test_core_api.py` | `optimize_onnx()` top-level API |
+| `test_error_handling.py` | Error paths and invalid inputs |
+| `test_onnx_attrs.py` | ONNX attribute handling |
+
+`*_extended.py` files provide additional coverage variants for the same pass.
+
+## Shared Fixtures (conftest.py)
+
+`conftest.py` provides model-building helpers and test utilities:
+
+- **Builders**: `create_tensor_value_info`, `create_initializer`, `create_minimal_onnx_model`
+- **Introspection**: `count_ops_by_type`, `get_nodes_by_type`, `get_node_by_name`, `get_initializer_by_name`, `get_input_names`, `get_initializer_names`
+- **Execution**: `run_onnx_model` (onnxruntime, CPU only), `onnx_model_runner` fixture
+- **Model factories**: `create_matmul_add_model`, `create_gemm_model`, `create_conv_bn_model`, `create_dropout_model`, `create_convtranspose_bn_model`, `create_depthwise_conv_model`
+- **Fixed tensors**: `simple_2x3_matrix`, `simple_3x2_matrix`, `simple_conv_input` (1x3x4x4), `simple_float_model`
+
+## Test Conventions
+
 - Fixed (not random) inputs for reproducibility
-- No GPU operations
-
-### 5. Fine-Grained Pytest Output
-```bash
-pytest tests/test_units/ -v --tb=short -ra --showlocals
-```
-Output shows:
-- Each test name with PASSED/FAILED status
-- Percentage progress
-- Summary of test outcomes
-- Detailed tracebacks for failures
-
-### 6. Public API Focus
-- Test user-facing methods: `slim()`, `analyze()`, `compare()`
-- Test main optimization paths
-- Don't test internal functions like `_extract_gemm_params()`
-
-### 7. No Deselected Tests
-- NO `@pytest.mark.skip`
-- NO `@pytest.mark.skipif`
-- All tests must run and pass
-
-## Test Coverage
-
-| Module | Tests | Status |
-|--------|-------|--------|
-| test_mm_add | 10 | ✓ Complete |
-| test_gemm | 11 | ✓ Complete |
-| test_redundant | 14 | ✓ Complete |
-| test_bn_conv | 10 | - Framework ready |
-| test_bn_gemm | 5 | - Framework ready |
-| test_constant_folding | 5 | - Framework ready |
-| test_core_api | 8 | ✓ Complete |
-| test_validation | 9 | - Framework ready |
-| test_pattern_detection | 6 | - Framework ready |
-| test_model_utils | 4 | - Framework ready |
-| **Total** | **82** | **35 Complete** |
-
-## Shared Fixtures
-
-See `conftest.py` for:
-- `create_tensor_value_info()` - Create ONNX input/output specs
-- `create_initializer()` - Create constant tensors
-- `create_minimal_onnx_model()` - Build minimal test models
-- `count_ops_by_type()` - Count operation types
-- `run_onnx_model()` - Execute models with onnxruntime
-- `create_matmul_add_model` - Factory for MatMul+Add patterns
-- `create_gemm_model` - Factory for Gemm patterns
-- `create_conv_bn_model` - Factory for Conv+BN patterns
-
-## Implementation Notes
-
-### Test File Template
-```python
-"""Unit tests for [optimization name]."""
-
-import numpy as np
-import pytest
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-
-from ..conftest import (
-    count_ops_by_type,
-    create_initializer,
-    create_minimal_onnx_model,
-    create_tensor_value_info,
-    run_onnx_model,
-)
-
-
-class Test[ClassName]:
-    """Test [optimization name] optimization."""
-
-    def test_basic_[feature](self):
-        """[What is being tested] - tests [which code branch]."""
-        # Setup
-        # Optimize
-        # Assert
-        pass
-
-    def test_[edge_case](self):
-        """[Edge case description]."""
-        pass
-```
-
-### Error Testing Template
-```python
-def test_invalid_input_raises_error(self):
-    """Invalid input should raise ValueError."""
-    import pytest
-
-    model = create_invalid_model()
-    optimizer = SlimONNX()
-
-    with pytest.raises(ValueError, match="Expected error message"):
-        optimizer.slim(model)
-```
-
-### Numerical Validation Template
-```python
-def test_numerical_correctness(self):
-    """Optimization preserves outputs."""
-    model_before = create_model()
-    model_after = optimize_onnx(model_before)
-
-    # Test input
-    X_data = np.array([[...]], dtype=np.float32)
-
-    # Run both
-    out_before = run_onnx_model(model_before, {"X": X_data})[0]
-    out_after = run_onnx_model(model_after, {"X": X_data})[0]
-
-    # Verify
-    np.testing.assert_allclose(out_before, out_after, rtol=1e-5, atol=1e-6)
-```
-
-## GitHub Actions CI/CD
-
-Unit tests run automatically on:
-- Push to main/dev branches
-- Pull requests
-
-Configuration: `.github/workflows/unit-tests.yml`
-
-Tests must pass on Python 3.11 and 3.12 before merge.
+- Small tensor shapes (2x3 matrices, 1x3x4x4 conv inputs) for speed
+- CPU-only execution via onnxruntime `CPUExecutionProvider`
+- Numerical correctness checked with `np.testing.assert_allclose(rtol=1e-5, atol=1e-6)`
+- Each test verifies both graph structure (op counts, node types) and numerical output

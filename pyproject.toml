@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slimonnx"
-version = "2026.2.0"
+version = "2026.5.0"
 description = "ONNX model optimization and simplification utilities"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -63,7 +63,7 @@ exclude = [
 # Comprehensive rule set (matches main rover project)
 select = [
     "E", "W", "F", "I", "N", "UP", "B", "C4", "PIE", "RET", "SIM", "TID",
-    "A", "BLE", "C90", "FBT", "ICN", "ISC", "PGH", "Q", "RSE", "SLF",
+    "A", "BLE", "C90", "DOC", "FBT", "ICN", "ISC", "PGH", "Q", "RSE", "SLF",
     "TD", "D", "PERF", "FURB", "PT", "T10", "PTH", "INP", "NPY", "RUF",
 ]
 
@@ -119,9 +119,6 @@ addopts = [
     "--tb=short",            # Short traceback format
     "-ra",                   # Show summary of all test outcomes
     "--strict-markers",      # Enforce marker registration
-]
-markers = [
-    "benchmark: Slow benchmark tests for manual runs",
 ]
 
 [tool.coverage.run]

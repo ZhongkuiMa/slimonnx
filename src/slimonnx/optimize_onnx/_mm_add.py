@@ -1,3 +1,5 @@
+"""Fuse MatMul+Add sequences into Gemm operators."""
+
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_matmul_add"]
 

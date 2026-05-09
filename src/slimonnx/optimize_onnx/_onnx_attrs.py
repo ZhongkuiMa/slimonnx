@@ -9,6 +9,9 @@ from typing import Any
 import onnx
 from onnx import NodeProto, TensorProto
 
+from slimonnx.constants import DEFAULT_GEMM_ATTRS
+from slimonnx.optimize_onnx._constants import AUTO_PAD_NOTSET
+
 # Attribute type extractors
 EXTRACT_ATTR_MAP: dict[int, Any] = {
     0: lambda x: None,  # UNDEFINED
@@ -84,7 +87,7 @@ def validate_auto_pad(auto_pad: str, op_name: str) -> None:
     :param auto_pad: auto_pad value
     :param op_name: Operator name for error message
     """
-    if auto_pad != "NOTSET":
+    if auto_pad != AUTO_PAD_NOTSET:
         raise ValueError(f"{op_name} with auto_pad={auto_pad} is not supported")
 
 
@@ -102,7 +105,7 @@ def get_attrs_avgpool(node: NodeProto, initializers: dict[str, TensorProto]) -> 
     """Extract AveragePool operator attributes."""
     attrs = scan_attrs(
         {
-            "auto_pad": "NOTSET",
+            "auto_pad": AUTO_PAD_NOTSET,
             "ceil_mode": 0,
             "count_include_pad": 0,
             "dilations": None,
@@ -154,7 +157,7 @@ def get_attrs_conv(node: NodeProto, initializers: dict[str, TensorProto]) -> dic
     """Extract Conv operator attributes."""
     attrs = scan_attrs(
         {
-            "auto_pad": "NOTSET",
+            "auto_pad": AUTO_PAD_NOTSET,
             "dilations": None,
             "group": 1,
             "kernel_shape": None,
@@ -185,7 +188,7 @@ def get_attrs_conv_transpose(
     """Extract ConvTranspose operator attributes."""
     attrs = scan_attrs(
         {
-            "auto_pad": "NOTSET",
+            "auto_pad": AUTO_PAD_NOTSET,
             "dilations": None,
             "group": 1,
             "kernel_shape": None,
@@ -239,7 +242,7 @@ def get_attrs_maxpool(node: NodeProto, initializers: dict[str, TensorProto]) -> 
     """Extract MaxPool operator attributes."""
     attrs = scan_attrs(
         {
-            "auto_pad": "NOTSET",
+            "auto_pad": AUTO_PAD_NOTSET,
             "ceil_mode": 0,
             "dilations": None,
             "kernel_shape": None,
@@ -363,7 +366,7 @@ EXTRACT_ATTRS_MAP: dict[str, Callable[[NodeProto, dict[str, TensorProto]], dict[
     "Flatten": get_attrs_simple({"axis": 1}),
     "Gather": get_attrs_simple({"axis": 0}),
     "Gelu": get_attrs_simple({"approximate": "none"}),
-    "Gemm": get_attrs_simple({"alpha": 1.0, "beta": 1.0, "transA": 0, "transB": 0}),
+    "Gemm": get_attrs_simple(DEFAULT_GEMM_ATTRS),
     "LeakyRelu": get_attrs_simple({"alpha": 0.01}),
     "MaxPool": get_attrs_maxpool,
     "Pad": get_attrs_simple({"mode": "constant"}),

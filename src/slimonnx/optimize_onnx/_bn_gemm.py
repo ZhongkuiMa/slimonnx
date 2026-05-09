@@ -1,3 +1,5 @@
+"""Fuse BatchNormalization with Gemm operators."""
+
 __docformat__ = "restructuredtext"
 __all__ = [
     "_fuse_bn_gemm",
@@ -144,9 +146,6 @@ def _fuse_bn_reshape_gemm(
             epsilon, scale, bn_param_bias, mean, var = _get_batchnorm_params(
                 bn_node, initializers, remove_initializers=True
             )
-            # reshape_shape = onnx.numpy_helper.to_array(
-            # initializers[reshape_node.input[1]])
-            # reshape_shape = reshape_shape.tolist()
             if trans_a != 0:
                 raise ValueError(
                     f"Gemm node {gemm_node.name} has unsupported transA={trans_a}. "

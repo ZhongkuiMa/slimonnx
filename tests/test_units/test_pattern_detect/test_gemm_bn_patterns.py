@@ -60,7 +60,8 @@ class TestDetectGemmReshapeBn:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_gemm_reshape_bn(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 1
 
     def test_detect_gemm_reshape_bn_no_pattern(self):
         """Test no detection when pattern missing."""
@@ -74,7 +75,8 @@ class TestDetectGemmReshapeBn:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_gemm_reshape_bn(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 0
 
 
 class TestDetectBnReshapeGemm:
@@ -116,7 +118,8 @@ class TestDetectBnReshapeGemm:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_bn_reshape_gemm(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 1
 
     def test_detect_bn_reshape_gemm_with_activation(self):
         """Test pattern detection with activation in chain."""
@@ -155,7 +158,8 @@ class TestDetectBnReshapeGemm:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_bn_reshape_gemm(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 1
 
 
 class TestDetectBnGemm:
@@ -194,7 +198,8 @@ class TestDetectBnGemm:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_bn_gemm(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 1
 
     def test_detect_bn_gemm_with_other_nodes(self):
         """Test pattern detection with other nodes in model."""
@@ -230,7 +235,8 @@ class TestDetectBnGemm:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_bn_gemm(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 1
 
     def test_no_bn_gemm_pattern(self):
         """Test no detection when BN not followed by Gemm."""
@@ -260,4 +266,5 @@ class TestDetectBnGemm:
         initializers = {init.name: init for init in model.graph.initializer}
 
         result = detect_bn_gemm(nodes, initializers)
-        assert result is None or isinstance(result, list)
+        assert isinstance(result, list)
+        assert len(result) == 0

@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["validate_with_onnxruntime"]
 
+import logging
 import tempfile
 from pathlib import Path
 from typing import Any
@@ -10,6 +11,8 @@ from typing import Any
 import numpy as np
 import onnx
 from onnx import ModelProto
+
+logger = logging.getLogger(__name__)
 
 
 def validate_with_onnxruntime(
@@ -68,4 +71,4 @@ def validate_with_onnxruntime(
             try:
                 Path(tmp_path).unlink()
             except OSError as error:
-                print(f"Failed to remove temp file {tmp_path}: {error}")
+                logger.warning(f"Failed to remove temp file {tmp_path}: {error}")

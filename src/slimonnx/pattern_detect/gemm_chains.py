@@ -5,6 +5,7 @@ __all__ = ["detect_gemm_gemm"]
 
 from onnx import NodeProto, TensorProto
 
+from slimonnx.constants import DEFAULT_GEMM_ATTRS
 from slimonnx.pattern_detect.utils import (
     has_constant_weight,
     is_consecutive_nodes,
@@ -13,7 +14,7 @@ from slimonnx.pattern_detect.utils import (
 
 def _get_gemm_attributes(node: NodeProto) -> dict[str, float | int]:
     """Extract alpha, beta, transA, transB attributes from Gemm node."""
-    attrs = {"alpha": 1.0, "beta": 1.0, "transA": 0, "transB": 0}
+    attrs = dict(DEFAULT_GEMM_ATTRS)
 
     for attr in node.attribute:
         if attr.name in attrs:

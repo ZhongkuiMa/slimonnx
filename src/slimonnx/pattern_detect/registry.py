@@ -3,7 +3,12 @@
 __docformat__ = "restructuredtext"
 __all__ = ["PATTERNS", "detect_all_patterns"]
 
+from collections.abc import Callable
+from typing import Any
+
 from onnx import NodeProto, TensorProto
+
+from slimonnx.pattern_detect._enums import DetectorSig
 
 PATTERNS = {
     # Fusion patterns
@@ -129,19 +134,11 @@ PATTERNS = {
 }
 
 
-def detect_all_patterns(
-    nodes: list[NodeProto],
-    initializers: dict[str, TensorProto],
-    data_shapes: dict[str, list[int]] | None = None,
-) -> dict[str, dict]:
-    """Detect all registered patterns.
+_DetectorEntry = tuple[str, DetectorSig, Callable[..., list[Any]]]
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
-    :param data_shapes: Inferred shapes
-    :return: Detection results per pattern
-    """
-    # Import all detectors
+
+def _build_detector_registry() -> list[_DetectorEntry]:
+    """Build the detector registry with lazy imports."""
     from slimonnx.pattern_detect.constant_ops import detect_constant_foldable
     from slimonnx.pattern_detect.conv_bn import (
         detect_bn_conv,
@@ -176,191 +173,81 @@ def detect_all_patterns(
     )
     from slimonnx.pattern_detect.transpose_bn import detect_transpose_bn_transpose
 
+    # (pattern_name, signature_type, detector_function)
+    return [
+        # Fusion patterns
+        ("matmul_add", DetectorSig.NI, detect_matmul_add),
+        ("conv_bn", DetectorSig.NIS, detect_conv_bn),
+        ("bn_conv", DetectorSig.NIS, detect_bn_conv),
+        ("conv_transpose_bn", DetectorSig.NIS, detect_conv_transpose_bn),
+        ("bn_conv_transpose", DetectorSig.NIS, detect_bn_conv_transpose),
+        ("depthwise_conv", DetectorSig.NIS, detect_depthwise_conv),
+        ("depthwise_conv_bn", DetectorSig.NIS, detect_depthwise_conv_bn),
+        ("bn_depthwise_conv", DetectorSig.NIS, detect_bn_depthwise_conv),
+        ("gemm_reshape_bn", DetectorSig.NIS, detect_gemm_reshape_bn),
+        ("bn_reshape_gemm", DetectorSig.NIS, detect_bn_reshape_gemm),
+        ("bn_gemm", DetectorSig.NIS, detect_bn_gemm),
+        ("transpose_bn_transpose", DetectorSig.NIS, detect_transpose_bn_transpose),
+        ("gemm_gemm", DetectorSig.NIS, detect_gemm_gemm),
+        # Redundant operations
+        ("consecutive_reshape", DetectorSig.N, detect_consecutive_reshape),
+        ("add_zero", DetectorSig.NI, detect_add_zero),
+        ("sub_zero", DetectorSig.NI, detect_sub_zero),
+        ("mul_one", DetectorSig.NI, detect_mul_one),
+        ("div_one", DetectorSig.NI, detect_div_one),
+        ("pad_zero", DetectorSig.NI, detect_pad_zero),
+        ("identity_reshape", DetectorSig.NS, detect_identity_reshape),
+        # Inference
+        ("dropout", DetectorSig.NIS, detect_dropout),
+        # Constant folding
+        ("constant_foldable", DetectorSig.NIS, detect_constant_foldable),
+        # Shape optimization
+        ("reshape_negative_one", DetectorSig.NS_INIT, detect_reshape_with_negative_one),
+    ]
+
+
+def detect_all_patterns(
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    data_shapes: dict[str, list[int]] | None = None,
+) -> dict[str, dict]:
+    """Detect all registered patterns.
+
+    :param nodes: Model nodes.
+    :param initializers: Model initializers.
+    :param data_shapes: Inferred shapes.
+    :return: Detection results per pattern.
+    """
+    detectors = _build_detector_registry()
     results = {}
 
-    # Detect fusion patterns
-    matmul_add_instances = detect_matmul_add(nodes, initializers)
-    results["matmul_add"] = {
-        **PATTERNS["matmul_add"],
-        "count": len(matmul_add_instances),
-        "instances": matmul_add_instances,
-    }
+    for name, sig, detector in detectors:
+        # Call detector with appropriate arguments based on signature type
+        if sig == DetectorSig.N:
+            instances = detector(nodes)
+        elif sig == DetectorSig.NI:
+            instances = detector(nodes, initializers)
+        elif sig == DetectorSig.NIS:
+            instances = detector(nodes, initializers, data_shapes)
+        elif sig == DetectorSig.NS:
+            # Requires data_shapes — skip if not available
+            if data_shapes is not None:
+                instances = detector(nodes, data_shapes)
+            else:
+                instances = []
+        elif sig == DetectorSig.NS_INIT:
+            # Requires both initializers and data_shapes
+            if data_shapes is not None:
+                instances = detector(nodes, initializers, data_shapes)
+            else:
+                instances = []
+        else:
+            instances = []
 
-    conv_bn_instances = detect_conv_bn(nodes, initializers, data_shapes)
-    results["conv_bn"] = {
-        **PATTERNS["conv_bn"],
-        "count": len(conv_bn_instances),
-        "instances": conv_bn_instances,
-    }
-
-    bn_conv_instances = detect_bn_conv(nodes, initializers, data_shapes)
-    results["bn_conv"] = {
-        **PATTERNS["bn_conv"],
-        "count": len(bn_conv_instances),
-        "instances": bn_conv_instances,
-    }
-
-    conv_transpose_bn_instances = detect_conv_transpose_bn(nodes, initializers, data_shapes)
-    results["conv_transpose_bn"] = {
-        **PATTERNS["conv_transpose_bn"],
-        "count": len(conv_transpose_bn_instances),
-        "instances": conv_transpose_bn_instances,
-    }
-
-    bn_conv_transpose_instances = detect_bn_conv_transpose(nodes, initializers, data_shapes)
-    results["bn_conv_transpose"] = {
-        **PATTERNS["bn_conv_transpose"],
-        "count": len(bn_conv_transpose_instances),
-        "instances": bn_conv_transpose_instances,
-    }
-
-    depthwise_conv_instances = detect_depthwise_conv(nodes, initializers, data_shapes)
-    results["depthwise_conv"] = {
-        **PATTERNS["depthwise_conv"],
-        "count": len(depthwise_conv_instances),
-        "instances": depthwise_conv_instances,
-    }
-
-    depthwise_conv_bn_instances = detect_depthwise_conv_bn(nodes, initializers, data_shapes)
-    results["depthwise_conv_bn"] = {
-        **PATTERNS["depthwise_conv_bn"],
-        "count": len(depthwise_conv_bn_instances),
-        "instances": depthwise_conv_bn_instances,
-    }
-
-    bn_depthwise_conv_instances = detect_bn_depthwise_conv(nodes, initializers, data_shapes)
-    results["bn_depthwise_conv"] = {
-        **PATTERNS["bn_depthwise_conv"],
-        "count": len(bn_depthwise_conv_instances),
-        "instances": bn_depthwise_conv_instances,
-    }
-
-    gemm_reshape_bn_instances = detect_gemm_reshape_bn(nodes, initializers, data_shapes)
-    results["gemm_reshape_bn"] = {
-        **PATTERNS["gemm_reshape_bn"],
-        "count": len(gemm_reshape_bn_instances),
-        "instances": gemm_reshape_bn_instances,
-    }
-
-    bn_reshape_gemm_instances = detect_bn_reshape_gemm(nodes, initializers, data_shapes)
-    results["bn_reshape_gemm"] = {
-        **PATTERNS["bn_reshape_gemm"],
-        "count": len(bn_reshape_gemm_instances),
-        "instances": bn_reshape_gemm_instances,
-    }
-
-    bn_gemm_instances = detect_bn_gemm(nodes, initializers, data_shapes)
-    results["bn_gemm"] = {
-        **PATTERNS["bn_gemm"],
-        "count": len(bn_gemm_instances),
-        "instances": bn_gemm_instances,
-    }
-
-    transpose_bn_transpose_instances = detect_transpose_bn_transpose(
-        nodes, initializers, data_shapes
-    )
-    results["transpose_bn_transpose"] = {
-        **PATTERNS["transpose_bn_transpose"],
-        "count": len(transpose_bn_transpose_instances),
-        "instances": transpose_bn_transpose_instances,
-    }
-
-    gemm_gemm_instances = detect_gemm_gemm(nodes, initializers, data_shapes)
-    results["gemm_gemm"] = {
-        **PATTERNS["gemm_gemm"],
-        "count": len(gemm_gemm_instances),
-        "instances": gemm_gemm_instances,
-    }
-
-    # Detect redundant operations
-    consecutive_reshape_instances = detect_consecutive_reshape(nodes)
-    results["consecutive_reshape"] = {
-        **PATTERNS["consecutive_reshape"],
-        "count": len(consecutive_reshape_instances),
-        "instances": consecutive_reshape_instances,
-    }
-
-    add_zero_instances = detect_add_zero(nodes, initializers)
-    results["add_zero"] = {
-        **PATTERNS["add_zero"],
-        "count": len(add_zero_instances),
-        "instances": add_zero_instances,
-    }
-
-    sub_zero_instances = detect_sub_zero(nodes, initializers)
-    results["sub_zero"] = {
-        **PATTERNS["sub_zero"],
-        "count": len(sub_zero_instances),
-        "instances": sub_zero_instances,
-    }
-
-    mul_one_instances = detect_mul_one(nodes, initializers)
-    results["mul_one"] = {
-        **PATTERNS["mul_one"],
-        "count": len(mul_one_instances),
-        "instances": mul_one_instances,
-    }
-
-    div_one_instances = detect_div_one(nodes, initializers)
-    results["div_one"] = {
-        **PATTERNS["div_one"],
-        "count": len(div_one_instances),
-        "instances": div_one_instances,
-    }
-
-    pad_zero_instances = detect_pad_zero(nodes, initializers)
-    results["pad_zero"] = {
-        **PATTERNS["pad_zero"],
-        "count": len(pad_zero_instances),
-        "instances": pad_zero_instances,
-    }
-
-    # Detect identity reshape (needs shapes)
-    if data_shapes is not None:
-        identity_reshape_instances = detect_identity_reshape(nodes, data_shapes)
-        results["identity_reshape"] = {
-            **PATTERNS["identity_reshape"],
-            "count": len(identity_reshape_instances),
-            "instances": identity_reshape_instances,
-        }
-    else:
-        results["identity_reshape"] = {
-            **PATTERNS["identity_reshape"],
-            "count": 0,
-            "instances": [],
-        }
-
-    # Detect inference optimizations
-    dropout_instances = detect_dropout(nodes, initializers, data_shapes)
-    results["dropout"] = {
-        **PATTERNS["dropout"],
-        "count": len(dropout_instances),
-        "instances": dropout_instances,
-    }
-
-    # Detect constant folding opportunities
-    constant_foldable_instances = detect_constant_foldable(nodes, initializers, data_shapes)
-    results["constant_foldable"] = {
-        **PATTERNS["constant_foldable"],
-        "count": len(constant_foldable_instances),
-        "instances": constant_foldable_instances,
-    }
-
-    # Detect reshape with resolvable -1
-    if data_shapes is not None:
-        reshape_negative_one_instances = detect_reshape_with_negative_one(
-            nodes, initializers, data_shapes
-        )
-        results["reshape_negative_one"] = {
-            **PATTERNS["reshape_negative_one"],
-            "count": len(reshape_negative_one_instances),
-            "instances": reshape_negative_one_instances,
-        }
-    else:
-        results["reshape_negative_one"] = {
-            **PATTERNS["reshape_negative_one"],
-            "count": 0,
-            "instances": [],
+        results[name] = {
+            **PATTERNS[name],
+            "count": len(instances),
+            "instances": instances,
         }
 
     return results

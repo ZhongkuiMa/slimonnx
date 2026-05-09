@@ -125,8 +125,6 @@ class TestDropoutDetection:
         instance = instances[0]
 
         # Verify the instance is correctly extracted
-        assert instance["input"] is not None
-        assert instance["output"] is not None
         assert instance["input"] == "X"
         assert instance["output"] == "Y"
 

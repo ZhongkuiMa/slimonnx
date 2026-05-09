@@ -43,9 +43,9 @@ class TestVersionConstants:
 
     def test_opset_constants_defined(self):
         """Test that opset constants are defined."""
-        assert RECOMMENDED_OPSET is not None
-        assert MIN_TESTED_OPSET is not None
-        assert MAX_TESTED_OPSET is not None
+        assert RECOMMENDED_OPSET
+        assert MIN_TESTED_OPSET
+        assert MAX_TESTED_OPSET
 
     def test_opset_constants_range(self):
         """Test that opset constants are in valid range."""
@@ -55,8 +55,8 @@ class TestVersionConstants:
 
     def test_slimonnx_version_defined(self):
         """Test that SlimONNX version is defined."""
-        assert SLIMONNX_VERSION is not None
         assert isinstance(SLIMONNX_VERSION, str)
+        assert len(SLIMONNX_VERSION) > 0
 
 
 class TestConvertModelVersion:
@@ -153,7 +153,7 @@ class TestConvertModelVersion:
             range_warnings = [x for x in w if "outside tested range" in str(x.message).lower()]
             assert len(range_warnings) == 0
 
-    def test_convert_returns_model_proto(self):
+    def test_returns_model_proto(self):
         """Test that convert returns ModelProto."""
         model = create_simple_model()
         result = convert_model_version(model)
@@ -163,165 +163,138 @@ class TestConvertModelVersion:
 class TestLoadAndPreprocess:
     """Test load_and_preprocess function."""
 
-    def test_load_and_preprocess_basic(self):
+    @pytest.fixture(autouse=True)
+    def cleanup_temp(self):
+        """Cleanup temp files after each test."""
+        self._temp_files = []
+        yield
+        for path in self._temp_files:
+            Path(path).unlink(missing_ok=True)
+
+    def _save_and_track(self, model):
+        """Save model and track for cleanup."""
+        path = save_model_to_temp(model)
+        self._temp_files.append(path)
+        return path
+
+    def test_loads_and_preprocesses_model_with_defaults(self):
         """Test basic load and preprocess with all defaults."""
         model = create_simple_model()
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
 
-        try:
-            result = load_and_preprocess(model_path)
+        result = load_and_preprocess(model_path)
 
-            assert isinstance(result, onnx.ModelProto)
-            # Should have SlimONNX marker
-            assert "SlimONNX" in result.producer_name
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        assert isinstance(result, onnx.ModelProto)
+        assert "SlimONNX" in result.producer_name
 
-    def test_load_and_preprocess_with_opset_conversion(self):
+    def test_with_opset_conversion(self):
         """Test load and preprocess with opset conversion."""
         model = create_simple_model()
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
         target_opset = 19
 
-        try:
-            result = load_and_preprocess(model_path, target_opset=target_opset, infer_shapes=False)
+        result = load_and_preprocess(model_path, target_opset=target_opset, infer_shapes=False)
 
-            assert isinstance(result, onnx.ModelProto)
-            assert result.opset_import[0].version == target_opset
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        assert isinstance(result, onnx.ModelProto)
+        assert result.opset_import[0].version == target_opset
 
-    def test_load_and_preprocess_skip_docstring_clear(self):
-        """Test load and preprocess skipping docstring clearing."""
+    @pytest.mark.parametrize(
+        ("clear_docstrings", "expected_doc"),
+        [
+            pytest.param(False, "Test doc", id="preserves_when_disabled"),
+            pytest.param(True, "", id="clears_when_enabled"),
+        ],
+    )
+    def test_docstring_handling(self, clear_docstrings, expected_doc):
+        """Test docstring clearing behavior with different flag values."""
         model = create_simple_model()
-        # Add docstring
         model.graph.node[0].doc_string = "Test doc"
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
 
-        try:
-            result = load_and_preprocess(model_path, clear_docstrings=False, infer_shapes=False)
+        result = load_and_preprocess(
+            model_path, clear_docstrings=clear_docstrings, infer_shapes=False
+        )
 
-            # Docstring should still be there
-            assert result.graph.node[0].doc_string == "Test doc"
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        assert result.graph.node[0].doc_string == expected_doc
 
-    def test_load_and_preprocess_clear_docstring(self):
-        """Test load and preprocess with docstring clearing."""
+    @pytest.mark.parametrize(
+        "kwargs",
+        [
+            pytest.param({"check_model": False, "infer_shapes": False}, id="skip_model_check"),
+            pytest.param(
+                {"infer_shapes": False, "clear_docstrings": False}, id="skip_shape_inference"
+            ),
+        ],
+    )
+    def test_skips_optional_processing(self, kwargs):
+        """Test load and preprocess with optional processing disabled."""
         model = create_simple_model()
-        # Add docstring
-        model.graph.node[0].doc_string = "Test doc"
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
 
-        try:
-            result = load_and_preprocess(model_path, clear_docstrings=True, infer_shapes=False)
+        result = load_and_preprocess(model_path, **kwargs)
 
-            # Docstring should be cleared
-            assert result.graph.node[0].doc_string == ""
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        assert isinstance(result, onnx.ModelProto)
 
-    def test_load_and_preprocess_skip_check(self):
-        """Test load and preprocess skipping model check."""
+    @pytest.mark.parametrize(
+        ("mark_slimonnx", "should_be_present"),
+        [
+            pytest.param(False, False, id="omits_when_disabled"),
+            pytest.param(True, True, id="adds_when_enabled"),
+        ],
+    )
+    def test_slimonnx_marker_handling(self, mark_slimonnx, should_be_present):
+        """Test SlimONNX marker presence based on flag value."""
         model = create_simple_model()
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
 
-        try:
-            result = load_and_preprocess(model_path, check_model=False, infer_shapes=False)
+        result = load_and_preprocess(model_path, mark_slimonnx=mark_slimonnx, infer_shapes=False)
 
-            assert isinstance(result, onnx.ModelProto)
-        finally:
-            Path(model_path).unlink(missing_ok=True)
-
-    def test_load_and_preprocess_skip_shape_inference(self):
-        """Test load and preprocess skipping shape inference."""
-        model = create_simple_model()
-        model_path = save_model_to_temp(model)
-
-        try:
-            result = load_and_preprocess(model_path, infer_shapes=False, clear_docstrings=False)
-
-            assert isinstance(result, onnx.ModelProto)
-        finally:
-            Path(model_path).unlink(missing_ok=True)
-
-    def test_load_and_preprocess_skip_slimonnx_marker(self):
-        """Test load and preprocess skipping SlimONNX marker."""
-        model = create_simple_model()
-        model_path = save_model_to_temp(model)
-
-        try:
-            result = load_and_preprocess(model_path, mark_slimonnx=False, infer_shapes=False)
-
-            # Should not have SlimONNX marker
-            assert "SlimONNX" not in result.producer_name
-        finally:
-            Path(model_path).unlink(missing_ok=True)
-
-    def test_load_and_preprocess_marks_slimonnx(self):
-        """Test load and preprocess marks with SlimONNX."""
-        model = create_simple_model()
-        model_path = save_model_to_temp(model)
-
-        try:
-            result = load_and_preprocess(model_path, mark_slimonnx=True, infer_shapes=False)
-
-            # Should have SlimONNX marker
+        if should_be_present:
             assert f"SlimONNX-{SLIMONNX_VERSION}" in result.producer_name
             assert f"Processed by SlimONNX v{SLIMONNX_VERSION}" in result.doc_string
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        else:
+            assert "SlimONNX" not in result.producer_name
 
-    def test_load_and_preprocess_all_options(self):
+    def test_with_all_options_enabled(self):
         """Test load and preprocess with all options enabled."""
         model = create_simple_model()
         model.graph.node[0].doc_string = "Test doc"
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
         target_opset = 20
 
-        try:
-            result = load_and_preprocess(
-                model_path,
-                target_opset=target_opset,
-                infer_shapes=True,
-                check_model=True,
-                clear_docstrings=True,
-                mark_slimonnx=True,
-            )
+        result = load_and_preprocess(
+            model_path,
+            target_opset=target_opset,
+            infer_shapes=True,
+            check_model=True,
+            clear_docstrings=True,
+            mark_slimonnx=True,
+        )
 
-            assert isinstance(result, onnx.ModelProto)
-            assert result.opset_import[0].version == target_opset
-            assert result.graph.node[0].doc_string == ""
-            assert "SlimONNX" in result.producer_name
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        assert isinstance(result, onnx.ModelProto)
+        assert result.opset_import[0].version == target_opset
+        assert result.graph.node[0].doc_string == ""
+        assert "SlimONNX" in result.producer_name
 
-    def test_load_and_preprocess_returns_model_proto(self):
+    def test_returns_model_proto(self):
         """Test that load_and_preprocess returns ModelProto."""
         model = create_simple_model()
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
 
-        try:
-            result = load_and_preprocess(model_path, infer_shapes=False)
-            assert isinstance(result, onnx.ModelProto)
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        result = load_and_preprocess(model_path, infer_shapes=False)
+        assert isinstance(result, onnx.ModelProto)
 
-    def test_load_and_preprocess_nonexistent_file(self):
+    def test_raises_on_nonexistent_file(self):
         """Test load_and_preprocess with nonexistent file."""
-        with pytest.raises(FileNotFoundError):
+        with pytest.raises(FileNotFoundError, match=r".*"):
             load_and_preprocess("/nonexistent/path/model.onnx")
 
-    def test_load_and_preprocess_none_opset(self):
+    def test_preserves_opset_when_none(self):
         """Test load_and_preprocess with None target_opset skips conversion."""
         model = create_simple_model()
         original_opset = model.opset_import[0].version
-        model_path = save_model_to_temp(model)
+        model_path = self._save_and_track(model)
 
-        try:
-            result = load_and_preprocess(model_path, target_opset=None, infer_shapes=False)
+        result = load_and_preprocess(model_path, target_opset=None, infer_shapes=False)
 
-            # Should keep original opset
-            assert result.opset_import[0].version == original_opset
-        finally:
-            Path(model_path).unlink(missing_ok=True)
+        assert result.opset_import[0].version == original_opset

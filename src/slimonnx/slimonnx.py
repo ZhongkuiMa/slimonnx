@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["SlimONNX"]
 
+import logging
 import time
 from pathlib import Path
 from typing import Any, cast
@@ -11,6 +12,8 @@ import onnx
 
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
 from slimonnx.optimize_onnx import optimize_onnx
+
+logger = logging.getLogger(__name__)
 
 
 class SlimONNX:
@@ -188,7 +191,7 @@ class SlimONNX:
             KeyError,
             RuntimeError,
         ) as error:
-            print(f"Shape inference failed: {error}")
+            logger.warning(f"Shape inference failed: {error}")
             data_shapes = None
             shape_inference_success = False
 
@@ -389,7 +392,7 @@ class SlimONNX:
             KeyError,
             RuntimeError,
         ) as error:
-            print(f"Shape inference failed: {error}")
+            logger.warning(f"Shape inference failed: {error}")
             data_shapes = None
 
         from slimonnx.model_validate import validate_model
@@ -445,7 +448,7 @@ class SlimONNX:
             KeyError,
             RuntimeError,
         ) as error:
-            print(f"Shape inference failed: {error}")
+            logger.warning(f"Shape inference failed: {error}")
             data_shapes = None
 
         from slimonnx.pattern_detect import detect_all_patterns
