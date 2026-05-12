@@ -14,9 +14,12 @@ def _extract_matmul_add_params(
 ) -> tuple[str, str, str, int]:
     """Extract parameters from MatMul and Add nodes.
 
-    :param matmul_node: MatMul node
-    :param add_node: Add node
-    :param initializers: Dictionary of initializers
+    :param matmul_node: MatMul node.
+
+    :param add_node: Add node.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Tuple of (input_name, weight_name, bias_name, trans_b)
     """
     input_name, weight_name, trans_b = (
@@ -40,12 +43,18 @@ def _can_fuse_to_gemm_matmul_add(
 ) -> bool:
     """Check if MatMul+Add can be fused to Gemm.
 
-    :param input_name: Input tensor name
-    :param weight_name: Weight tensor name
-    :param bias_name: Bias tensor name
-    :param initializers: Dictionary of initializers
-    :param input_nodes: List of graph input nodes
-    :param data_shapes: Dictionary of tensor shapes
+    :param input_name: Input tensor name.
+
+    :param weight_name: Weight tensor name.
+
+    :param bias_name: Bias tensor name.
+
+    :param initializers: Dictionary of initializers.
+
+    :param input_nodes: List of graph input nodes.
+
+    :param data_shapes: Dictionary of tensor shapes.
+
     :return: True if can fuse to Gemm
     """
     weight_dim = len(initializers[weight_name].dims)
@@ -81,10 +90,14 @@ def _fuse_matmul_add(
     Note: Gemm requires exactly rank 2 inputs, so we check tensor shapes to avoid
     fusing MatMul with non-rank-2 inputs.
 
-    :param nodes: List of nodes in the graph
-    :param initializers: Dictionary of initializers
-    :param input_nodes: List of graph input nodes (optional)
-    :param data_shapes: Dictionary of tensor shapes (optional)
+    :param nodes: List of nodes in the graph.
+
+    :param initializers: Dictionary of initializers.
+
+    :param input_nodes: List of graph input nodes (optional).
+
+    :param data_shapes: Dictionary of tensor shapes (optional).
+
     :return: Optimized list of nodes
     """
     new_nodes = []

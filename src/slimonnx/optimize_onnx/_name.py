@@ -14,9 +14,12 @@ def _rename_io_nodes(
 ) -> tuple[dict[str, str], dict[str, str], int]:
     """Rename input and output nodes.
 
-    :param input_nodes: List of input nodes
-    :param output_nodes: List of output nodes
-    :param start_counter: Starting counter value
+    :param input_nodes: List of input nodes.
+
+    :param output_nodes: List of output nodes.
+
+    :param start_counter: Starting counter value.
+
     :return: Tuple of (node_output_names_mapping, output_old_new_mapping, counter)
     """
     node_output_names_mapping = {}
@@ -46,10 +49,14 @@ def _update_node_output_names(
 ) -> int:
     """Update node output names.
 
-    :param nodes: List of nodes
-    :param output_old_new_mapping: Mapping of old to new output names
-    :param node_output_names_mapping: Mapping of node output names
-    :param start_counter: Starting counter value
+    :param nodes: List of nodes.
+
+    :param output_old_new_mapping: Mapping of old to new output names.
+
+    :param node_output_names_mapping: Mapping of node output names.
+
+    :param start_counter: Starting counter value.
+
     :return: Updated counter value
     """
     counter = start_counter
@@ -78,8 +85,10 @@ def _update_node_input_names(
 ) -> None:
     """Update node input names.
 
-    :param nodes: List of nodes
-    :param node_output_names_mapping: Mapping of node output names
+    :param nodes: List of nodes.
+
+    :param node_output_names_mapping: Mapping of node output names.
+
     """
     for node in nodes:
         new_input_names = []
@@ -96,8 +105,10 @@ def _rename_initializers(
 ) -> dict[str, TensorProto]:
     """Rename initializers and update node references.
 
-    :param nodes: List of nodes
-    :param initializers: Dictionary of initializers
+    :param nodes: List of nodes.
+
+    :param initializers: Dictionary of initializers.
+
     :return: New dictionary of renamed initializers
     """
     new_initializers = {}

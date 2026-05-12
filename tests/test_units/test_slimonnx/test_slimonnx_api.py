@@ -1,5 +1,7 @@
 """Tests for SlimONNX main API."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 

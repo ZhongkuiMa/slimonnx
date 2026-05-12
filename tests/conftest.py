@@ -1,8 +1,13 @@
 """Pytest configuration and fixtures for slimonnx tests."""
 
+__docformat__ = "restructuredtext"
+
+import sys
 from pathlib import Path
 
 import pytest
+
+sys.path.insert(0, str(Path(__file__).parent))
 
 
 @pytest.fixture(scope="session")

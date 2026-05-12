@@ -1,7 +1,6 @@
 """Basic functionality test for SlimONNX optimizations."""
 
 __docformat__ = "restructuredtext"
-__all__ = ["create_test_model", "test_basic_optimization", "test_conv_bn_fusion"]
 
 import tempfile
 from pathlib import Path
@@ -82,7 +81,8 @@ def create_test_model() -> onnx.ModelProto:
 def _get_model_input_name(model_path: str) -> str:
     """Get first non-initializer input name from ONNX model.
 
-    :param model_path: Path to ONNX model
+    :param model_path: Path to ONNX model.
+
     :return: Input name
     """
     model = onnx.load(model_path)
@@ -98,8 +98,10 @@ def _get_model_input_name(model_path: str) -> str:
 def _run_model(model_path: str, inputs: dict) -> dict:
     """Run ONNX model and return outputs.
 
-    :param model_path: Path to ONNX model file
-    :param inputs: Dictionary of input arrays
+    :param model_path: Path to ONNX model file.
+
+    :param inputs: Dictionary of input arrays.
+
     :return: Dictionary of output arrays
     """
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
@@ -111,7 +113,8 @@ def _run_model(model_path: str, inputs: dict) -> dict:
 def _prepare_optimized_model(model_path: str) -> None:
     """Convert model to opset 20 and IR version 10 for compatibility.
 
-    :param model_path: Path to ONNX model to modify in-place
+    :param model_path: Path to ONNX model to modify in-place.
+
     """
     model = onnx.load(model_path)
     model = convert_model_version(model, target_opset=20, warn_on_diff=False)

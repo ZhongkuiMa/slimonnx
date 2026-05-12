@@ -19,9 +19,12 @@ def _resolve_reshape_negative_one(
     operation, update the shape tensor initializer to use concrete values
     instead of -1.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers (modified in-place)
-    :param data_shapes: Inferred shapes from shape inference
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers (modified in-place).
+
+    :param data_shapes: Inferred shapes from shape inference.
+
     :return: Original nodes (unchanged, only initializers are modified)
     """
     for node in nodes:

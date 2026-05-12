@@ -10,7 +10,8 @@ from onnx import ModelProto
 def run_onnx_checker(model: ModelProto) -> dict:
     """Run onnx.checker.check_model validation.
 
-    :param model: ONNX model
+    :param model: ONNX model.
+
     :return: Validation result dictionary
     """
     try:

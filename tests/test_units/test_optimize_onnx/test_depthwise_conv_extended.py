@@ -1,5 +1,7 @@
 """Extended tests for depthwise convolution fusion optimizations."""
 
+__docformat__ = "restructuredtext"
+
 from typing import Any
 
 import numpy as np
@@ -149,9 +151,6 @@ class TestIsDepthwiseConv:
 
         assert result is False
 
-    # [REVIEW] Deleted: test_returns_false_for_regular_grouped_conv (merged into test_returns_false_for_non_depthwise_conv)
-    # [REVIEW] Deleted: test_returns_false_for_weight_shape_mismatch (merged into test_returns_false_for_non_depthwise_conv)
-
     @pytest.mark.parametrize(
         ("op_type", "inputs", "group_kwargs", "init_dict"),
         [
@@ -215,8 +214,6 @@ class TestFuseDepthwiseConvBn:
         assert result_nodes[0].op_type == "Conv"
         assert result_nodes[0].output[0] == "Y"
 
-    # [REVIEW] Deleted: test_fuses_bn_then_operation_to_single_conv (merged into test_fuses_into_single_conv_node)
-
     def test_skips_fusion_when_relu_between_operations(self):
         """Test fusion is skipped when ReLU separates Conv and BN."""
         conv_weight = np.random.randn(3, 1, 3, 3).astype(np.float32)
@@ -240,8 +237,6 @@ class TestFuseDepthwiseConvBn:
 
         # Should not fuse - BN not immediately after Conv
         assert len(result_nodes) == 3
-
-    # [REVIEW] Deleted: test_fuses_bn_then_operation_to_single_conv (merged into test_fuses_into_single_conv_node)
 
     def test_fuses_when_conv_lacks_bias(self):
         """Test Conv+BN fusion succeeds when Conv has no bias input."""

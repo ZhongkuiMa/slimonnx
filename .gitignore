@@ -41,9 +41,10 @@ tests/.pytest_cache/
 tests/results/
 tests/__pycache__/
 
-# === mypy, pylint, etc ===
+# === mypy, pylint, ruff ===
 .mypy_cache/
 .dmypy.json
+.ruff_cache/
 .pyre/
 .pytype/
 
@@ -61,6 +62,7 @@ tests/__pycache__/
 Thumbs.db
 
 # === Logs and temporary files ===
+.tmp/
 *.log
 *.tmp
 *.bak
@@ -68,15 +70,8 @@ Thumbs.db
 # === GitHub Codespaces ===
 .devcontainer/
 
-# === Model or data files ===
-#*.onnx
-#*.pt
-#*.pb
-#*.ckpt
-#*.pkl
-#*.pickle
-#*.npz
-#*.npy
+# === Claude Code / Serena tool cache ===
+.serena/
 
 # === Test directories (large files - auto-generated, not version-controlled) ===
 # Note: tests/baselines/ contains golden reference .json files (version-controlled)
@@ -84,5 +79,5 @@ tests/data/
 tests/vnncomp2024_benchmarks/
 tests/benchmarks/
 tests/temp/
-# === Claude Code / Serena tool cache ===
-.serena/
+
+.import_linter_cache/

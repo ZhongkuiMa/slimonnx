@@ -1,5 +1,7 @@
 """Extended tests for MatMul+Add fusion (_mm_add.py)."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import pytest
 from onnx import TensorProto, helper

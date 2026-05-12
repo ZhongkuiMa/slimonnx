@@ -1,5 +1,7 @@
 """Tests for ONNX Runtime validation."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 from unittest import mock

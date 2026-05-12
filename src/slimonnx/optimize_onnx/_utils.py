@@ -72,7 +72,7 @@ def _get_conv_params(
     node: NodeProto,
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
-):
+) -> tuple[np.ndarray, np.ndarray, dict]:
     """Get the parameters of a Conv or ConvTranspose node.
 
     Supports both regular convolutions (group=1) and grouped/depthwise
@@ -140,12 +140,18 @@ def compute_batchnorm_fusion_params(
 
     This shared computation is used in Conv-BN, Gemm-BN, and Transpose-BN fusions.
 
-    :param epsilon: BatchNorm epsilon value
-    :param scale: BatchNorm scale parameter
-    :param bias: BatchNorm bias parameter
-    :param mean: BatchNorm mean parameter
-    :param var: BatchNorm variance parameter
-    :param target_dtype: Target dtype to preserve precision (default: float32)
+    :param epsilon: BatchNorm epsilon value.
+
+    :param scale: BatchNorm scale parameter.
+
+    :param bias: BatchNorm bias parameter.
+
+    :param mean: BatchNorm mean parameter.
+
+    :param var: BatchNorm variance parameter.
+
+    :param target_dtype: Target dtype to preserve precision (default: float32).
+
     :return: Tuple of (bn_weight, bn_bias) for fusion
     """
     # Use default dtype if not specified

@@ -1,5 +1,7 @@
 """Tests for Conv simplification optimizations."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -19,7 +21,7 @@ from slimonnx.optimize_onnx._conv import (
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from typing import Any
 
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,

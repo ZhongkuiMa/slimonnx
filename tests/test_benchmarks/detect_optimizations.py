@@ -5,22 +5,24 @@ recommends OptimizationConfig settings.
 """
 
 __docformat__ = "restructuredtext"
-__all__ = ["detect_benchmark_optimizations", "generate_preset_config"]
 
 from collections import defaultdict
 from pathlib import Path
 
+from benchmark_utils import find_onnx_files_from_instances  # type: ignore[import-not-found]
+from utils import if_has_batch_dim  # type: ignore[import-not-found]
+
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
-from tests.test_benchmarks.benchmark_utils import find_onnx_files_from_instances
-from tests.utils import if_has_batch_dim
 
 
 def detect_benchmark_optimizations(benchmark_dir: str, max_models: int = 5) -> dict:
     """Detect optimization patterns in a benchmark's ONNX models.
 
-    :param benchmark_dir: Path to benchmark directory
-    :param max_models: Maximum number of models to analyze
+    :param benchmark_dir: Path to benchmark directory.
+
+    :param max_models: Maximum number of models to analyze.
+
     :return: Dictionary with pattern counts and recommended optimizations
     """
     benchmark_path = Path(benchmark_dir)
@@ -91,7 +93,8 @@ def detect_benchmark_optimizations(benchmark_dir: str, max_models: int = 5) -> d
 def generate_preset_config(detection_result: dict) -> str:
     """Generate OptimizationConfig code based on detection results.
 
-    :param detection_result: Result from detect_benchmark_optimizations
+    :param detection_result: Result from detect_benchmark_optimizations.
+
     :return: Python code string for OptimizationConfig
     """
     patterns = detection_result["patterns"]
@@ -99,16 +102,6 @@ def generate_preset_config(detection_result: dict) -> str:
     # Pattern to optimization flag mapping
     pattern_to_flag = {
         "matmul_add": "fuse_matmul_add=True",
-        "conv_bn": "fuse_conv_bn=True",
-        "bn_conv": "fuse_bn_conv=True",
-        "convtransposed_bn": "fuse_convtransposed_bn=True",
-        "bn_convtransposed": "fuse_bn_convtransposed=True",
-        "gemm_reshape_bn": "fuse_gemm_reshape_bn=True",
-        "bn_reshape_gemm": "fuse_bn_reshape_gemm=True",
-        "bn_gemm": "fuse_bn_gemm=True",
-        "transpose_bn_transpose": "fuse_transpose_bn_transpose=True",
-        "gemm_gemm": "fuse_gemm_gemm=True",
-        "conv_to_flatten_gemm": "simplify_conv_to_flatten_gemm=True",
     }
 
     optimizations = [flag for pattern, flag in pattern_to_flag.items() if pattern in patterns]

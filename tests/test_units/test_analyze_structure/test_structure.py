@@ -1,5 +1,7 @@
 """Tests for structure analysis module."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 
@@ -158,5 +160,3 @@ class TestAnalysisStructureIntegration:
             onnx.save(model, temp_onnx_path)
             result = analyze_model(temp_onnx_path)
             assert isinstance(result, dict)
-
-    # [REVIEW] Deleted: test_analyze_creates_directories — identical to test_returns_dict_with_json_export

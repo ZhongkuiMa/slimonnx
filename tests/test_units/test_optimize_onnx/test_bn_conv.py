@@ -1,20 +1,22 @@
 """Unit tests for Conv+BN fusion."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import onnxruntime as ort
 import pytest
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestConvBNFusion:
-    """Test Conv+BN → Conv fusion."""
+    """Test Conv+BN -> Conv fusion."""
 
     @pytest.mark.parametrize(
         "weight_init",
@@ -138,8 +140,8 @@ class TestConvBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
 
     def test_fuses_when_bn_precedes_operation(self):
@@ -188,8 +190,8 @@ class TestConvBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
 
     def test_preserves_padding_attribute_after_fusion(self):
@@ -285,8 +287,8 @@ class TestConvBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-4, atol=1e-5)
 
     def test_passes_through_standalone_batchnorm(self):
@@ -321,7 +323,7 @@ class TestConvBNFusion:
 
 
 class TestConvTransposeBNFusion:
-    """Test ConvTranspose+BN → ConvTranspose fusion."""
+    """Test ConvTranspose+BN -> ConvTranspose fusion."""
 
     def test_passes_through_without_batchnorm_transpose(self):
         """ConvTranspose without BN should pass through unchanged."""
@@ -427,8 +429,8 @@ class TestConvTransposeBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
 
     def test_fuses_when_bn_precedes_operation_transpose(self):

@@ -18,9 +18,12 @@ def detect_reshape_with_negative_one(
     1. The shape tensor (second input) contains -1
     2. The output shape is known from shape inference (no zeros/unknowns)
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
-    :param data_shapes: Inferred shapes (required for detection)
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
+    :param data_shapes: Inferred shapes (required for detection).
+
     :return: List of detected pattern instances
     """
     if data_shapes is None:

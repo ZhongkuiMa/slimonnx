@@ -39,7 +39,8 @@ EXTRACT_ATTR_MAP = {
 def clear_onnx_docstring(model: ModelProto) -> ModelProto:
     """Clear all doc strings from ONNX model nodes.
 
-    :param model: ONNX model
+    :param model: ONNX model.
+
     :return: Model with cleared docstrings
     """
     for node in model.graph.node:
@@ -48,7 +49,12 @@ def clear_onnx_docstring(model: ModelProto) -> ModelProto:
 
 
 def reformat_io_shape(node: ValueInfoProto, has_batch_dim: bool = True) -> list[int]:
-    """Extract shape from ValueInfoProto node."""
+    """Extract shape from ValueInfoProto node.
+
+    :param node: ONNX ValueInfoProto node.
+    :param has_batch_dim: Whether to include the batch dimension.
+    :return: List of dimension integers.
+    """
     shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
     if has_batch_dim:
         # Allow scalar outputs [] - they don't need batch dimension validation
@@ -73,9 +79,12 @@ def get_input_nodes(
 ) -> list[ValueInfoProto]:
     """Get input nodes from ONNX model.
 
-    :param model: ONNX model
-    :param initializers: Dictionary of initializers
-    :param has_batch_dim: Whether the model has batch dimension
+    :param model: ONNX model.
+
+    :param initializers: Dictionary of initializers.
+
+    :param has_batch_dim: Whether the model has batch dimension.
+
     :return: List of input nodes
     """
     # Exclude initializers from inputs because sometimes the initializers are also
@@ -97,8 +106,10 @@ def get_input_nodes(
 def get_output_nodes(model: ModelProto, has_batch_dim: bool = True) -> list[ValueInfoProto]:
     """Get output nodes from ONNX model.
 
-    :param model: ONNX model
-    :param has_batch_dim: Whether the model has batch dimension
+    :param model: ONNX model.
+
+    :param has_batch_dim: Whether the model has batch dimension.
+
     :return: List of output nodes
     """
     nodes = []
@@ -117,7 +128,8 @@ def get_output_nodes(model: ModelProto, has_batch_dim: bool = True) -> list[Valu
 def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
     """Get initializers from ONNX model.
 
-    :param model: ONNX model
+    :param model: ONNX model.
+
     :return: Dictionary of initializers
     """
     return {initializer.name: initializer for initializer in model.graph.initializer}
@@ -131,8 +143,10 @@ def convert_constant_to_initializer(
     This is critical for shape inference and optimization.
     Constant nodes are converted to initializers and removed from node list.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Initializers dictionary to update (modified in-place)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Initializers dictionary to update (modified in-place).
+
     :return: List of nodes with Constant nodes removed
     """
     new_nodes = []
@@ -159,8 +173,10 @@ def extract_nodes(
     3. Extracts input nodes (excluding initializers)
     4. Extracts output nodes
 
-    :param model: ONNX model
-    :param has_batch_dim: Whether the model has batch dimension
+    :param model: ONNX model.
+
+    :param has_batch_dim: Whether the model has batch dimension.
+
     :return: Tuple of (input_nodes, output_nodes, nodes, initializers)
     """
     # Get initializers
@@ -180,7 +196,8 @@ def extract_nodes(
 def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
     """Get the mapping from each node to its next nodes.
 
-    :param nodes: List of ONNX nodes
+    :param nodes: List of ONNX nodes.
+
     :return: Dictionary mapping node names to list of next node names
     """
     empty_name_counter = 0
@@ -209,8 +226,10 @@ def generate_random_inputs(
 ) -> list[dict[str, np.ndarray]]:
     """Generate random inputs matching model signature.
 
-    :param model: ONNX model
-    :param num_samples: Number of input samples to generate
+    :param model: ONNX model.
+
+    :param num_samples: Number of input samples to generate.
+
     :return: List of input dictionaries
     """
     inputs_list = []
@@ -259,10 +278,13 @@ def generate_random_inputs(
 def load_test_data_from_file(data_path: str) -> list[dict[str, np.ndarray]]:
     """Load test input-output data from .npy or .npz file.
 
-    :param data_path: Path to test data file
+    :param data_path: Path to test data file.
+
     :return: List of input dictionaries
-    :raises FileNotFoundError: If data file not found
-    :raises ValueError: If unsupported file format
+    :raises FileNotFoundError: If data file not found.
+
+    :raises ValueError: If unsupported file format.
+
     """
     from pathlib import Path
 
@@ -298,10 +320,14 @@ def compare_outputs(
 ) -> tuple[bool, list[dict]]:
     """Compare two output dictionaries.
 
-    :param outputs1: First output dictionary
-    :param outputs2: Second output dictionary
-    :param rtol: Relative tolerance for comparison
-    :param atol: Absolute tolerance for comparison
+    :param outputs1: First output dictionary.
+
+    :param outputs2: Second output dictionary.
+
+    :param rtol: Relative tolerance for comparison.
+
+    :param atol: Absolute tolerance for comparison.
+
     :return: Tuple of (all_match, mismatch_details)
     """
     mismatches = []

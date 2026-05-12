@@ -21,8 +21,10 @@ def detect_add_zero(
 ) -> list[dict]:
     """Detect Add operations with zero constant.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of detected instances
     """
     instances = []
@@ -55,8 +57,10 @@ def detect_sub_zero(
 ) -> list[dict]:
     """Detect Sub operations with zero constant.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of detected instances
     """
     instances = []
@@ -87,8 +91,10 @@ def detect_mul_one(
 ) -> list[dict]:
     """Detect Mul operations with one constant.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of detected instances
     """
     instances = []
@@ -121,8 +127,10 @@ def detect_div_one(
 ) -> list[dict]:
     """Detect Div operations with one constant.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of detected instances
     """
     instances = []
@@ -153,8 +161,10 @@ def detect_pad_zero(
 ) -> list[dict]:
     """Detect Pad operations with zero padding.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of detected instances
     """
     instances = []
@@ -184,8 +194,10 @@ def detect_identity_reshape(
 ) -> list[dict]:
     """Detect Reshape with same input/output shape.
 
-    :param nodes: Model nodes
-    :param data_shapes: Inferred shapes
+    :param nodes: Model nodes.
+
+    :param data_shapes: Inferred shapes.
+
     :return: List of detected instances
     """
     instances = []

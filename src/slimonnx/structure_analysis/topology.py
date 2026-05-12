@@ -13,7 +13,8 @@ from onnx import NodeProto
 def build_topology(nodes: list[NodeProto]) -> dict:
     """Build topological graph from nodes.
 
-    :param nodes: Model nodes
+    :param nodes: Model nodes.
+
     :return: Topology dictionary with predecessors/successors
     """
     # Build output-to-node mapping
@@ -52,13 +53,16 @@ def build_topology(nodes: list[NodeProto]) -> dict:
 def export_topology_json(
     nodes: list[NodeProto],
     output_path: str,
-    data_shapes: dict[str, list[int]] | None = None,
+    data_shapes: dict[str, int | list[int]] | None = None,
 ) -> None:
     """Export topology as JSON for baselines.
 
-    :param nodes: Model nodes
-    :param output_path: JSON output path
-    :param data_shapes: Optional shape information
+    :param nodes: Model nodes.
+
+    :param output_path: JSON output path.
+
+    :param data_shapes: Optional shape information.
+
     """
     # Build node list
     node_list = []

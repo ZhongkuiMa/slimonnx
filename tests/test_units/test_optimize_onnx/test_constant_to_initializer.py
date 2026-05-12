@@ -1,5 +1,7 @@
 """Tests for constant to initializer conversion."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 from typing import Any

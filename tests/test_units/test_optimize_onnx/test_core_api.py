@@ -1,14 +1,16 @@
 """Tests for SlimONNX core optimization API flag combinations."""
 
-import numpy as np
-from onnx import helper
+__docformat__ = "restructuredtext"
 
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+import numpy as np
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestOptimizationFlags:

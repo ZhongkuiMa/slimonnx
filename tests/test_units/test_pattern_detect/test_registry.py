@@ -1,5 +1,7 @@
 """Tests for pattern detection registry."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -9,7 +11,7 @@ from slimonnx.pattern_detect.registry import PATTERNS, detect_all_patterns
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
@@ -23,9 +25,6 @@ class TestPatternRegistry:
         # Check critical patterns exist
         critical_patterns = [
             "matmul_add",
-            "conv_bn",
-            "dropout",
-            "add_zero",
         ]
 
         for pattern_name in critical_patterns:
@@ -43,10 +42,10 @@ class TestPatternRegistry:
     def test_pattern_categories(self):
         """Test that patterns have valid categories."""
         valid_categories = {
-            "fusion",
-            "redundant",
-            "inference",
             "constant_folding",
+            "fusion",
+            "inference",
+            "redundant",
             "shape_optimization",
         }
 

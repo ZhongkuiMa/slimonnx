@@ -21,6 +21,13 @@ def _fuse_conv_bn_or_bn_conv(
     initializers: dict[str, TensorProto],
     is_conv_bn: bool = True,
 ) -> list[NodeProto]:
+    """Fuse Conv+BN or BN+Conv pattern.
+
+    :param nodes: List of ONNX nodes.
+    :param initializers: Dictionary of ONNX initializers.
+    :param is_conv_bn: True for Conv->BN, False for BN->Conv.
+    :return: Tuple of (nodes, initializers).
+    """
     new_nodes = []
     pre_node = None
     for node in nodes:
@@ -117,6 +124,13 @@ def _fuse_conv_transpose_bn_or_bn_conv_transpose(
     initializers: dict[str, TensorProto],
     is_conv_transpose_bn: bool = True,
 ) -> list[NodeProto]:
+    """Fuse ConvTranspose+BN or BN+ConvTranspose pattern.
+
+    :param nodes: List of ONNX nodes.
+    :param initializers: Dictionary of ONNX initializers.
+    :param is_conv_transpose_bn: True for ConvTranspose->BN, False for BN->ConvTranspose.
+    :return: Tuple of (nodes, initializers).
+    """
     new_nodes = []
     pre_node = None
     for node in nodes:

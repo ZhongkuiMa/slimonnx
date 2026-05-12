@@ -19,9 +19,12 @@ from slimonnx.optimize_onnx._utils import (
 def _validate_transpose_perm(tp_node: NodeProto, initializers: dict[str, TensorProto]) -> None:
     """Validate that transpose node has expected permutation.
 
-    :param tp_node: Transpose node
-    :param initializers: Dictionary of initializers
-    :raises ValueError: If permutation is invalid
+    :param tp_node: Transpose node.
+
+    :param initializers: Dictionary of initializers.
+
+    :raises ValueError: If permutation is invalid.
+
     """
     perm = get_onnx_attrs(tp_node, initializers)["perm"]
     if not all(p_i == p_j for p_i, p_j in zip(perm, TRANSPOSE_CHW_TO_CWH, strict=False)):
@@ -34,9 +37,12 @@ def _validate_transpose_perm(tp_node: NodeProto, initializers: dict[str, TensorP
 def _can_fuse_to_gemm(input_name: str, input_nodes: list | None, data_shapes: dict | None) -> bool:
     """Check if input tensor has rank 2 (required for Gemm fusion).
 
-    :param input_name: Input tensor name
-    :param input_nodes: List of graph input nodes
-    :param data_shapes: Dictionary of tensor shapes
+    :param input_name: Input tensor name.
+
+    :param input_nodes: List of graph input nodes.
+
+    :param data_shapes: Dictionary of tensor shapes.
+
     :return: True if can fuse to Gemm (rank 2), False otherwise
     """
     if data_shapes is not None and input_name in data_shapes:
@@ -62,12 +68,18 @@ def _create_gemm_fusion(
 ) -> NodeProto:
     """Create Gemm node for rank-2 fusion.
 
-    :param bn_node: BatchNormalization node
-    :param tp_node1: First Transpose node
-    :param tp_node2: Second Transpose node
-    :param weight: Fused weight matrix
-    :param bias: Fused bias vector
-    :param initializers: Dictionary of initializers
+    :param bn_node: BatchNormalization node.
+
+    :param tp_node1: First Transpose node.
+
+    :param tp_node2: Second Transpose node.
+
+    :param weight: Fused weight matrix.
+
+    :param bias: Fused bias vector.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Gemm node
     """
     weight_name = bn_node.input[1] + "_gemm"
@@ -97,12 +109,18 @@ def _create_matmul_add_fusion(
 ) -> tuple[NodeProto, NodeProto]:
     """Create MatMul+Add nodes for non-rank-2 fusion.
 
-    :param bn_node: BatchNormalization node
-    :param tp_node1: First Transpose node
-    :param tp_node2: Second Transpose node
-    :param weight: Fused weight matrix
-    :param bias: Fused bias vector
-    :param initializers: Dictionary of initializers
+    :param bn_node: BatchNormalization node.
+
+    :param tp_node1: First Transpose node.
+
+    :param tp_node2: Second Transpose node.
+
+    :param weight: Fused weight matrix.
+
+    :param bias: Fused bias vector.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Tuple of (MatMul node, Add node)
     """
     weight_name = bn_node.input[1] + "_matmul"
@@ -143,10 +161,14 @@ def _fuse_transpose_batchnorm_transpose(
     For rank-2 inputs: converts to Gemm
     For non-rank-2 inputs: converts to MatMul+Add
 
-    :param nodes: List of nodes in the graph
-    :param initializers: Dictionary of initializers
-    :param input_nodes: List of graph input nodes (optional)
-    :param data_shapes: Dictionary of tensor shapes (optional)
+    :param nodes: List of nodes in the graph.
+
+    :param initializers: Dictionary of initializers.
+
+    :param input_nodes: List of graph input nodes (optional).
+
+    :param data_shapes: Dictionary of tensor shapes (optional).
+
     :return: Optimized list of nodes
     """
     new_nodes = []

@@ -11,6 +11,12 @@ from onnx import NodeProto, TensorProto
 def _constant_to_initializer(
     nodes: list[NodeProto], initializers: dict[str, TensorProto]
 ) -> list[NodeProto]:
+    """Convert Constant nodes to initializers.
+
+    :param nodes: List of ONNX nodes.
+    :param initializers: Dictionary of ONNX initializers.
+    :return: Tuple of (nodes, initializers).
+    """
     new_nodes = []
     for node in nodes:
         if node.op_type == "Constant":

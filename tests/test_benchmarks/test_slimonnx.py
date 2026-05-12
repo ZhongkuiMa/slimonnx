@@ -16,15 +16,15 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import pytest
-
-from slimonnx import get_preset
-from slimonnx.slimonnx import SlimONNX
-from tests.test_benchmarks.benchmark_utils import (
+from benchmark_utils import (  # type: ignore[import-not-found]
     find_benchmarks,
     find_models,
     get_model_benchmark_name,
 )
-from tests.utils import load_onnx_model, load_test_inputs
+from utils import load_onnx_model, load_test_inputs  # type: ignore[import-not-found]
+
+from slimonnx import get_preset
+from slimonnx.slimonnx import SlimONNX
 
 # Known failing models due to SlimONNX optimizer bugs
 KNOWN_FAILURES: dict[str, str] = {}
@@ -48,8 +48,10 @@ def is_known_failure(model_path):
 def run_onnx_model(model_path: str, inputs: np.ndarray) -> dict:
     """Run ONNX model inference using ONNX Runtime.
 
-    :param model_path: Path to ONNX model file
-    :param inputs: Input arrays
+    :param model_path: Path to ONNX model file.
+
+    :param inputs: Input arrays.
+
     :return: Dictionary of output arrays
     """
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
@@ -64,10 +66,14 @@ def compare_outputs(
 ) -> tuple[float, float]:
     """Compare outputs from two models.
 
-    :param outputs1: First model outputs
-    :param outputs2: Second model outputs
-    :param rtol: Relative tolerance
-    :param atol: Absolute tolerance
+    :param outputs1: First model outputs.
+
+    :param outputs2: Second model outputs.
+
+    :param rtol: Relative tolerance.
+
+    :param atol: Absolute tolerance.
+
     :return: Tuple of (max_difference, mean_difference)
     """
     max_diff = 0.0
@@ -90,7 +96,8 @@ def compare_outputs(
 def optimize_model_with_slimonnx(model_path: str) -> tuple[str, dict]:
     """Optimize model with SlimONNX and return results.
 
-    :param model_path: Path to original ONNX model
+    :param model_path: Path to original ONNX model.
+
     :return: Tuple of (optimized_model_path, stats_dict)
     """
     model_path_obj = Path(model_path)
@@ -144,10 +151,14 @@ def optimize_model_with_slimonnx(model_path: str) -> tuple[str, dict]:
 def save_results_stats(model_path: str, stats: dict, max_diff: float, mean_diff: float):
     """Save optimization stats to results directory.
 
-    :param model_path: Path to original model
-    :param stats: Optimization statistics
-    :param max_diff: Maximum difference between original and optimized outputs
-    :param mean_diff: Mean difference between original and optimized outputs
+    :param model_path: Path to original model.
+
+    :param stats: Optimization statistics.
+
+    :param max_diff: Maximum difference between original and optimized outputs.
+
+    :param mean_diff: Mean difference between original and optimized outputs.
+
     """
     test_dir = Path(__file__).parent
     results_stats_path = test_dir / "results" / stats["benchmark"] / f"{Path(model_path).stem}.json"
@@ -179,7 +190,8 @@ def test_slimonnx_optimization(model_path):
     Validates that optimized model produces same outputs as original
     within acceptable tolerance.
 
-    :param model_path: Path to ONNX model file
+    :param model_path: Path to ONNX model file.
+
     """
     # Skip known failing models
     if is_known_failure(model_path):

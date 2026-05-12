@@ -19,7 +19,8 @@ from slimonnx.optimize_onnx._utils import (
 def _get_conv_group_attr(node: NodeProto) -> int:
     """Extract group attribute from Conv node.
 
-    :param node: Conv node
+    :param node: Conv node.
+
     :return: Group value (default 1)
     """
     for attr in node.attribute:
@@ -35,8 +36,10 @@ def _is_depthwise_conv(node: NodeProto, initializers: dict[str, TensorProto]) ->
     Conv weight shape: [out_channels, in_channels/group, kH, kW]
     For depthwise: in_channels/group == 1 and group == out_channels
 
-    :param node: Conv node to check
-    :param initializers: Model initializers
+    :param node: Conv node to check.
+
+    :param initializers: Model initializers.
+
     :return: True if depthwise convolution
     """
     if node.op_type != "Conv":
@@ -79,10 +82,12 @@ def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(
     - new_weight = weight * bn_weight.reshape(-1, 1, 1, 1)
     - new_bias = bias + bn_bias (simplified due to depthwise structure)
 
-    :param nodes: List of nodes
-    :param initializers: Dictionary of initializers
-    :param is_conv_bn: True for Conv+BN, False for BN+Conv
-    :param verbose: Print progress
+    :param nodes: List of nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param is_conv_bn: True for Conv+BN, False for BN+Conv.
+
     :return: Optimized nodes
     """
     new_nodes = []

@@ -15,8 +15,10 @@ def print_node_graph(
 ) -> str:
     """Format node graph as text.
 
-    :param nodes: Model nodes
-    :param data_shapes: Inferred shapes
+    :param nodes: Model nodes.
+
+    :param data_shapes: Inferred shapes.
+
     :return: Formatted node graph string
     """
     lines = []
@@ -50,7 +52,8 @@ def print_node_graph(
 def generate_text_report(analysis: dict) -> str:
     """Generate human-readable text report.
 
-    :param analysis: Analysis results dictionary
+    :param analysis: Analysis results dictionary.
+
     :return: Formatted text report
     """
     lines = []
@@ -116,8 +119,10 @@ def generate_json_report(
 ) -> None:
     """Generate JSON report for programmatic use.
 
-    :param analysis: Analysis results dictionary
-    :param output_path: JSON output path
+    :param analysis: Analysis results dictionary.
+
+    :param output_path: JSON output path.
+
     """
     with Path(output_path).open("w") as f:
         json.dump(analysis, f, indent=2)

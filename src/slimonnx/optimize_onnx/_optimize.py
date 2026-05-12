@@ -177,28 +177,50 @@ def optimize_onnx(
 
     Constants are always converted to initializers for shape inference.
 
-    :param model: Input ONNX model
-    :param constant_folding: Fold constant operations (renamed from fuse_constant_nodes)
-    :param fuse_matmul_add: Fuse MatMul + Add to Gemm
-    :param fuse_gemm_reshape_bn: Fuse Gemm-Reshape-BatchNorm
-    :param fuse_bn_reshape_gemm: Fuse BatchNorm-Reshape-Gemm
-    :param fuse_bn_gemm: Fuse BatchNorm-Gemm
-    :param fuse_transpose_bn_transpose: Fuse Transpose-BN-Transpose
-    :param fuse_gemm_gemm: Fuse consecutive Gemm nodes
-    :param fuse_conv_bn: Fuse Conv-BatchNorm
-    :param fuse_bn_conv: Fuse BatchNorm-Conv (skips cases with padding)
-    :param fuse_bn_conv_with_padding: Fuse BatchNorm-Conv with padding by inserting Pad node
-    :param fuse_conv_transposed_bn: Fuse ConvTranspose-BatchNorm
-    :param fuse_bn_conv_transposed: Fuse BatchNorm-ConvTranspose
-    :param fuse_depthwise_conv_bn: Fuse Depthwise Conv-BatchNorm
-    :param fuse_bn_depthwise_conv: Fuse BatchNorm-Depthwise Conv
-    :param simplify_conv_to_flatten_gemm: Convert Conv to Flatten-Gemm
-    :param simplify_gemm: Normalize Gemm attributes
-    :param remove_dropout: Remove Dropout nodes (default True for inference)
-    :param remove_redundant_operations: Remove no-op nodes
-    :param reorder_by_strict_topological_order: Topological sort
-    :param simplify_node_name: Rename nodes sequentially
-    :param has_batch_dim: Whether model has batch dimension
+    :param model: Input ONNX model.
+
+    :param constant_folding: Fold constant operations (renamed from fuse_constant_nodes).
+
+    :param fuse_matmul_add: Fuse MatMul + Add to Gemm.
+
+    :param fuse_gemm_reshape_bn: Fuse Gemm-Reshape-BatchNorm.
+
+    :param fuse_bn_reshape_gemm: Fuse BatchNorm-Reshape-Gemm.
+
+    :param fuse_bn_gemm: Fuse BatchNorm-Gemm.
+
+    :param fuse_transpose_bn_transpose: Fuse Transpose-BN-Transpose.
+
+    :param fuse_gemm_gemm: Fuse consecutive Gemm nodes.
+
+    :param fuse_conv_bn: Fuse Conv-BatchNorm.
+
+    :param fuse_bn_conv: Fuse BatchNorm-Conv (skips cases with padding).
+
+    :param fuse_bn_conv: Fuse BatchNorm-Conv with padding by inserting Pad node.
+
+    :param fuse_conv_transpose_bn: Fuse ConvTranspose-BatchNorm.
+
+    :param fuse_bn_conv_transpose: Fuse BatchNorm-ConvTranspose.
+
+    :param fuse_depthwise_conv_bn: Fuse Depthwise Conv-BatchNorm.
+
+    :param fuse_bn_depthwise_conv: Fuse BatchNorm-Depthwise Conv.
+
+    :param simplify_conv_to_flatten_gemm: Convert Conv to Flatten-Gemm.
+
+    :param simplify_gemm: Normalize Gemm attributes.
+
+    :param remove_dropout: Remove Dropout nodes (default True for inference).
+
+    :param remove_redundant_operations: Remove no-op nodes.
+
+    :param reorder_by_strict_topological_order: Topological sort.
+
+    :param simplify_node_name: Rename nodes sequentially.
+
+    :param has_batch_dim: Whether model has batch dimension.
+
     :return: Optimized ONNX model
     """
     graph_name = model.graph.name + "_slimmed"

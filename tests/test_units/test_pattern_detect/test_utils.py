@@ -1,5 +1,7 @@
 """Tests for pattern detection utilities."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import pytest
 from onnx import helper, numpy_helper

@@ -18,7 +18,8 @@ from slimonnx.pattern_detect.utils import (
 def _get_conv_group_attr(node: NodeProto) -> int:
     """Extract group attribute from Conv node.
 
-    :param node: Conv or ConvTranspose node
+    :param node: Conv or ConvTranspose node.
+
     :return: Group value (default 1)
     """
     for attr in node.attribute:
@@ -33,8 +34,10 @@ def _is_depthwise_conv(node: NodeProto, initializers: dict[str, TensorProto]) ->
     Depthwise convolution: group == in_channels == out_channels
     This means each input channel has its own filter kernel.
 
-    :param node: Conv node to check
-    :param initializers: Model initializers (for weight shape)
+    :param node: Conv node to check.
+
+    :param initializers: Model initializers (for weight shape).
+
     :return: True if depthwise convolution
     """
     if node.op_type not in {"Conv", "ConvTranspose"}:
@@ -83,9 +86,12 @@ def detect_depthwise_conv(
 
     This is commonly used in efficient architectures like MobileNet.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of depthwise convolution instances
     """
     instances = []
@@ -118,9 +124,12 @@ def detect_depthwise_conv_bn(
     Pattern: DepthwiseConv -> BatchNormalization
     Can be fused by folding BN parameters into conv weights and biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []
@@ -173,9 +182,12 @@ def detect_bn_depthwise_conv(
     Pattern: BatchNormalization -> DepthwiseConv
     Can be fused by folding BN parameters into conv weights.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []

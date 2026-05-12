@@ -47,6 +47,13 @@ exclude = ["tests*", "docs*"]
 [tool.setuptools.package-data]
 slimonnx = ["py.typed"]
 
+[tool.pyright]
+pythonVersion = "3.11"
+pythonPlatform = "Linux"
+typeCheckingMode = "basic"
+include = ["src/slimonnx"]
+exclude = ["tests", "venv", ".venv", "build", "dist"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"

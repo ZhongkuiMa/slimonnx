@@ -1,5 +1,7 @@
 """Tests for Transpose-BatchNorm-Transpose fusion optimization."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 from typing import Any
@@ -18,7 +20,7 @@ from slimonnx.optimize_onnx._bn_transpose import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -87,9 +89,6 @@ class TestCanFuseToGemm:
 
         can_fuse = _can_fuse_to_gemm("X", input_nodes, None)
         assert can_fuse == expected
-
-    # [REVIEW] Deleted: test_input_from_graph_inputs_rank_2 (merged into test_input_from_graph_inputs_rank)
-    # [REVIEW] Deleted: test_input_from_graph_inputs_rank_4 (merged into test_input_from_graph_inputs_rank)
 
 
 class TestCreateGemmFusion:
@@ -236,9 +235,6 @@ class TestFuseTransposeBatchnormTranspose:
 
         # Should fuse to fewer nodes
         assert len(result) < len(nodes)
-
-    # [REVIEW] Deleted: test_fuses_to_gemm_for_rank3_input (merged into test_fuses_transpose_bn_transpose)
-    # [REVIEW] Deleted: test_fuses_to_matmul_add_for_rank4_input (merged into test_fuses_transpose_bn_transpose)
 
     def test_no_fusion_non_consecutive_nodes(self):
         """Test no fusion when nodes are not consecutive."""

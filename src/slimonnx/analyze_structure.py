@@ -3,8 +3,8 @@
 __docformat__ = "restructuredtext"
 __all__ = ["analyze_model", "compare_models"]
 
-import logging
 import sys
+import warnings
 from pathlib import Path
 
 # Add parent to path for shapeonnx import
@@ -22,8 +22,6 @@ from slimonnx.structure_analysis import (
     generate_json_report,
 )
 
-logger = logging.getLogger(__name__)
-
 
 def analyze_model(
     onnx_path: str,
@@ -36,13 +34,20 @@ def analyze_model(
 ) -> dict:
     """Complete model analysis pipeline.
 
-    :param onnx_path: Path to ONNX model
-    :param target_opset: Target opset for conversion (None = keep original)
-    :param export_json: Export full analysis as JSON
-    :param json_output_path: JSON output path
-    :param export_topology: Export topology as JSON
-    :param topology_output_path: Topology JSON output path
-    :param has_batch_dim: Whether model has batch dimension
+    :param onnx_path: Path to ONNX model.
+
+    :param target_opset: Target opset for conversion (None = keep original).
+
+    :param export_json: Export full analysis as JSON.
+
+    :param json_output_path: JSON output path.
+
+    :param export_topology: Export topology as JSON.
+
+    :param topology_output_path: Topology JSON output path.
+
+    :param has_batch_dim: Whether model has batch dimension.
+
     :return: Complete analysis report dictionary
     """
     # Preprocess
@@ -68,7 +73,7 @@ def analyze_model(
         )
         shape_inference_success = True
     except (ImportError, ValueError, AttributeError, KeyError, RuntimeError) as error:
-        logger.warning(f"Shape inference failed: {error}")
+        warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
         data_shapes = None
         shape_inference_success = False
 
@@ -122,8 +127,10 @@ def compare_models(
 ) -> dict:
     """Compare original and optimized models.
 
-    :param original_path: Original model path
-    :param optimized_path: Optimized model path
+    :param original_path: Original model path.
+
+    :param optimized_path: Optimized model path.
+
     :return: Comparison report dictionary
     """
     # Analyze both models

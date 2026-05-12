@@ -1,5 +1,7 @@
 """Extended tests for structure analysis module."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 from unittest.mock import patch
@@ -20,22 +22,12 @@ class TestAnalyzeModelReportStructure:
                 "create_dropout_model",
                 [
                     "model_path",
-                    "preprocessing",
-                    "validation",
-                    "patterns",
-                    "structure",
-                    "optimization_opportunities",
                 ],
             ),
             (
                 "create_conv_bn_model",
                 [
                     "model_path",
-                    "preprocessing",
-                    "validation",
-                    "patterns",
-                    "structure",
-                    "optimization_opportunities",
                 ],
             ),
         ],

@@ -14,18 +14,17 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-
-from tests.test_benchmarks.benchmark_utils import (
+from benchmark_utils import (  # type: ignore[import-not-found]
     find_benchmarks,
     find_models,
     get_model_benchmark_name,
 )
-from tests.test_benchmarks.test_slimonnx import (
+from test_slimonnx import (  # type: ignore[import-not-found]
     compare_outputs,
     optimize_model_with_slimonnx,
     run_onnx_model,
 )
-from tests.utils import load_test_inputs
+from utils import load_test_inputs  # type: ignore[import-not-found]
 
 
 def get_benchmark_models():
@@ -40,8 +39,10 @@ def get_benchmark_models():
 def get_baseline_path(model_path: str, baselines_dir: str | Path) -> str:
     """Get baseline JSON path for a model.
 
-    :param model_path: Path to ONNX model file
-    :param baselines_dir: Root directory for baseline files
+    :param model_path: Path to ONNX model file.
+
+    :param baselines_dir: Root directory for baseline files.
+
     :return: Path to baseline JSON file
     """
     model_path_obj = Path(model_path)
@@ -52,7 +53,8 @@ def get_baseline_path(model_path: str, baselines_dir: str | Path) -> str:
 def load_baseline(baseline_path: str) -> dict[str, Any] | None:
     """Load baseline data from JSON file.
 
-    :param baseline_path: Path to baseline JSON file
+    :param baseline_path: Path to baseline JSON file.
+
     :return: Baseline data dictionary, or None if file not found
     """
     baseline_file = Path(baseline_path)
@@ -66,8 +68,10 @@ def load_baseline(baseline_path: str) -> dict[str, Any] | None:
 def compare_optimization_stats(current: dict, baseline: dict) -> list[str]:
     """Compare optimization statistics.
 
-    :param current: Current optimization statistics
-    :param baseline: Baseline optimization statistics
+    :param current: Current optimization statistics.
+
+    :param baseline: Baseline optimization statistics.
+
     :return: List of differences found
     """
     differences = []
@@ -97,8 +101,10 @@ def test_verify_baseline(model_path, baselines_dir):
 
     Compares results/{benchmark}/{model}.json vs baselines/{benchmark}/{model}.json
 
-    :param model_path: Path to ONNX model file
-    :param baselines_dir: Directory containing baselines
+    :param model_path: Path to ONNX model file.
+
+    :param baselines_dir: Directory containing baselines.
+
     """
     test_dir = Path(__file__).parent
     results_dir = test_dir / "results"
@@ -145,7 +151,8 @@ def test_verify_baseline(model_path, baselines_dir):
 def test_io_consistency(model_path):
     """Verify optimized model produces consistent outputs.
 
-    :param model_path: Path to ONNX model file
+    :param model_path: Path to ONNX model file.
+
     """
     # Load test inputs
     try:

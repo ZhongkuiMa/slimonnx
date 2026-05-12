@@ -46,9 +46,12 @@ def detect_constant_foldable(
     Supported operations: Shape, Gather, Slice, Unsqueeze, Reshape, Range, ConstantOfShape,
     ReduceSum, Concat, Relu, Neg, Add, Sub, Mul, Div, MatMul, Pow, Cast, Equal, Where, Expand
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of foldable operation instances
     """
     instances = []

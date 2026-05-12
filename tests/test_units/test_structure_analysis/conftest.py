@@ -1,5 +1,7 @@
 """Fixtures for structure analysis tests."""
 
+__docformat__ = "restructuredtext"
+
 from pathlib import Path
 
 import pytest

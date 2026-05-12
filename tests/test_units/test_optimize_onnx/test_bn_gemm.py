@@ -1,15 +1,17 @@
 """Unit tests for Gemm+BN fusion."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import onnxruntime as ort
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestGemmBNFusion:
@@ -69,12 +71,12 @@ class TestGemmBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-4, atol=1e-5)
 
     def test_bn_gemm_direct_fusion(self):
-        """BN → Gemm → fused Gemm (2-node pattern)."""
+        """BN -> Gemm -> fused Gemm (2-node pattern)."""
         X = create_tensor_value_info("X", "float32", [1, 3])
         inputs = [X]
 
@@ -118,8 +120,8 @@ class TestGemmBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-4, atol=1e-5)
 
     def test_gemm_with_alpha_beta(self):
@@ -157,8 +159,8 @@ class TestGemmBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-4, atol=1e-5)
 
     def test_gemm_two_input_mode(self):
@@ -189,6 +191,6 @@ class TestGemmBNFusion:
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
 
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-4, atol=1e-5)

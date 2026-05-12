@@ -1,16 +1,18 @@
 """Tests for constant operations and constant folding."""
 
+__docformat__ = "restructuredtext"
+
 from typing import Any
 
 import numpy as np
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestConstantFolding:

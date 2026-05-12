@@ -5,6 +5,8 @@ This script creates a symlink from slimonnx/test/vnncomp2024_benchmarks
 to the actual benchmarks directory location.
 """
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 

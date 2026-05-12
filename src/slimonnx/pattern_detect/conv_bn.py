@@ -27,9 +27,12 @@ def detect_conv_bn(
     Pattern: Conv -> BatchNormalization
     Can be fused into single Conv with modified weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances with Conv and BN node info
     """
     instances = []
@@ -77,9 +80,12 @@ def detect_bn_conv(
     Pattern: BatchNormalization -> Conv
     Can be fused into single Conv with modified weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances with BN and Conv node info
     """
     instances = []
@@ -127,9 +133,12 @@ def detect_conv_transpose_bn(
     Pattern: ConvTranspose -> BatchNormalization
     Can be fused into single ConvTranspose with modified weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances with ConvTranspose and BN node info
     """
     instances = []
@@ -177,9 +186,12 @@ def detect_bn_conv_transpose(
     Pattern: BatchNormalization -> ConvTranspose
     Can be fused into single ConvTranspose with modified weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances with BN and ConvTranspose node info
     """
     instances = []

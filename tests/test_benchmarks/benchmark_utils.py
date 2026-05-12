@@ -1,20 +1,6 @@
 """Benchmark file discovery and path manipulation utilities."""
 
 __docformat__ = "restructuredtext"
-__all__ = [
-    "find_benchmark_folders",
-    "find_benchmarks",
-    "find_models",
-    "find_onnx_files_from_instances",
-    "find_vnnlib_files",
-    "find_vnnlib_files_from_instances",
-    "get_benchmark_dir",
-    "get_benchmark_name",
-    "get_model_benchmark_name",
-    "get_model_data_path",
-    "get_model_relative_path",
-    "read_instances_csv",
-]
 
 from pathlib import Path
 
@@ -22,7 +8,8 @@ from pathlib import Path
 def read_instances_csv(benchmark_path: Path) -> list[tuple[str, str, str]]:
     """Read instances.csv and return list of (model_path, vnnlib_path, timeout) tuples.
 
-    :param benchmark_path: Path to benchmark directory
+    :param benchmark_path: Path to benchmark directory.
+
     :return: List of (model_path, vnnlib_path, timeout) tuples
     """
     instances_csv = benchmark_path / "instances.csv"
@@ -51,7 +38,8 @@ def read_instances_csv(benchmark_path: Path) -> list[tuple[str, str, str]]:
 def find_benchmarks(base_dir: str) -> list[Path]:
     """Find all benchmark directories containing instances.csv.
 
-    :param base_dir: Root directory containing benchmark subdirectories
+    :param base_dir: Root directory containing benchmark subdirectories.
+
     :return: List of benchmark directory paths
     """
     base_path = Path(base_dir)
@@ -68,8 +56,10 @@ def find_benchmarks(base_dir: str) -> list[Path]:
 def find_models(benchmarks: list[Path], max_per_benchmark: int = 20) -> list[Path]:
     """Find ONNX model files from benchmark directories.
 
-    :param benchmarks: List of benchmark directory paths
-    :param max_per_benchmark: Maximum models per benchmark
+    :param benchmarks: List of benchmark directory paths.
+
+    :param max_per_benchmark: Maximum models per benchmark.
+
     :return: List of ONNX model file paths
     """
     models = []
@@ -95,7 +85,8 @@ def find_models(benchmarks: list[Path], max_per_benchmark: int = 20) -> list[Pat
 def find_vnnlib_files(benchmarks: list[Path]) -> list[Path]:
     """Find VNNLib property files from benchmark directories.
 
-    :param benchmarks: List of benchmark directory paths
+    :param benchmarks: List of benchmark directory paths.
+
     :return: List of VNNLib file paths
     """
     vnnlib_files = []
@@ -121,8 +112,10 @@ def get_model_benchmark_name(
 ) -> str:
     """Extract benchmark name from model path.
 
-    :param model_path: Path to model file
-    :param benchmarks_root: Name of benchmarks root directory
+    :param model_path: Path to model file.
+
+    :param benchmarks_root: Name of benchmarks root directory.
+
     :return: Benchmark name
     """
     parts = model_path.parts
@@ -139,8 +132,10 @@ def get_model_benchmark_name(
 def get_model_relative_path(model_path: Path, benchmarks_root: Path) -> Path:
     """Get model path relative to benchmarks root.
 
-    :param model_path: Full path to model file
-    :param benchmarks_root: Path to benchmarks root directory
+    :param model_path: Full path to model file.
+
+    :param benchmarks_root: Path to benchmarks root directory.
+
     :return: Relative path from benchmarks root
     """
     try:
@@ -157,8 +152,10 @@ def get_model_data_path(model_path: Path, benchmarks_root: Path) -> Path:
     - benchmarks/safenlp/onnx/medical/model.onnx
     - benchmarks/safenlp/data/medical/model.npz
 
-    :param model_path: Path to model file
-    :param benchmarks_root: Path to benchmarks root directory
+    :param model_path: Path to model file.
+
+    :param benchmarks_root: Path to benchmarks root directory.
+
     :return: Path to data file (npz format)
     """
     rel_path = get_model_relative_path(model_path, benchmarks_root)
@@ -183,10 +180,13 @@ def get_benchmark_dir(
     Searches upward from the ONNX file path to find the benchmark directory
     that contains instances.csv.
 
-    :param onnx_path: Path to ONNX model file
-    :param benchmarks_dir: Root benchmarks directory name
+    :param onnx_path: Path to ONNX model file.
+
+    :param benchmarks_dir: Root benchmarks directory name.
+
     :return: Path to benchmark directory
-    :raises FileNotFoundError: If benchmark directory cannot be found
+    :raises FileNotFoundError: If benchmark directory cannot be found.
+
     """
     current = Path(onnx_path).parent
 
@@ -215,7 +215,8 @@ def get_benchmark_dir(
 def find_benchmark_folders(base_dir: str) -> list[str]:
     """Find all benchmark directories (backward compatibility alias).
 
-    :param base_dir: Root directory containing benchmark subdirectories
+    :param base_dir: Root directory containing benchmark subdirectories.
+
     :return: List of benchmark directory paths as strings
     """
     return [str(b) for b in find_benchmarks(base_dir)]
@@ -224,8 +225,10 @@ def find_benchmark_folders(base_dir: str) -> list[str]:
 def find_onnx_files_from_instances(benchmark_dirs: list[str], num_limit: int = 20) -> list[str]:
     """Find ONNX files from instances.csv (backward compatibility alias).
 
-    :param benchmark_dirs: List of benchmark directory paths as strings
-    :param num_limit: Maximum ONNX files per benchmark directory
+    :param benchmark_dirs: List of benchmark directory paths as strings.
+
+    :param num_limit: Maximum ONNX files per benchmark directory.
+
     :return: List of ONNX file paths as strings
     """
     benchmarks = [Path(d) for d in benchmark_dirs]
@@ -236,7 +239,8 @@ def find_onnx_files_from_instances(benchmark_dirs: list[str], num_limit: int = 2
 def find_vnnlib_files_from_instances(benchmark_dirs: list[str]) -> list[str]:
     """Find VNNLib files from instances.csv (backward compatibility alias).
 
-    :param benchmark_dirs: List of benchmark directory paths as strings
+    :param benchmark_dirs: List of benchmark directory paths as strings.
+
     :return: List of VNNLib file paths as strings
     """
     benchmarks = [Path(d) for d in benchmark_dirs]
@@ -247,8 +251,10 @@ def find_vnnlib_files_from_instances(benchmark_dirs: list[str]) -> list[str]:
 def get_benchmark_name(onnx_path: str, benchmarks_dir: str = "vnncomp2024_benchmarks") -> str:
     """Extract benchmark name from ONNX file path (backward compatibility alias).
 
-    :param onnx_path: Path to ONNX model file
-    :param benchmarks_dir: Root benchmarks directory name
+    :param onnx_path: Path to ONNX model file.
+
+    :param benchmarks_dir: Root benchmarks directory name.
+
     :return: Benchmark name (subdirectory name)
     """
     return get_model_benchmark_name(Path(onnx_path), benchmarks_dir)

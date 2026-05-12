@@ -6,15 +6,6 @@ Combines two types of model analysis:
 """
 
 __docformat__ = "restructuredtext"
-__all__ = [
-    "main",
-    "run_all_pattern_detection",
-    "run_all_structure_analysis",
-    "run_pattern_detection_test",
-    "run_structure_analysis_test",
-    "test_pattern_detection_benchmarks",
-    "test_structure_analysis_benchmarks",
-]
 
 import sys
 from collections import defaultdict
@@ -23,6 +14,11 @@ from pathlib import Path
 import numpy as np
 import onnx
 import pytest
+from benchmark_utils import (  # type: ignore[import-not-found]
+    find_benchmark_folders,
+    find_onnx_files_from_instances,
+    get_benchmark_name,
+)
 from shapeonnx import infer_onnx_shape
 from shapeonnx.utils import (
     convert_constant_to_initializer,
@@ -30,22 +26,18 @@ from shapeonnx.utils import (
     get_input_nodes,
     get_output_nodes,
 )
+from utils import if_has_batch_dim  # type: ignore[import-not-found]
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
 from slimonnx.structure_analysis.topology import build_topology
-from tests.test_benchmarks.benchmark_utils import (
-    find_benchmark_folders,
-    find_onnx_files_from_instances,
-    get_benchmark_name,
-)
-from tests.utils import if_has_batch_dim
 
 
 def run_pattern_detection_test(onnx_path: str) -> dict:
     """Run pattern detection test on a single ONNX model.
 
-    :param onnx_path: Path to ONNX model file
+    :param onnx_path: Path to ONNX model file.
+
     :return: Pattern detection result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
@@ -92,8 +84,10 @@ def run_all_pattern_detection(
 ) -> dict:
     """Test pattern detection on all benchmark models.
 
-    :param benchmark_dir: Root directory of benchmarks
-    :param max_per_benchmark: Maximum models per benchmark
+    :param benchmark_dir: Root directory of benchmarks.
+
+    :param max_per_benchmark: Maximum models per benchmark.
+
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)
@@ -164,8 +158,10 @@ def run_all_pattern_detection(
 def _infer_model_shapes(model: onnx.ModelProto, has_batch_dim: bool) -> tuple[dict | None, bool]:
     """Infer shapes for model.
 
-    :param model: ONNX model
-    :param has_batch_dim: Whether model has batch dimension
+    :param model: ONNX model.
+
+    :param has_batch_dim: Whether model has batch dimension.
+
     :return: Tuple of (data_shapes dict, has_shapes bool)
     """
     try:
@@ -187,7 +183,8 @@ def _infer_model_shapes(model: onnx.ModelProto, has_batch_dim: bool) -> tuple[di
 def _calculate_memory_stats(model: onnx.ModelProto) -> tuple[int, float]:
     """Calculate total parameters and memory usage.
 
-    :param model: ONNX model
+    :param model: ONNX model.
+
     :return: Tuple of (total_parameters, memory_mb)
     """
     total_parameters = 0
@@ -211,7 +208,8 @@ def _calculate_memory_stats(model: onnx.ModelProto) -> tuple[int, float]:
 def run_structure_analysis_test(onnx_path: str) -> dict:
     """Run structure analysis test on a single ONNX model.
 
-    :param onnx_path: Path to ONNX model file
+    :param onnx_path: Path to ONNX model file.
+
     :return: Structure analysis result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
@@ -297,8 +295,10 @@ def run_all_structure_analysis(
 ) -> dict:
     """Test structure analysis on all benchmark models.
 
-    :param benchmark_dir: Root directory of benchmarks
-    :param max_per_benchmark: Maximum models per benchmark
+    :param benchmark_dir: Root directory of benchmarks.
+
+    :param max_per_benchmark: Maximum models per benchmark.
+
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)

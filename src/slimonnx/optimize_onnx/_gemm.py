@@ -21,11 +21,16 @@ def _normalize_gemm_matrix_input(
 
     Apply transpose and scaling to create a new initializer if needed.
 
-    :param input_name: Name of the input tensor
-    :param scale: Scaling factor (alpha for weight, beta for bias)
-    :param should_transpose: Whether to transpose the matrix
-    :param initializers: Dictionary of initializers (modified in-place)
-    :param unique_suffix: Unique suffix for new initializer name
+    :param input_name: Name of the input tensor.
+
+    :param scale: Scaling factor (alpha for weight, beta for bias).
+
+    :param should_transpose: Whether to transpose the matrix.
+
+    :param initializers: Dictionary of initializers (modified in-place).
+
+    :param unique_suffix: Unique suffix for new initializer name.
+
     :return: Tuple of (new_input_name, new_scale, new_transpose_flag)
     """
     if input_name not in initializers:
@@ -56,10 +61,14 @@ def _normalize_gemm_bias_input(
 ) -> tuple[str, float]:
     """Normalize Gemm bias input.
 
-    :param input_name: Name of the bias tensor
-    :param beta: Beta scaling factor
-    :param initializers: Dictionary of initializers (modified in-place)
-    :param unique_suffix: Unique suffix for new initializer name
+    :param input_name: Name of the bias tensor.
+
+    :param beta: Beta scaling factor.
+
+    :param initializers: Dictionary of initializers (modified in-place).
+
+    :param unique_suffix: Unique suffix for new initializer name.
+
     :return: Tuple of (new_input_name, new_beta)
     """
     if input_name not in initializers:
@@ -89,9 +98,12 @@ def _swap_gemm_inputs_if_needed(
     If both are initializers or both are variables, keep original order.
     If only one is initializer, make the variable be the first input.
 
-    :param var_name: First input name
-    :param weight_name: Second input name
-    :param initializers: Dictionary of initializers (modified in-place)
+    :param var_name: First input name.
+
+    :param weight_name: Second input name.
+
+    :param initializers: Dictionary of initializers (modified in-place).
+
     :return: Tuple of (new_var_name, new_weight_name)
     """
     var_is_init = var_name in initializers
@@ -122,8 +134,10 @@ def _simplify_gemm(
     4. Removes default attributes
     5. Cleans up unused initializers
 
-    :param nodes: List of nodes
-    :param initializers: Dictionary of initializers (modified in-place)
+    :param nodes: List of nodes.
+
+    :param initializers: Dictionary of initializers (modified in-place).
+
     :return: Simplified list of nodes
     """
     new_nodes = []

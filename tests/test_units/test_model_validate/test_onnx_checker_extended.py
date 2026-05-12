@@ -1,5 +1,7 @@
 """Extended tests for ONNX checker validation."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 from unittest import mock
@@ -10,7 +12,7 @@ from slimonnx.model_validate.onnx_checker import run_onnx_checker
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import create_tensor_value_info
+from _helpers import create_tensor_value_info  # type: ignore[import-not-found]
 
 
 class TestOnnxCheckerExtended:

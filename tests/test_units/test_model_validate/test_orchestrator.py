@@ -3,13 +3,13 @@
 __docformat__ = "restructuredtext"
 
 import pytest
-from onnx import helper
-
-from slimonnx.model_validate._orchestrator import validate_model
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.model_validate._orchestrator import validate_model
 
 
 class TestValidateModel:

@@ -1,23 +1,25 @@
 """Unit tests for MatMul+Add fusion optimization."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import onnxruntime as ort
 import pytest
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestMatMulAddFusion:
-    """Test MatMul+Add → Gemm fusion."""
+    """Test MatMul+Add -> Gemm fusion."""
 
     def test_basic_fusion_success(self):
-        """MatMul(X, W) + b → Gemm with batch=True."""
+        """MatMul(X, W) + b -> Gemm with batch=True."""
         X = create_tensor_value_info("X", "float32", [1, 3])
         inputs = [X]
 
@@ -129,8 +131,8 @@ class TestMatMulAddFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
 
     def test_skip_fusion_rank4_input(self):
@@ -254,6 +256,6 @@ class TestMatMulAddFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)

@@ -43,9 +43,12 @@ def detect_gemm_gemm(
     - Both must have transA=0, transB=0
     - Both must have constant weights
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []

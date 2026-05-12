@@ -7,6 +7,8 @@ Optimizations:
 - Direct generation to data/ (no intermediate vnnlib_data)
 """
 
+__docformat__ = "restructuredtext"
+
 import csv
 import time
 from pathlib import Path
@@ -20,8 +22,10 @@ import onnxruntime as ort
 def get_models_and_vnnlibs(benchmark_dir: Path, max_models: int = 20):
     """Get list of models and their first vnnlib file from instances.csv.
 
-    :param benchmark_dir: Benchmark directory path
-    :param max_models: Maximum number of unique models to process
+    :param benchmark_dir: Benchmark directory path.
+
+    :param max_models: Maximum number of unique models to process.
+
     :return: List of (onnx_path, vnnlib_path) tuples
     """
     instances_csv = benchmark_dir / "instances.csv"
@@ -57,7 +61,8 @@ def get_models_and_vnnlibs(benchmark_dir: Path, max_models: int = 20):
 def _get_model_input_info(onnx_path: Path) -> tuple[str, list[int]] | None:
     """Get model input name and expected shape.
 
-    :param onnx_path: Path to ONNX model
+    :param onnx_path: Path to ONNX model.
+
     :return: Tuple of (input_name, expected_shape) or None if invalid
     """
     model = onnx.load(str(onnx_path))
@@ -91,10 +96,14 @@ def _process_bounds(
 ) -> tuple[list[np.ndarray], list[np.ndarray], list[np.ndarray], list[np.ndarray]]:
     """Process VNNLib bounds and generate inputs/outputs.
 
-    :param npz_files: List of npz files to process
-    :param session: ONNX Runtime session
-    :param input_name: Model input name
-    :param expected_shape: Expected input shape
+    :param npz_files: List of npz files to process.
+
+    :param session: ONNX Runtime session.
+
+    :param input_name: Model input name.
+
+    :param expected_shape: Expected input shape.
+
     :return: Tuple of (lower_inputs, lower_outputs, upper_inputs, upper_outputs)
     """
     lower_inputs = []
@@ -139,9 +148,12 @@ def generate_data_from_vnnlib(
 ) -> bool:
     """Generate test data from ONNX model and VNNLib file.
 
-    :param onnx_path: Path to ONNX model
-    :param vnnlib_path: Path to VNNLib file
-    :param output_dir: Output directory for .npz file
+    :param onnx_path: Path to ONNX model.
+
+    :param vnnlib_path: Path to VNNLib file.
+
+    :param output_dir: Output directory for .npz file.
+
     :return: True if successful, False otherwise
     """
     try:
@@ -209,9 +221,12 @@ def build_test_data(
 ):
     """Build test data from benchmarks.
 
-    :param benchmarks_root: Root directory with benchmarks (symlink)
-    :param data_root: Output directory for test data
-    :param max_per_benchmark: Maximum models per benchmark
+    :param benchmarks_root: Root directory with benchmarks (symlink).
+
+    :param data_root: Output directory for test data.
+
+    :param max_per_benchmark: Maximum models per benchmark.
+
     """
     benchmarks_path = Path(benchmarks_root)
     data_path = Path(data_root)

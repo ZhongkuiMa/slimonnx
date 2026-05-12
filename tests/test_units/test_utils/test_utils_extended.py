@@ -1,5 +1,7 @@
 """Extended tests for ONNX utility functions - missing coverage."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 

@@ -26,9 +26,12 @@ def detect_gemm_reshape_bn(
     Pattern: Gemm -> Reshape -> BatchNormalization
     Can be fused into Gemm + Reshape with modified Gemm weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []
@@ -89,9 +92,12 @@ def detect_bn_reshape_gemm(
     Pattern: BatchNormalization -> Reshape -> Gemm
     Can be fused into Reshape + Gemm with modified Gemm weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []
@@ -152,9 +158,12 @@ def detect_bn_gemm(
     Pattern: BatchNormalization -> Gemm
     Can be fused into single Gemm with modified weights/biases.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []

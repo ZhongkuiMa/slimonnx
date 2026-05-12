@@ -1,5 +1,7 @@
 """Tests for reshape optimization operations."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -11,7 +13,7 @@ from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -150,11 +152,6 @@ class TestResolveReshapeNegativeOne:
         assert isinstance(result_nodes, list)
         assert len(result_nodes) == 1
 
-    # [REVIEW] Deleted: test_skips_when_output_shape_unknown (merged into test_handles_various_shape_scenarios)
-    # [REVIEW] Deleted: test_skips_when_output_shape_dynamic (merged into test_handles_various_shape_scenarios)
-    # [REVIEW] Deleted: test_handles_scalar_output_shape (merged into test_handles_various_shape_scenarios)
-    # [REVIEW] Deleted: test_handles_large_batch_tensors (merged into test_handles_various_shape_scenarios)
-
     def test_processes_chained_reshape_nodes(self):
         """Test with multiple reshape nodes in sequence."""
         X = create_tensor_value_info("X", "float32", [1, 12])
@@ -174,5 +171,3 @@ class TestResolveReshapeNegativeOne:
         result_nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)
         assert isinstance(result_nodes, list)
         assert len(result_nodes) == 2
-
-    # [REVIEW] Deleted: test_handles_large_batch_tensors (merged into test_handles_various_shape_scenarios)

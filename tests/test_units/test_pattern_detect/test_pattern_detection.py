@@ -1,14 +1,16 @@
 """Unit tests for pattern detection API."""
 
-import numpy as np
-from onnx import helper
+__docformat__ = "restructuredtext"
 
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+import numpy as np
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestPatternDetection:
@@ -47,7 +49,7 @@ class TestPatternDetection:
         assert optimized
 
     def test_detect_conv_bn_pattern(self):
-        """Conv→BN pattern detected."""
+        """Conv->BN pattern detected."""
         X = create_tensor_value_info("X", "float32", [1, 3, 4, 4])
         inputs = [X]
 
@@ -86,7 +88,7 @@ class TestPatternDetection:
         assert optimized
 
     def test_detect_gemm_reshape_bn_pattern(self):
-        """Gemm→Reshape→BN pattern detected."""
+        """Gemm->Reshape->BN pattern detected."""
         X = create_tensor_value_info("X", "float32", [1, 6])
         inputs = [X]
 
@@ -162,7 +164,7 @@ class TestPatternDetection:
         assert optimized
 
     def test_no_false_positives_similar_pattern(self):
-        """MatMul→ReLU NOT detected as MatMul→Add."""
+        """MatMul->ReLU NOT detected as MatMul->Add."""
         X = create_tensor_value_info("X", "float32", [1, 3])
         inputs = [X]
 
@@ -180,7 +182,7 @@ class TestPatternDetection:
 
         # Should NOT create Gemm (pattern doesn't match)
         gemm_nodes = [n for n in optimized.graph.node if n.op_type == "Gemm"]
-        assert len(gemm_nodes) == 0, "MatMul→ReLU should NOT fuse to Gemm"
+        assert len(gemm_nodes) == 0, "MatMul->ReLU should NOT fuse to Gemm"
 
         # MatMul and ReLU should both still be present
         matmul_nodes = [n for n in optimized.graph.node if n.op_type == "MatMul"]

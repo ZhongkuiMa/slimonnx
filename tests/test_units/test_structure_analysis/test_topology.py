@@ -1,5 +1,7 @@
 """Tests for topology analysis and export."""
 
+__docformat__ = "restructuredtext"
+
 import json
 from pathlib import Path
 

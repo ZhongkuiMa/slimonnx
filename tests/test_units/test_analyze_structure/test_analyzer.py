@@ -3,16 +3,16 @@
 __docformat__ = "restructuredtext"
 
 import pytest
+from _helpers import (  # type: ignore[import-not-found]
+    create_minimal_onnx_model,
+    create_tensor_value_info,
+)
 from onnx import helper
 
 from slimonnx.structure_analysis.analyzer import (
     analyze_inputs_outputs,
     analyze_structure,
     count_op_types,
-)
-from tests.test_units.conftest import (
-    create_minimal_onnx_model,
-    create_tensor_value_info,
 )
 
 

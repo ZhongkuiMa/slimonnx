@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["_simplify_conv_to_flatten_gemm"]
 
+import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
@@ -11,7 +12,7 @@ from slimonnx.optimize_onnx._utils import _get_conv_params, _is_only_next_node
 
 
 def _can_simplify_conv(
-    weight: TensorProto,
+    weight: np.ndarray,
     pre_output_shape: list[int],
     pads: list[int],
     strides: list[int],
@@ -70,7 +71,7 @@ def _validate_conv_simplification(
 
 
 def _create_flatten_gemm_nodes(
-    conv_node: NodeProto, weight: TensorProto, initializers: dict[str, TensorProto]
+    conv_node: NodeProto, weight: np.ndarray, initializers: dict[str, TensorProto]
 ) -> tuple[NodeProto, NodeProto]:
     """Create Flatten and Gemm nodes to replace Conv.
 
@@ -109,6 +110,13 @@ def _simplify_conv_to_flatten_gemm(
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, int | list[int]],
 ) -> list[NodeProto]:
+    """Simplify Conv to Flatten+Gemm when kernel size matches spatial dims.
+
+    :param nodes: List of ONNX nodes.
+    :param initializers: Dictionary of ONNX initializers.
+    :param data_shapes: Dictionary of tensor shapes.
+    :return: Tuple of (nodes, initializers).
+    """
     pre_conv_node = None
     conv_nodes_to_replaced_names = []
     conv_nodes_to_replaced_args = {}

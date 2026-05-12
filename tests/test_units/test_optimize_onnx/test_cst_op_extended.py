@@ -1,5 +1,7 @@
 """Extended tests for constant folding operations (_cst_op.py)."""
 
+__docformat__ = "restructuredtext"
+
 from typing import Any
 
 import numpy as np

@@ -11,7 +11,8 @@ from onnx import ModelProto, NodeProto
 def count_op_types(nodes: list[NodeProto]) -> dict[str, int]:
     """Count operations by type.
 
-    :param nodes: Model nodes
+    :param nodes: Model nodes.
+
     :return: Dictionary mapping op_type to count
     """
     return dict(Counter(node.op_type for node in nodes))
@@ -20,7 +21,8 @@ def count_op_types(nodes: list[NodeProto]) -> dict[str, int]:
 def analyze_inputs_outputs(model: ModelProto) -> dict:
     """Analyze model inputs and outputs.
 
-    :param model: ONNX model
+    :param model: ONNX model.
+
     :return: Input/output metadata dictionary
     """
     inputs_info = []
@@ -59,12 +61,14 @@ def analyze_inputs_outputs(model: ModelProto) -> dict:
 
 def analyze_structure(
     model: ModelProto,
-    data_shapes: dict[str, list[int]] | None = None,
+    data_shapes: dict[str, int | list[int]] | None = None,
 ) -> dict:
     """Analyze ONNX model structure.
 
-    :param model: ONNX model
-    :param data_shapes: Inferred shapes dictionary
+    :param model: ONNX model.
+
+    :param data_shapes: Inferred shapes dictionary.
+
     :return: Structure analysis results
     """
     nodes = list(model.graph.node)

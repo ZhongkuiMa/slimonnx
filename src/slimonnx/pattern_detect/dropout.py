@@ -17,9 +17,12 @@ def detect_dropout(
     During inference, Dropout either does nothing or scales by keep_prob.
     For inference optimization, all Dropout nodes should be removed.
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers (unused)
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers (unused).
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of Dropout node instances
     """
     instances = []

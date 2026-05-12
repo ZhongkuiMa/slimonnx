@@ -1,5 +1,7 @@
 """Tests for Transpose+BN+Transpose pattern detection."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -10,7 +12,7 @@ from slimonnx.pattern_detect.transpose_bn import detect_transpose_bn_transpose
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,

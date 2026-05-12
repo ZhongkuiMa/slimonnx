@@ -7,13 +7,11 @@ __all__ = [
     "run_onnx_inference",
 ]
 
-import logging
+import warnings
 
 import numpy as np
 import onnx
 import onnxruntime as ort
-
-logger = logging.getLogger(__name__)
 
 
 def generate_inputs_from_bounds(
@@ -23,9 +21,12 @@ def generate_inputs_from_bounds(
 ) -> list[dict[str, np.ndarray]]:
     """Generate test inputs from lower/upper bounds.
 
-    :param input_bounds: Tuple of (lower_bounds, upper_bounds) lists
-    :param input_shape: Shape of input tensor
-    :param num_samples: Number of input samples to generate
+    :param input_bounds: Tuple of (lower_bounds, upper_bounds) lists.
+
+    :param input_shape: Shape of input tensor.
+
+    :param num_samples: Number of input samples to generate.
+
     :return: List of input dictionaries
     """
     lower_bounds, upper_bounds = input_bounds
@@ -51,8 +52,10 @@ def run_onnx_inference(
 ) -> dict[str, np.ndarray]:
     """Run ONNX Runtime inference on model.
 
-    :param model_path: Path to ONNX model
-    :param inputs: Dictionary of input arrays
+    :param model_path: Path to ONNX model.
+
+    :param inputs: Dictionary of input arrays.
+
     :return: Dictionary of output arrays
     """
     session = ort.InferenceSession(model_path, providers=["CPUExecutionProvider"])
@@ -67,7 +70,7 @@ def run_onnx_inference(
 
     outputs = session.run(output_names, feed_dict)
 
-    return dict(zip(output_names, outputs, strict=False))
+    return dict(zip(output_names, outputs, strict=False))  # pyright: ignore[reportReturnType]
 
 
 def _load_test_inputs_from_file(
@@ -75,8 +78,10 @@ def _load_test_inputs_from_file(
 ) -> list[dict[str, np.ndarray]] | None:
     """Load test inputs from file (.npy or .npz).
 
-    :param test_data_path: Path to test data file
-    :param num_samples: Maximum number of samples to load
+    :param test_data_path: Path to test data file.
+
+    :param num_samples: Maximum number of samples to load.
+
     :return: List of input dictionaries or None if loading fails
     """
     try:
@@ -110,7 +115,7 @@ def _load_test_inputs_from_file(
         return test_inputs
 
     except (OSError, ValueError, IndexError, KeyError) as error:
-        logger.warning(f"Failed to load test data: {error}")
+        warnings.warn(f"Failed to load test data: {error}", UserWarning, stacklevel=2)
         return None
 
 
@@ -121,9 +126,12 @@ def _generate_test_inputs(
 ) -> list[dict[str, np.ndarray]]:
     """Generate test inputs from bounds or randomly.
 
-    :param model1_path: Path to model (for shape inference)
-    :param input_bounds: Optional bounds for input generation
-    :param num_samples: Number of samples to generate
+    :param model1_path: Path to model (for shape inference).
+
+    :param input_bounds: Optional bounds for input generation.
+
+    :param num_samples: Number of samples to generate.
+
     :return: List of input dictionaries
     """
     model = onnx.load(model1_path)
@@ -144,9 +152,12 @@ def _map_inputs_for_model2(
 ) -> dict[str, np.ndarray]:
     """Map input names from model1 to model2.
 
-    :param inputs: Input dictionary with model1 names
-    :param input_names1: Input names for model1
-    :param input_names2: Input names for model2
+    :param inputs: Input dictionary with model1 names.
+
+    :param input_names1: Input names for model1.
+
+    :param input_names2: Input names for model2.
+
     :return: Input dictionary with model2 names
     """
     if input_names1 == input_names2:
@@ -173,13 +184,20 @@ def _compare_outputs(
 ) -> tuple[bool, float, list[str]]:
     """Compare outputs from two models for a single sample.
 
-    :param i: Sample index
-    :param outputs1: Outputs from model1
-    :param outputs2: Outputs from model2
-    :param output_names1: Output names for model1
-    :param output_names2: Output names for model2
-    :param rtol: Relative tolerance
-    :param atol: Absolute tolerance
+    :param i: Sample index.
+
+    :param outputs1: Outputs from model1.
+
+    :param outputs2: Outputs from model2.
+
+    :param output_names1: Output names for model1.
+
+    :param output_names2: Output names for model2.
+
+    :param rtol: Relative tolerance.
+
+    :param atol: Absolute tolerance.
+
     :return: Tuple of (match, max_diff, mismatches)
     """
     match = True
@@ -216,14 +234,22 @@ def compare_model_outputs(
 ) -> dict:
     """Compare outputs of two ONNX models.
 
-    :param model1_path: Path to first model (e.g., original)
-    :param model2_path: Path to second model (e.g., optimized)
-    :param input_bounds: Tuple of (lower_bounds, upper_bounds) for input generation
-    :param test_inputs: Pre-generated inputs (if bounds not provided)
-    :param test_data_path: Path to test data file (.npy, .npz)
-    :param num_samples: Number of random samples if generating inputs
-    :param rtol: Relative tolerance for comparison
-    :param atol: Absolute tolerance for comparison
+    :param model1_path: Path to first model (e.g., original).
+
+    :param model2_path: Path to second model (e.g., optimized).
+
+    :param input_bounds: Tuple of (lower_bounds, upper_bounds) for input generation.
+
+    :param test_inputs: Pre-generated inputs (if bounds not provided).
+
+    :param test_data_path: Path to test data file (.npy, .npz).
+
+    :param num_samples: Number of random samples if generating inputs.
+
+    :param rtol: Relative tolerance for comparison.
+
+    :param atol: Absolute tolerance for comparison.
+
     :return: Comparison report dictionary
     """
     if test_inputs is None:

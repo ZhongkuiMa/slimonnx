@@ -15,6 +15,8 @@ Usage:
     python update_baselines.py --dry-run           # Show what would be copied
 """
 
+__docformat__ = "restructuredtext"
+
 import argparse
 import shutil
 import sys
@@ -26,9 +28,12 @@ def copy_baseline(
 ) -> tuple[bool, int]:
     """Copy a single result JSON to baseline.
 
-    :param result_path: Source .json file in results/
-    :param baseline_path: Destination .json file in baselines/
-    :param dry_run: If True, only show what would be copied
+    :param result_path: Source .json file in results/.
+
+    :param baseline_path: Destination .json file in baselines/.
+
+    :param dry_run: If True, only show what would be copied.
+
     :return: Tuple of (success, file_count)
     """
     if dry_run:
@@ -60,10 +65,14 @@ def update_benchmark(
 ) -> tuple[int, int]:
     """Update baselines for one benchmark.
 
-    :param benchmark_name: Name of benchmark
-    :param results_dir: Root results directory
-    :param baselines_dir: Root baselines directory
-    :param dry_run: If True, only show what would be copied
+    :param benchmark_name: Name of benchmark.
+
+    :param results_dir: Root results directory.
+
+    :param baselines_dir: Root baselines directory.
+
+    :param dry_run: If True, only show what would be copied.
+
     :return: Tuple of (success_count, total_count)
     """
     result_bench_dir = results_dir / benchmark_name
@@ -90,8 +99,10 @@ def update_benchmark(
 def get_benchmarks_to_update(benchmark_arg: str | None, results_dir: Path) -> list[str] | None:
     """Determine which benchmarks to update.
 
-    :param benchmark_arg: Benchmark name from CLI arg (or None for all)
-    :param results_dir: Root results directory
+    :param benchmark_arg: Benchmark name from CLI arg (or None for all).
+
+    :param results_dir: Root results directory.
+
     :return: List of benchmark names to update, or None on error
     """
     if benchmark_arg:

@@ -1,8 +1,9 @@
 """Unit tests for model utility functions."""
 
-import numpy as np
+__docformat__ = "restructuredtext"
 
-from tests.test_units.conftest import (
+import numpy as np
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,

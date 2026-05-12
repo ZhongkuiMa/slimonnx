@@ -12,8 +12,10 @@ from slimonnx.optimize_onnx._utils import _get_gemm_params
 def _count_node_connections(gemm_node: NodeProto, nodes: list[NodeProto]) -> tuple[int, int]:
     """Count predecessor and successor connections for a Gemm node.
 
-    :param gemm_node: Gemm node to check
-    :param nodes: All nodes in the graph
+    :param gemm_node: Gemm node to check.
+
+    :param nodes: All nodes in the graph.
+
     :return: Tuple of (n_predecessors, n_successors)
     """
     n_pre = 0
@@ -30,7 +32,8 @@ def _count_node_connections(gemm_node: NodeProto, nodes: list[NodeProto]) -> tup
 def _filter_fusable_gemm_nodes(nodes: list[NodeProto]) -> list[NodeProto]:
     """Filter Gemm nodes that can be fused (no multiple pre/post connections).
 
-    :param nodes: All nodes in the graph
+    :param nodes: All nodes in the graph.
+
     :return: List of fusable Gemm nodes
     """
     gemm_nodes = [node for node in nodes if node.op_type == "Gemm"]
@@ -47,8 +50,10 @@ def _group_adjacent_gemm_nodes(
 ) -> list[list[NodeProto]]:
     """Group adjacent Gemm nodes that can be fused together.
 
-    :param gemm_nodes: List of Gemm nodes (in reverse order)
-    :param initializers: Dictionary of initializers
+    :param gemm_nodes: List of Gemm nodes (in reverse order).
+
+    :param initializers: Dictionary of initializers.
+
     :return: List of Gemm node groups
     """
     chosen_output_names = [node.output[0] for node in gemm_nodes]
@@ -80,8 +85,10 @@ def _group_adjacent_gemm_nodes(
 def _fuse_gemm_group(group: list[NodeProto], initializers: dict[str, TensorProto]) -> NodeProto:
     """Fuse a group of Gemm nodes into a single Gemm node.
 
-    :param group: List of Gemm nodes to fuse
-    :param initializers: Dictionary of initializers
+    :param group: List of Gemm nodes to fuse.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Fused Gemm node
     """
     all_weights = []

@@ -9,7 +9,8 @@ from onnx import ModelProto, NodeProto, ValueInfoProto
 def _build_dropout_mapping(nodes: list[NodeProto]) -> tuple[dict[str, str], list[NodeProto]]:
     """Build mapping of dropout outputs to inputs and collect nodes to remove.
 
-    :param nodes: All model nodes
+    :param nodes: All model nodes.
+
     :return: Tuple of (dropout_output_to_input mapping, nodes_to_remove list)
     """
     dropout_output_to_input = {}
@@ -33,9 +34,12 @@ def _update_node_inputs(
 ) -> list[NodeProto]:
     """Update node inputs to bypass dropout nodes.
 
-    :param nodes: All model nodes
-    :param nodes_to_remove: Dropout nodes to remove
-    :param dropout_mapping: Mapping of dropout outputs to inputs
+    :param nodes: All model nodes.
+
+    :param nodes_to_remove: Dropout nodes to remove.
+
+    :param dropout_mapping: Mapping of dropout outputs to inputs.
+
     :return: New list of nodes with updated inputs
     """
     new_nodes = []
@@ -69,8 +73,10 @@ def _update_graph_outputs(
 ) -> list[ValueInfoProto]:
     """Update graph outputs to bypass dropout nodes.
 
-    :param outputs: Original graph outputs
-    :param dropout_mapping: Mapping of dropout outputs to inputs
+    :param outputs: Original graph outputs.
+
+    :param dropout_mapping: Mapping of dropout outputs to inputs.
+
     :return: New list of outputs with updated names
     """
     new_outputs = []
@@ -101,7 +107,8 @@ def remove_dropout(model: ModelProto) -> ModelProto:
     - Input of Dropout -> Output consumers of Dropout
     - Removes Dropout node from graph
 
-    :param model: ONNX model
+    :param model: ONNX model.
+
     :return: Optimized model with Dropout nodes removed
     """
     graph = model.graph

@@ -9,6 +9,11 @@ from slimonnx.utils import get_next_nodes_mapping
 
 
 def _reorder_by_strict_topological_order(nodes: list[NodeProto]) -> list[NodeProto]:
+    """Reorder nodes by strict topological order.
+
+    :param nodes: List of ONNX nodes.
+    :return: Reordered list of nodes.
+    """
     next_nodes_mapping = get_next_nodes_mapping(nodes)
 
     # Topological sort

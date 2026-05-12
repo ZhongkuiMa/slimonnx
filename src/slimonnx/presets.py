@@ -51,8 +51,10 @@ PRESET_NAMES = (
 def get_preset(benchmark_name: str, model_name: str | None = None) -> OptimizationConfig:
     """Get preset optimization configuration for a benchmark.
 
-    :param benchmark_name: Benchmark identifier (e.g., 'acasxu_2023', 'cgan_2023')
-    :param model_name: Optional model filename for per-model exceptions
+    :param benchmark_name: Benchmark identifier (e.g., 'acasxu_2023', 'cgan_2023').
+
+    :param model_name: Optional model filename for per-model exceptions.
+
     :return: Optimization configuration optimized for the benchmark
     """
     # Model-specific exceptions for nn4sys_2023 (some have batch dim, some don't)
@@ -215,7 +217,8 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
 def all_optimizations(has_batch_dim: bool = True) -> OptimizationConfig:
     """Get configuration with all optimizations enabled.
 
-    :param has_batch_dim: Whether model has batch dimension
+    :param has_batch_dim: Whether model has batch dimension.
+
     :return: Optimization configuration with all flags True
     """
     return OptimizationConfig(

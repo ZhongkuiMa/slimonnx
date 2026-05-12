@@ -5,6 +5,8 @@ list/5D shapes, batch edge cases. Duplicates of tests in the canonical file
 were removed.
 """
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -18,7 +20,7 @@ from slimonnx.optimize_onnx._conv import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import create_initializer
+from _helpers import create_initializer  # type: ignore[import-not-found]
 
 
 class TestCanSimplifyConvAdditional:

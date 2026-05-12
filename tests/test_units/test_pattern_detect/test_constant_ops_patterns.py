@@ -1,5 +1,7 @@
 """Tests for constant foldable operation pattern detection."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import pytest
 from onnx import TensorProto, helper, numpy_helper

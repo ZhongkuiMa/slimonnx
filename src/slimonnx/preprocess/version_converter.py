@@ -24,9 +24,12 @@ def convert_model_version(
 ) -> ModelProto:
     """Convert ONNX model to specified opset version.
 
-    :param model: Input ONNX model
-    :param target_opset: Target opset version
-    :param warn_on_diff: Warn if target differs from recommended
+    :param model: Input ONNX model.
+
+    :param target_opset: Target opset version.
+
+    :param warn_on_diff: Warn if target differs from recommended.
+
     :return: Converted model (IR version set automatically by ONNX)
     """
     current_opset = model.opset_import[0].version if model.opset_import else 0
@@ -74,12 +77,18 @@ def load_and_preprocess(
     5. Clear node docstrings (if enabled)
     6. Mark as processed by SlimONNX (if enabled)
 
-    :param onnx_path: Path to ONNX file
-    :param target_opset: Target opset version (None = keep original)
-    :param infer_shapes: Whether to run shape inference
-    :param check_model: Whether to validate model with onnx.checker
-    :param clear_docstrings: Whether to clear node docstrings
-    :param mark_slimonnx: Whether to mark model as processed by SlimONNX
+    :param onnx_path: Path to ONNX file.
+
+    :param target_opset: Target opset version (None = keep original).
+
+    :param infer_shapes: Whether to run shape inference.
+
+    :param check_model: Whether to validate model with onnx.checker.
+
+    :param clear_docstrings: Whether to clear node docstrings.
+
+    :param mark_slimonnx: Whether to mark model as processed by SlimONNX.
+
     :return: Preprocessed model
     """
     model = onnx.load(onnx_path)

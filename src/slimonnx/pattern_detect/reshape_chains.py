@@ -9,7 +9,8 @@ from onnx import NodeProto
 def detect_consecutive_reshape(nodes: list[NodeProto]) -> list[dict]:
     """Detect consecutive Reshape operations.
 
-    :param nodes: Model nodes
+    :param nodes: Model nodes.
+
     :return: List of detected pattern instances
     """
     # Build output-to-node mapping

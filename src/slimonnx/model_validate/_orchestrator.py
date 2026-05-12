@@ -22,9 +22,12 @@ def validate_model(
 ) -> dict:
     """Run all validation checks on model.
 
-    :param model: ONNX ModelProto
-    :param data_shapes: Inferred shapes for shape consistency check
-    :param test_inputs: Optional test inputs for runtime validation
+    :param model: ONNX ModelProto.
+
+    :param data_shapes: Inferred shapes for shape consistency check.
+
+    :param test_inputs: Optional test inputs for runtime validation.
+
     :return: Validation results dictionary
     """
     nodes = list(model.graph.node)

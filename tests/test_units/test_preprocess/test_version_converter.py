@@ -1,5 +1,7 @@
 """Tests for ONNX version conversion utilities."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 import warnings
 from pathlib import Path

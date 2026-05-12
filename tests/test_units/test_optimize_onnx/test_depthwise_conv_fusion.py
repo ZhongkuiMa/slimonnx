@@ -1,5 +1,7 @@
 """Tests for depthwise convolution fusion optimizations."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 from typing import Any
@@ -16,7 +18,7 @@ from slimonnx.optimize_onnx._depthwise_conv import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -30,7 +32,7 @@ class TestGetConvGroupAttr:
         ("group", "expected"),
         [
             (2, 2),
-            (None, 1),  # default: no group attribute → returns 1
+            (None, 1),  # default: no group attribute -> returns 1
             (1, 1),
             (16, 16),
         ],

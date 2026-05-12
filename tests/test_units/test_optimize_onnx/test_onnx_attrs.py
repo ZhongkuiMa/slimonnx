@@ -1,9 +1,12 @@
 """Tests for ONNX attribute extraction and validation."""
 
+__docformat__ = "restructuredtext"
+
 from typing import Any
 
 import numpy as np
 import pytest
+from _helpers import create_initializer  # type: ignore[import-not-found]
 from onnx import TensorProto, helper
 
 from slimonnx.optimize_onnx._onnx_attrs import (
@@ -22,7 +25,6 @@ from slimonnx.optimize_onnx._onnx_attrs import (
     scan_attrs,
     validate_auto_pad,
 )
-from tests.test_units.conftest import create_initializer
 
 
 class TestScanAttrs:

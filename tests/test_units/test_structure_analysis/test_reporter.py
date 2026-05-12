@@ -1,5 +1,7 @@
 """Tests for structure analysis report generation."""
 
+__docformat__ = "restructuredtext"
+
 import json
 from typing import Any
 
@@ -158,7 +160,6 @@ class TestGenerateTextReport:
         """Test report includes model path."""
         analysis = {
             "model_path": "/path/to/model.onnx",
-            "model_name": "test_model",
         }
 
         report = generate_text_report(analysis)

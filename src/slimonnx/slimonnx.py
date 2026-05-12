@@ -5,6 +5,7 @@ __all__ = ["SlimONNX"]
 
 import logging
 import time
+import warnings
 from pathlib import Path
 from typing import Any, cast
 
@@ -13,7 +14,17 @@ import onnx
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
 from slimonnx.optimize_onnx import optimize_onnx
 
-logger = logging.getLogger(__name__)
+_logger = logging.getLogger(__name__)
+
+
+def _enable_verbose() -> None:
+    """Configure package-level logger for console output."""
+    pkg_logger = logging.getLogger("slimonnx")
+    if not pkg_logger.handlers:
+        handler = logging.StreamHandler()
+        handler.setFormatter(logging.Formatter("%(message)s"))
+        pkg_logger.addHandler(handler)
+    pkg_logger.setLevel(logging.DEBUG)
 
 
 class SlimONNX:
@@ -25,7 +36,18 @@ class SlimONNX:
     - constant_to_initializer: Converts Constant nodes to initializers
     - simplify_gemm: Normalizes Gemm attributes (alpha=1, beta=1, trans=False)
     - reorder_by_strict_topological_order: Topological sorting of nodes
+
+    :param verbose: Print stage-by-stage progress.
     """
+
+    def __init__(self, verbose: bool = False):
+        """Initialize SlimONNX optimizer.
+
+        :param verbose: Print stage-by-stage progress.
+        """
+        self.verbose = verbose
+        if verbose:
+            _enable_verbose()
 
     def slim(
         self,
@@ -44,16 +66,22 @@ class SlimONNX:
         5. Save optimized model
         6. Optionally validate outputs
 
-        :param onnx_path: Path to input ONNX model
-        :param target_path: Path to save optimized model (default: {input}_simplified.onnx)
-        :param config: Optimization configuration (default: OptimizationConfig())
-        :param validation: Validation configuration (default: ValidationConfig())
+        :param onnx_path: Path to input ONNX model.
+
+        :param target_path: Path to save optimized model (default: {input}_simplified.onnx).
+
+        :param config: Optimization configuration (default: OptimizationConfig()).
+
+        :param validation: Validation configuration (default: ValidationConfig()).
+
         :return: Optimization report if validation.validate_outputs=True, else None
         """
         config = config or OptimizationConfig()
         validation = validation or ValidationConfig()
 
-        start_time = time.perf_counter()
+        _logger.info(f"SlimONNX: optimizing {onnx_path}")
+        t_total = time.perf_counter()
+        t = time.perf_counter()
 
         # Preprocess model (load, convert to opset 17, clear docs, mark SlimONNX)
         model = self.preprocess(
@@ -63,8 +91,10 @@ class SlimONNX:
             clear_docstrings=True,
             mark_slimonnx=True,
         )
+        _logger.info(f"  Preprocess: loaded, opset conversion ({time.perf_counter() - t:.4f}s)")
 
         # Apply optimizations (simplify_gemm, reorder always True)
+        t = time.perf_counter()
         new_model = optimize_onnx(
             model,
             constant_folding=config.constant_folding,
@@ -89,9 +119,11 @@ class SlimONNX:
             has_batch_dim=config.has_batch_dim,
         )
 
-        optimization_time = time.perf_counter() - start_time
+        optimization_time = time.perf_counter() - t
+        _logger.info(f"  Optimize: passes applied ({optimization_time:.4f}s)")
 
         # Determine save path
+        t = time.perf_counter()
         if target_path is None:
             target_path = onnx_path.replace(".onnx", "_simplified.onnx")
         target_path_obj = Path(target_path)
@@ -109,6 +141,9 @@ class SlimONNX:
                     f"{validation_result['failed']}/{validation_result['num_tests']} tests failed, "
                     f"max_diff={validation_result['max_diff']:.2e}"
                 )
+
+        _logger.info(f"  Export: saved to {target_path} ({time.perf_counter() - t:.4f}s)")
+        _logger.info(f"  Total: {time.perf_counter() - t_total:.4f}s")
 
         # Return report if validation was performed
         if validation.validate_outputs:
@@ -145,9 +180,12 @@ class SlimONNX:
         - detect_patterns(): Optimization pattern detection
         - Structure analysis: Node counts, I/O info, op types
 
-        :param onnx_path: Path to ONNX model
-        :param config: Optimization configuration (for has_batch_dim)
-        :param analysis: Analysis configuration (for exports)
+        :param onnx_path: Path to ONNX model.
+
+        :param config: Optimization configuration (for has_batch_dim).
+
+        :param analysis: Analysis configuration (for exports).
+
         :return: Comprehensive analysis report
         """
         config = config or OptimizationConfig()
@@ -191,7 +229,7 @@ class SlimONNX:
             KeyError,
             RuntimeError,
         ) as error:
-            logger.warning(f"Shape inference failed: {error}")
+            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
             data_shapes = None
             shape_inference_success = False
 
@@ -257,8 +295,10 @@ class SlimONNX:
 
         Analyzes both models and computes differences in structure and patterns.
 
-        :param original_path: Path to original model
-        :param optimized_path: Path to optimized model
+        :param original_path: Path to original model.
+
+        :param optimized_path: Path to optimized model.
+
         :return: Comparison report
         """
         # Analyze both models
@@ -320,11 +360,16 @@ class SlimONNX:
         Recommended opset: 17-21 (tested with shapeonnx)
         Default: 21 (for shapeonnx compatibility)
 
-        :param onnx_path: Path to ONNX model
-        :param target_opset: Target opset version (None = keep original, default = 21)
-        :param infer_shapes: Run ONNX shape inference (default: True)
-        :param clear_docstrings: Clear node docstrings (default: True)
-        :param mark_slimonnx: Mark model as processed by SlimONNX (default: True)
+        :param onnx_path: Path to ONNX model.
+
+        :param target_opset: Target opset version (None = keep original, default = 21).
+
+        :param infer_shapes: Run ONNX shape inference (default: True).
+
+        :param clear_docstrings: Clear node docstrings (default: True).
+
+        :param mark_slimonnx: Mark model as processed by SlimONNX (default: True).
+
         :return: Preprocessed model
         """
         from slimonnx.preprocess import load_and_preprocess
@@ -354,8 +399,10 @@ class SlimONNX:
         - Type consistency
         - Shape consistency (if shapes available)
 
-        :param onnx_path: Path to ONNX model
-        :param config: Optimization configuration (for has_batch_dim)
+        :param onnx_path: Path to ONNX model.
+
+        :param config: Optimization configuration (for has_batch_dim).
+
         :return: Validation report
         """
         config = config or OptimizationConfig()
@@ -392,7 +439,7 @@ class SlimONNX:
             KeyError,
             RuntimeError,
         ) as error:
-            logger.warning(f"Shape inference failed: {error}")
+            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
             data_shapes = None
 
         from slimonnx.model_validate import validate_model
@@ -410,8 +457,10 @@ class SlimONNX:
         - Fusion patterns (MatMul+Add, Conv+BN, etc.)
         - Redundant operations (Add zero, Mul one, identity Reshape, etc.)
 
-        :param onnx_path: Path to ONNX model
-        :param config: Optimization configuration (for has_batch_dim)
+        :param onnx_path: Path to ONNX model.
+
+        :param config: Optimization configuration (for has_batch_dim).
+
         :return: Pattern detection report
         """
         config = config or OptimizationConfig()
@@ -448,7 +497,7 @@ class SlimONNX:
             KeyError,
             RuntimeError,
         ) as error:
-            logger.warning(f"Shape inference failed: {error}")
+            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
             data_shapes = None
 
         from slimonnx.pattern_detect import detect_all_patterns
@@ -463,9 +512,12 @@ class SlimONNX:
     ) -> dict:
         """Compare outputs of two ONNX models numerically.
 
-        :param original_path: Path to original model
-        :param optimized_path: Path to optimized model
-        :param validation: Validation configuration
+        :param original_path: Path to original model.
+
+        :param optimized_path: Path to optimized model.
+
+        :param validation: Validation configuration.
+
         :return: Validation report
         """
         validation = validation or ValidationConfig()

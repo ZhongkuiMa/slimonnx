@@ -1,7 +1,6 @@
 """Inspect ONNX models to collect metadata and diagnose issues."""
 
 __docformat__ = "restructuredtext"
-__all__ = ["inspect_all_models", "inspect_model"]
 
 from pathlib import Path
 
@@ -24,7 +23,8 @@ MAX_DISPLAY_ITEMS = 10
 def _get_tensor_shape(tensor_type) -> tuple[list[int], bool]:
     """Extract shape and dynamic flag from tensor type.
 
-    :param tensor_type: ONNX tensor type
+    :param tensor_type: ONNX tensor type.
+
     :return: Tuple of (shape list, has_dynamic flag)
     """
     shape = []
@@ -41,7 +41,8 @@ def _get_tensor_shape(tensor_type) -> tuple[list[int], bool]:
 def _parse_instances_csv(csv_path: Path) -> set[str]:
     """Parse instances.csv and return unique model paths.
 
-    :param csv_path: Path to instances.csv
+    :param csv_path: Path to instances.csv.
+
     :return: Set of unique model paths
     """
     unique_models = set()
@@ -61,7 +62,8 @@ def _parse_instances_csv(csv_path: Path) -> set[str]:
 def inspect_model(onnx_path: str) -> dict | None:
     """Inspect a single ONNX model and collect metadata.
 
-    :param onnx_path: Path to ONNX model file
+    :param onnx_path: Path to ONNX model file.
+
     :return: Dictionary with model metadata, or None if error
     """
     try:
@@ -142,9 +144,12 @@ def inspect_model(onnx_path: str) -> dict | None:
 def _print_model_info(info: dict, benchmark_name: str, model_name: str) -> None:
     """Print model information.
 
-    :param info: Model info dictionary
-    :param benchmark_name: Benchmark name
-    :param model_name: Model name
+    :param info: Model info dictionary.
+
+    :param benchmark_name: Benchmark name.
+
+    :param model_name: Model name.
+
     """
     print(f"\n  {model_name}:")
     print(f"    IR version: {info['ir_version']}")
@@ -166,10 +171,14 @@ def _collect_model_diagnostics(
 ) -> None:
     """Collect diagnostic information from model.
 
-    :param info: Model info dictionary
-    :param benchmark_name: Benchmark name
-    :param model_name: Model name
-    :param lists: Dictionary containing diagnostic lists
+    :param info: Model info dictionary.
+
+    :param benchmark_name: Benchmark name.
+
+    :param model_name: Model name.
+
+    :param lists: Dictionary containing diagnostic lists.
+
     """
     for inp in info["inputs"]:
         if inp["has_dynamic"]:
@@ -191,8 +200,10 @@ def _collect_model_diagnostics(
 def _print_model_list(title: str, model_list: list) -> None:
     """Print a list of models with truncation.
 
-    :param title: Section title
-    :param model_list: List of model identifiers
+    :param title: Section title.
+
+    :param model_list: List of model identifiers.
+
     """
     if not model_list:
         return
@@ -214,12 +225,18 @@ def _print_diagnostic_summary(
 ) -> None:
     """Print diagnostic summary.
 
-    :param total_inspected: Number of models inspected
-    :param total_failed: Number of failed models
-    :param high_ir_version: Models with high IR version
-    :param high_opset_version: Models with high opset version
-    :param dynamic_shapes: Models with dynamic shapes
-    :param float64_models: Models with float64 initializers
+    :param total_inspected: Number of models inspected.
+
+    :param total_failed: Number of failed models.
+
+    :param high_ir_version: Models with high IR version.
+
+    :param high_opset_version: Models with high opset version.
+
+    :param dynamic_shapes: Models with dynamic shapes.
+
+    :param float64_models: Models with float64 initializers.
+
     """
     print("\n" + "=" * 80)
     print(f"Total models inspected: {total_inspected}")
@@ -234,8 +251,10 @@ def _print_diagnostic_summary(
 def inspect_all_models(benchmarks_dir: str = "benchmarks", max_per_benchmark: int = 20) -> None:
     """Inspect all ONNX models in benchmarks and print summary.
 
-    :param benchmarks_dir: Root directory containing benchmark subdirectories
-    :param max_per_benchmark: Maximum number of models to inspect per benchmark
+    :param benchmarks_dir: Root directory containing benchmark subdirectories.
+
+    :param max_per_benchmark: Maximum number of models to inspect per benchmark.
+
     """
     benchmarks_path = Path(benchmarks_dir)
 

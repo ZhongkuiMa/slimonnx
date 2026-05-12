@@ -3,16 +3,14 @@
 __docformat__ = "restructuredtext"
 __all__ = ["validate_with_onnxruntime"]
 
-import logging
 import tempfile
+import warnings
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnx
 from onnx import ModelProto
-
-logger = logging.getLogger(__name__)
 
 
 def validate_with_onnxruntime(
@@ -21,8 +19,10 @@ def validate_with_onnxruntime(
 ) -> dict:
     """Validate model with ONNX Runtime.
 
-    :param model: ONNX model
-    :param test_inputs: Optional test inputs for inference
+    :param model: ONNX model.
+
+    :param test_inputs: Optional test inputs for inference.
+
     :return: Validation result dictionary
     """
     try:
@@ -53,7 +53,7 @@ def validate_with_onnxruntime(
             try:
                 outputs = session.run(None, test_inputs)
                 result["can_infer"] = True
-                result["output_shapes"] = [list(out.shape) for out in outputs]
+                result["output_shapes"] = [list(out.shape) for out in outputs]  # pyright: ignore[reportAttributeAccessIssue]
             except (RuntimeError, ValueError, TypeError) as error:
                 result["error"] = f"Inference failed: {error}"
 
@@ -71,4 +71,6 @@ def validate_with_onnxruntime(
             try:
                 Path(tmp_path).unlink()
             except OSError as error:
-                logger.warning(f"Failed to remove temp file {tmp_path}: {error}")
+                warnings.warn(
+                    f"Failed to remove temp file {tmp_path}: {error}", UserWarning, stacklevel=2
+                )

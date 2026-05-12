@@ -1,16 +1,18 @@
 """Unit tests for model validation."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import onnxruntime as ort
 import pytest
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestGraphValidation:
@@ -55,7 +57,7 @@ class TestGraphValidation:
         assert len(optimized.graph.node) >= 0
 
     def test_detect_dead_node(self):
-        """Node output unused by graph outputs → graph still optimizes."""
+        """Node output unused by graph outputs -> graph still optimizes."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         inputs = [X]
 
@@ -135,8 +137,8 @@ class TestGraphValidation:
         # Run same model twice - outputs should match
         test_input = np.ones((2, 3), dtype=np.float32)
         sess = ort.InferenceSession(model.SerializeToString(), providers=["CPUExecutionProvider"])
-        output1 = sess.run(None, {"X": test_input})[0]
-        output2 = sess.run(None, {"X": test_input})[0]
+        output1 = np.asarray(sess.run(None, {"X": test_input})[0])
+        output2 = np.asarray(sess.run(None, {"X": test_input})[0])
 
         # Should be identical
         np.testing.assert_array_equal(output1, output2)
@@ -179,7 +181,7 @@ class TestGraphValidation:
         sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        output = sess.run(None, {"X": test_input})[0]
+        output = np.asarray(sess.run(None, {"X": test_input})[0])
 
         # Output should not contain NaN
         assert not np.any(np.isnan(output))

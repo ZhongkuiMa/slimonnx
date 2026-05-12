@@ -18,8 +18,10 @@ def check_dead_nodes(
 ) -> list[str]:
     """Find nodes not in dependency chain from outputs (dead code).
 
-    :param nodes: Model nodes
-    :param outputs: Model outputs
+    :param nodes: Model nodes.
+
+    :param outputs: Model outputs.
+
     :return: List of dead node names
     """
     # Build reverse dependency graph
@@ -54,9 +56,12 @@ def check_broken_connections(
 ) -> list[dict]:
     """Find nodes with missing input connections.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
-    :param inputs: Model inputs
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
+    :param inputs: Model inputs.
+
     :return: List of connection error dictionaries
     """
     available_tensors = set(initializers.keys())
@@ -84,8 +89,10 @@ def check_orphan_initializers(
 ) -> list[str]:
     """Find initializers not used by any node.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of orphan initializer names
     """
     used_initializers = set()
@@ -101,8 +108,10 @@ def check_type_consistency(
 ) -> list[dict]:
     """Check tensor type consistency across connections.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of type error dictionaries
     """
     # Get tensor types from initializers
@@ -131,8 +140,10 @@ def check_shape_consistency(
 ) -> list[dict]:
     """Check shape compatibility for operations.
 
-    :param nodes: Model nodes
-    :param data_shapes: Inferred shapes dictionary
+    :param nodes: Model nodes.
+
+    :param data_shapes: Inferred shapes dictionary.
+
     :return: List of shape error dictionaries
     """
     input_errors = [

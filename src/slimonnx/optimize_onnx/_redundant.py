@@ -13,9 +13,12 @@ def _skip_redundant_node(
 ) -> None:
     """Skip a redundant node by rewiring its connections.
 
-    :param node: Node to skip
-    :param nodes: All nodes in the graph
-    :param output_nodes: Graph output nodes
+    :param node: Node to skip.
+
+    :param nodes: All nodes in the graph.
+
+    :param output_nodes: Graph output nodes.
+
     """
     for node_j in nodes:
         if node.output[0] in node_j.input:
@@ -31,7 +34,8 @@ def _skip_redundant_node(
 def _collapse_consecutive_reshapes(nodes: list[NodeProto]) -> list[NodeProto]:
     """Collapse consecutive Reshape nodes.
 
-    :param nodes: List of nodes
+    :param nodes: List of nodes.
+
     :return: List of nodes with consecutive Reshapes collapsed
     """
     new_nodes = []
@@ -69,8 +73,10 @@ def _is_redundant_reshape_or_flatten(
 ) -> bool:
     """Check if Reshape/Flatten is redundant (no shape change).
 
-    :param node: Node to check
-    :param data_shapes: Dictionary of tensor shapes
+    :param node: Node to check.
+
+    :param data_shapes: Dictionary of tensor shapes.
+
     :return: True if redundant
     """
     input_shape = data_shapes[node.input[0]]
@@ -83,8 +89,10 @@ def _is_redundant_arithmetic_op(
 ) -> tuple[bool, str | None]:
     """Check if arithmetic operation is redundant (add/sub 0, mul/div 1).
 
-    :param node: Node to check
-    :param initializers: Dictionary of initializers
+    :param node: Node to check.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Tuple of (is_redundant, initializer_name)
     """
     if node.input[1] in initializers:
@@ -108,8 +116,10 @@ def _is_redundant_arithmetic_op(
 def _is_redundant_pad(node: NodeProto, initializers: dict[str, TensorProto]) -> bool:
     """Check if Pad operation is redundant (all zeros).
 
-    :param node: Node to check
-    :param initializers: Dictionary of initializers
+    :param node: Node to check.
+
+    :param initializers: Dictionary of initializers.
+
     :return: True if redundant
     """
     initializer = initializers[node.input[1]]

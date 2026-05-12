@@ -1,20 +1,22 @@
 """Unit tests for depthwise convolution fusion."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import onnxruntime as ort
 import pytest
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestDepthwiseConvBNFusion:
-    """Test depthwise Conv+BN → depthwise Conv fusion."""
+    """Test depthwise Conv+BN -> depthwise Conv fusion."""
 
     def test_executes_standalone_operation(self):
         """Basic depthwise Conv operation."""
@@ -110,9 +112,6 @@ class TestDepthwiseConvBNFusion:
         optimized = optimize_onnx(model, has_batch_dim=True)
         assert optimized
 
-    # [REVIEW] Deleted: test_handles_operation_followed_by_bn (merged into test_handles_bn_order_with_depthwise_conv)
-    # [REVIEW] Deleted: test_handles_bn_before_operation (merged into test_handles_bn_order_with_depthwise_conv)
-
     def test_maintains_numerical_equivalence_without_fusion(self):
         """Depthwise Conv+BN handling - optimizer processes without fusion."""
         channels = 3
@@ -163,11 +162,9 @@ class TestDepthwiseConvBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
-
-    # [REVIEW] Deleted: test_handles_bn_before_operation (merged into test_handles_bn_order_with_depthwise_conv)
 
     @pytest.mark.parametrize(
         ("channels", "kernel", "input_size"),
@@ -218,8 +215,6 @@ class TestDepthwiseConvBNFusion:
         optimized = optimize_onnx(model, has_batch_dim=True)
         assert optimized
 
-        # [REVIEW] Deleted: test_handles_multiple_channel_configuration (merged into test_handles_depthwise_conv_configurations)
-        # [REVIEW] Deleted: test_handles_larger_kernel_size (merged into test_handles_depthwise_conv_configurations)
         """Depthwise Conv with padding preservation."""
         channels = 2
         kernel = 3
@@ -265,8 +260,6 @@ class TestDepthwiseConvBNFusion:
         # Verify Conv node exists
         conv_nodes = [n for n in optimized.graph.node if n.op_type == "Conv"]
         assert len(conv_nodes) > 0
-
-    # [REVIEW] Deleted: test_handles_larger_kernel_size (merged into test_handles_depthwise_conv_configurations)
 
     def test_maintains_correctness_with_epsilon_handling(self):
         """Depthwise Conv+BN with epsilon handling."""
@@ -318,6 +311,6 @@ class TestDepthwiseConvBNFusion:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-4, atol=1e-5)

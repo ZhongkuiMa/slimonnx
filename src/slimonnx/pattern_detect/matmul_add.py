@@ -12,8 +12,10 @@ def _find_bias_and_matmul_output(
 ) -> tuple[str | None, str | None]:
     """Find bias and matmul output from Add node inputs.
 
-    :param add_node: Add node
-    :param initializers: Model initializers
+    :param add_node: Add node.
+
+    :param initializers: Model initializers.
+
     :return: Tuple of (bias_input, matmul_output)
     """
     bias_input = None
@@ -30,8 +32,10 @@ def _find_bias_and_matmul_output(
 def _get_weight_input(matmul_node: NodeProto, initializers: dict[str, TensorProto]) -> str | None:
     """Get weight input from MatMul node.
 
-    :param matmul_node: MatMul node
-    :param initializers: Model initializers
+    :param matmul_node: MatMul node.
+
+    :param initializers: Model initializers.
+
     :return: Weight input name or None
     """
     for inp in matmul_node.input:
@@ -45,9 +49,12 @@ def _can_fuse_matmul_add(
 ) -> tuple[bool, list[int], list[int]]:
     """Check if MatMul+Add can be fused.
 
-    :param weight_input: Weight input name
-    :param bias_input: Bias input name
-    :param initializers: Model initializers
+    :param weight_input: Weight input name.
+
+    :param bias_input: Bias input name.
+
+    :param initializers: Model initializers.
+
     :return: Tuple of (can_fuse, weight_shape, bias_shape)
     """
     weight = initializers[weight_input]
@@ -71,8 +78,10 @@ def detect_matmul_add(
 ) -> list[dict]:
     """Detect MatMul + Add patterns that can be fused to Gemm.
 
-    :param nodes: Model nodes
-    :param initializers: Model initializers
+    :param nodes: Model nodes.
+
+    :param initializers: Model initializers.
+
     :return: List of detected pattern instances
     """
     # Build output-to-node mapping

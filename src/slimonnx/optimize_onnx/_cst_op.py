@@ -19,7 +19,8 @@ def _ensure_shape_is_list(shape: int | list[int]) -> list[int]:
     Some ONNX operations return shape as int (scalar) rather than list.
     This normalizes to always return a list.
 
-    :param shape: Shape as int or list
+    :param shape: Shape as int or list.
+
     :return: Shape as list
     """
     return [shape] if isinstance(shape, int) else shape
@@ -30,9 +31,12 @@ def _handle_shape_extraction(
 ) -> np.ndarray | None:
     """Extract shape from shapes dict for Shape nodes.
 
-    :param node: Node to execute
-    :param shapes: Dictionary of tensor shapes
-    :param nodes_dict: Dictionary mapping output names to nodes
+    :param node: Node to execute.
+
+    :param shapes: Dictionary of tensor shapes.
+
+    :param nodes_dict: Dictionary mapping output names to nodes.
+
     :return: Computed value or None if not a shape operation
     """
     if node.input[0] not in nodes_dict:
@@ -50,8 +54,10 @@ def _handle_shape_extraction(
 def _execute_gather(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
     """Execute Gather operation on constant inputs.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value or None if not a Gather operation
     """
     if node.op_type != "Gather":
@@ -70,8 +76,10 @@ def _execute_gather(node: NodeProto, initializers: dict[str, TensorProto]) -> np
 def _execute_slice(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
     """Execute Slice operation on constant inputs.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value or None if not a Slice operation
     """
     if node.op_type != "Slice":
@@ -107,8 +115,10 @@ def _execute_slice(node: NodeProto, initializers: dict[str, TensorProto]) -> np.
 def _execute_unsqueeze(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
     """Execute Unsqueeze operation on constant inputs.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value or None if not an Unsqueeze operation
     """
     if node.op_type != "Unsqueeze":
@@ -133,10 +143,14 @@ def _execute_gather_slice_unsqueeze(
 
     Dispatcher for shape manipulation operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
-    :param shapes: Dictionary of tensor shapes
-    :param nodes_dict: Dictionary mapping output names to nodes
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
+    :param shapes: Dictionary of tensor shapes.
+
+    :param nodes_dict: Dictionary mapping output names to nodes.
+
     :return: Computed value
     """
     # Try shape extraction first
@@ -163,8 +177,10 @@ def _execute_gather_slice_unsqueeze(
 def _execute_range(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
     """Execute Range operation.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value or None if inputs not available
     """
     if (
@@ -191,8 +207,10 @@ def _execute_range(node: NodeProto, initializers: dict[str, TensorProto]) -> np.
 def _execute_reduce_sum(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray:
     """Execute ReduceSum operation.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value
     """
     tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
@@ -216,9 +234,12 @@ def _execute_concat(
 ) -> np.ndarray:
     """Execute Concat operation.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
-    :param shapes: Dictionary of tensor shapes
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
+    :param shapes: Dictionary of tensor shapes.
+
     :return: Computed value
     """
     is_concat_shape = all(input_name in initializers for input_name in node.input)
@@ -236,8 +257,10 @@ def _execute_concat(
 def _execute_binary_arithmetic(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray:
     """Execute binary arithmetic operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value
     """
     tensor1 = onnx.numpy_helper.to_array(initializers[node.input[0]])
@@ -265,9 +288,12 @@ def _can_fold_node(
 ) -> bool:
     """Check if all node inputs are available for constant folding.
 
-    :param node: Node to check
-    :param initializers: Dictionary of initializers
-    :param nodes_to_delete: List of nodes marked for deletion
+    :param node: Node to check.
+
+    :param initializers: Dictionary of initializers.
+
+    :param nodes_to_delete: List of nodes marked for deletion.
+
     :return: True if node can be folded
     """
     return all(
@@ -283,10 +309,14 @@ def _execute_shape_manipulation_ops(
 ) -> np.ndarray | None:
     """Execute shape manipulation operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
-    :param shapes: Dictionary of tensor shapes
-    :param nodes_dict: Dictionary mapping output names to nodes
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
+    :param shapes: Dictionary of tensor shapes.
+
+    :param nodes_dict: Dictionary mapping output names to nodes.
+
     :return: Computed value or None if not a shape manipulation op
     """
     op_type = node.op_type
@@ -307,8 +337,10 @@ def _execute_generation_ops(
 ) -> np.ndarray | None:
     """Execute generation operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value or None if not a generation op
     """
     op_type = node.op_type
@@ -330,9 +362,12 @@ def _execute_aggregation_ops(
 ) -> np.ndarray | None:
     """Execute aggregation operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
-    :param shapes: Dictionary of tensor shapes
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
+    :param shapes: Dictionary of tensor shapes.
+
     :return: Computed value or None if not an aggregation op
     """
     op_type = node.op_type
@@ -351,8 +386,10 @@ def _execute_elementwise_ops(
 ) -> np.ndarray | None:
     """Execute element-wise operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
     :return: Computed value or None if not an element-wise op
     """
     op_type = node.op_type
@@ -372,9 +409,12 @@ def _execute_type_and_logic_ops(
 ) -> np.ndarray | None:
     """Execute type conversion and logic operations.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
-    :param shapes: Dictionary of tensor shapes
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
+    :param shapes: Dictionary of tensor shapes.
+
     :return: Computed value or None if not a type/logic op
     """
     op_type = node.op_type
@@ -414,10 +454,14 @@ def _execute_constant_operation(
 ) -> np.ndarray | None:
     """Execute a constant operation and return the result.
 
-    :param node: Node to execute
-    :param initializers: Dictionary of initializers
-    :param shapes: Dictionary of tensor shapes
-    :param nodes_dict: Dictionary mapping output names to nodes
+    :param node: Node to execute.
+
+    :param initializers: Dictionary of initializers.
+
+    :param shapes: Dictionary of tensor shapes.
+
+    :param nodes_dict: Dictionary mapping output names to nodes.
+
     :return: Computed value or None if cannot execute
     """
     result = _execute_shape_manipulation_ops(node, initializers, shapes, nodes_dict)

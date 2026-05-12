@@ -21,9 +21,12 @@ def is_consecutive_nodes(
     1. first_node output connects to second_node input
     2. No other nodes consume first_node's output (no branching)
 
-    :param first_node: First node in potential pattern
-    :param second_node: Second node in potential pattern
-    :param nodes: All nodes in graph
+    :param first_node: First node in potential pattern.
+
+    :param second_node: Second node in potential pattern.
+
+    :param nodes: All nodes in graph.
+
     :return: True if nodes are consecutive without branching
     """
     # Defensive check for empty output/input (from depthwise_conv.py)
@@ -55,8 +58,10 @@ def validate_bn_inputs(
     This checks that the node has 5 inputs and all constant parameters
     (scale, B, mean, var) are available in initializers.
 
-    :param bn_node: BatchNormalization node to validate
-    :param initializers: Model initializers dictionary
+    :param bn_node: BatchNormalization node to validate.
+
+    :param initializers: Model initializers dictionary.
+
     :return: True if BN has all required parameters
     """
     # Check input count
@@ -77,9 +82,12 @@ def has_constant_weight(
 ) -> bool:
     """Check if node has constant weight at specified input index.
 
-    :param node: Node to check
-    :param initializers: Model initializers dictionary
-    :param weight_index: Index of weight input (default: 1)
+    :param node: Node to check.
+
+    :param initializers: Model initializers dictionary.
+
+    :param weight_index: Index of weight input (default: 1).
+
     :return: True if node has weight in initializers
     """
     if len(node.input) <= weight_index:

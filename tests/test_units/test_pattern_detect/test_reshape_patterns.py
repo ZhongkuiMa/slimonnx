@@ -1,5 +1,7 @@
 """Tests for reshape pattern detection."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -16,7 +18,7 @@ from slimonnx.pattern_detect.reshape_negative_one import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -163,5 +165,3 @@ class TestDetectConsecutiveReshape:
         result = detect_consecutive_reshape(nodes)
         assert isinstance(result, list)
         assert len(result) == 0
-
-    # [REVIEW] Deleted: test_empty_result_for_single_reshape_only — merged into parametrized test_no_chain_with_single_reshape

@@ -1,5 +1,7 @@
 """Unit tests for slimonnx.optimize_onnx._name name-simplification helpers."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 
@@ -16,7 +18,7 @@ from slimonnx.optimize_onnx._name import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import create_initializer, create_tensor_value_info
+from _helpers import create_initializer, create_tensor_value_info  # type: ignore[import-not-found]
 
 
 class TestRenameIoNodes:

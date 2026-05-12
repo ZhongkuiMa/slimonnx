@@ -209,7 +209,7 @@ def _build_detector_registry() -> list[_DetectorEntry]:
 def detect_all_patterns(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
-    data_shapes: dict[str, list[int]] | None = None,
+    data_shapes: dict[str, int | list[int]] | None = None,
 ) -> dict[str, dict]:
     """Detect all registered patterns.
 

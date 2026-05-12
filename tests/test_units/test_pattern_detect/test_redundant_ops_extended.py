@@ -1,5 +1,7 @@
 """Extended tests for redundant operation detection."""
 
+__docformat__ = "restructuredtext"
+
 from typing import Any
 
 import numpy as np

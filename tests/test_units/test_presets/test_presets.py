@@ -1,5 +1,7 @@
 """Tests for optimization preset configurations."""
 
+__docformat__ = "restructuredtext"
+
 import pytest
 
 from slimonnx.configs import OptimizationConfig

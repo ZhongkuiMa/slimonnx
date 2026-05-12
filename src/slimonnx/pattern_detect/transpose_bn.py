@@ -30,9 +30,12 @@ def detect_transpose_bn_transpose(
     Can be fused into single Gemm operation.
     Requires both Transpose operations to have perm=(0,2,1).
 
-    :param nodes: List of ONNX nodes
-    :param initializers: Dictionary of initializers
-    :param data_shapes: Optional shape information (unused)
+    :param nodes: List of ONNX nodes.
+
+    :param initializers: Dictionary of initializers.
+
+    :param data_shapes: Optional shape information (unused).
+
     :return: List of pattern instances
     """
     instances = []

@@ -6,37 +6,30 @@ Combines two types of testing:
 """
 
 __docformat__ = "restructuredtext"
-__all__ = [
-    "main",
-    "run_all_preprocess",
-    "run_all_validation",
-    "run_preprocess_test",
-    "run_validation_test",
-    "test_preprocess_benchmarks",
-    "test_validation_benchmarks",
-]
 
 import sys
 from collections import defaultdict
 from pathlib import Path
 
 import pytest
-
-from slimonnx import OptimizationConfig
-from slimonnx.slimonnx import SlimONNX
-from tests.test_benchmarks.benchmark_utils import (
+from benchmark_utils import (  # type: ignore[import-not-found]
     find_benchmark_folders,
     find_onnx_files_from_instances,
     get_benchmark_name,
 )
-from tests.utils import if_has_batch_dim
+from utils import if_has_batch_dim  # type: ignore[import-not-found]
+
+from slimonnx import OptimizationConfig
+from slimonnx.slimonnx import SlimONNX
 
 
 def run_preprocess_test(onnx_path: str, target_opset: int | None = None) -> dict:
     """Run preprocessing test on a single ONNX model.
 
-    :param onnx_path: Path to ONNX model file
-    :param target_opset: Target opset version (None = keep original)
+    :param onnx_path: Path to ONNX model file.
+
+    :param target_opset: Target opset version (None = keep original).
+
     :return: Preprocessing test result dictionary
     """
     slimonnx = SlimONNX()
@@ -98,9 +91,12 @@ def run_all_preprocess(
 ) -> dict:
     """Test preprocessing on all benchmark models.
 
-    :param benchmark_dir: Root directory of benchmarks
-    :param max_per_benchmark: Maximum models per benchmark
-    :param target_opset: Target opset version (None = keep original)
+    :param benchmark_dir: Root directory of benchmarks.
+
+    :param max_per_benchmark: Maximum models per benchmark.
+
+    :param target_opset: Target opset version (None = keep original).
+
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)
@@ -167,7 +163,8 @@ def run_all_preprocess(
 def run_validation_test(onnx_path: str) -> dict:
     """Run validation test on a single ONNX model.
 
-    :param onnx_path: Path to ONNX model file
+    :param onnx_path: Path to ONNX model file.
+
     :return: Validation test result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
@@ -212,8 +209,10 @@ def run_validation_test(onnx_path: str) -> dict:
 def run_all_validation(benchmark_dir: str = "benchmarks", max_per_benchmark: int = 20) -> dict:
     """Test validation on all benchmark models.
 
-    :param benchmark_dir: Root directory of benchmarks
-    :param max_per_benchmark: Maximum models per benchmark
+    :param benchmark_dir: Root directory of benchmarks.
+
+    :param max_per_benchmark: Maximum models per benchmark.
+
     :return: Dictionary with overall statistics
     """
     benchmark_dirs = find_benchmark_folders(benchmark_dir)

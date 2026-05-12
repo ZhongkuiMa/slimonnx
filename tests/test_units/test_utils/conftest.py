@@ -1,5 +1,7 @@
 """Fixtures for utility function tests."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 

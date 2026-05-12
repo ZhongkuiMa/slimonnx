@@ -1,5 +1,7 @@
 """Extended tests for SlimONNX main API - covering error paths and export functionality."""
 
+__docformat__ = "restructuredtext"
+
 import tempfile
 from pathlib import Path
 from unittest import mock

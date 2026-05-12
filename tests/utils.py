@@ -1,28 +1,20 @@
 """Test-specific utility functions for SlimONNX."""
 
 __docformat__ = "restructuredtext"
-__all__ = [
-    "BENCHMARKS_WITHOUT_BATCH_DIM",
-    "check_shape_compatibility",
-    "if_has_batch_dim",
-    "infer_shape",
-    "load_onnx_model",
-    "load_test_inputs",
-]
 
 from pathlib import Path
 from typing import Any
 
 import numpy as np
 import onnx
-
-from tests.test_benchmarks.benchmark_utils import get_benchmark_dir
+from benchmark_utils import get_benchmark_dir  # type: ignore[import-not-found]
 
 
 def load_onnx_model(onnx_path: str) -> onnx.ModelProto:
     """Load ONNX model and convert to version 21.
 
-    :param onnx_path: Path to ONNX model file
+    :param onnx_path: Path to ONNX model file.
+
     :return: ONNX ModelProto converted to version 21
     """
     import onnx
@@ -34,15 +26,7 @@ def load_onnx_model(onnx_path: str) -> onnx.ModelProto:
     return model
 
 
-BENCHMARKS_WITHOUT_BATCH_DIM = (
-    "cctsdb_yolo",
-    "pensieve_big_parallel.onnx",
-    "pensieve_mid_parallel.onnx",
-    "pensieve_small_parallel.onnx",
-    "test_nano.onnx",
-    "test_small.onnx",
-    "test_tiny.onnx",
-)
+BENCHMARKS_WITHOUT_BATCH_DIM = ("cctsdb_yolo",)
 
 
 def if_has_batch_dim(onnx_path: str) -> bool:
@@ -50,7 +34,8 @@ def if_has_batch_dim(onnx_path: str) -> bool:
 
     Checks both benchmark name and model filename in the path.
 
-    :param onnx_path: Path to ONNX model file
+    :param onnx_path: Path to ONNX model file.
+
     :return: True if model has batch dimension, False otherwise
     """
     return all(bname not in onnx_path for bname in BENCHMARKS_WITHOUT_BATCH_DIM)
@@ -63,8 +48,10 @@ def check_shape_compatibility(
 
     Allows scalar [] to match [1].
 
-    :param inferred_shape: Shape inferred by shape inference
-    :param expected_shape: Expected shape from model metadata
+    :param inferred_shape: Shape inferred by shape inference.
+
+    :param expected_shape: Expected shape from model metadata.
+
     :return: True if shapes are compatible, False otherwise
     """
     return inferred_shape == expected_shape or (inferred_shape == [] and expected_shape == [1])
@@ -75,11 +62,15 @@ def infer_shape(
 ) -> dict[str, int | list[int]]:
     """Run shape inference on model and validate against expected I/O shapes.
 
-    :param model: ONNX ModelProto
-    :param has_batch_dim: Whether model has batch dimension
-    :param verbose: Whether to print verbose output during inference
+    :param model: ONNX ModelProto.
+
+    :param has_batch_dim: Whether model has batch dimension.
+
+    :param verbose: Whether to print verbose output during inference.
+
     :return: Dictionary mapping tensor names to inferred shapes
-    :raises ValueError: If inferred shapes don't match expected shapes
+    :raises ValueError: If inferred shapes don't match expected shapes.
+
     """
     from shapeonnx import extract_io_shapes, infer_onnx_shape
     from shapeonnx.utils import (
@@ -128,7 +119,8 @@ def infer_shape(
 def _load_precomputed_data(data_file: Path) -> list[np.ndarray]:
     """Load pre-computed test data from npz file.
 
-    :param data_file: Path to npz data file
+    :param data_file: Path to npz data file.
+
     :return: List of input arrays, empty if loading fails
     """
     if not data_file.exists():
@@ -155,10 +147,13 @@ def _load_precomputed_data(data_file: Path) -> list[np.ndarray]:
 def _get_vnnlib_names_from_csv(instances_csv: Path, onnx_rel_path: str) -> list[str]:
     """Extract VNNLib names for a model from instances.csv.
 
-    :param instances_csv: Path to instances.csv file
-    :param onnx_rel_path: Relative path to ONNX model
+    :param instances_csv: Path to instances.csv file.
+
+    :param onnx_rel_path: Relative path to ONNX model.
+
     :return: List of VNNLib file names
-    :raises FileNotFoundError: If instances.csv not found or parsing fails
+    :raises FileNotFoundError: If instances.csv not found or parsing fails.
+
     """
     if not instances_csv.exists():
         raise FileNotFoundError(f"No instances.csv found at {instances_csv}")
@@ -187,10 +182,13 @@ def _get_vnnlib_names_from_csv(instances_csv: Path, onnx_rel_path: str) -> list[
 def _get_model_input_info(onnx_path: str) -> tuple[str, list[Any] | None]:
     """Get model input name and dimensions.
 
-    :param onnx_path: Path to ONNX model
+    :param onnx_path: Path to ONNX model.
+
     :return: Tuple of (input_name, input_dims)
-    :raises ValueError: If model has no inputs
-    :raises NotImplementedError: If model has multiple inputs
+    :raises ValueError: If model has no inputs.
+
+    :raises NotImplementedError: If model has multiple inputs.
+
     """
     import onnx
 
@@ -222,8 +220,10 @@ def _get_model_input_info(onnx_path: str) -> tuple[str, list[Any] | None]:
 def _reshape_array_to_input_dims(arr: np.ndarray, input_dims: list[Any] | None) -> np.ndarray:
     """Reshape flat array to match model input dimensions.
 
-    :param arr: Flat input array
-    :param input_dims: ONNX input dimensions
+    :param arr: Flat input array.
+
+    :param input_dims: ONNX input dimensions.
+
     :return: Reshaped array
     """
     if input_dims is None:
@@ -248,9 +248,12 @@ def _load_from_vnnlib_data(
 ) -> list[np.ndarray]:
     """Load test inputs from vnnlib_data directory.
 
-    :param vnnlib_data_dir: Path to vnnlib_data directory
-    :param vnnlib_names: List of VNNLib file names
-    :param input_dims: Model input dimensions for reshaping
+    :param vnnlib_data_dir: Path to vnnlib_data directory.
+
+    :param vnnlib_names: List of VNNLib file names.
+
+    :param input_dims: Model input dimensions for reshaping.
+
     :return: List of input arrays
     """
     inputs_list = []
@@ -289,11 +292,15 @@ def load_test_inputs(
     1. Pre-computed data from data/ directory (npz files from calculate_outputs)
     2. VNNLib-derived inputs from vnnlib_data/ directory
 
-    :param onnx_path: Path to ONNX model file
-    :param benchmarks_dir: Root benchmarks directory name
-    :param data_dir: Root data directory name (default: test_dir/data)
+    :param onnx_path: Path to ONNX model file.
+
+    :param benchmarks_dir: Root benchmarks directory name.
+
+    :param data_dir: Root data directory name (default: test_dir/data).
+
     :return: List of input arrays
-    :raises FileNotFoundError: If no test data is available
+    :raises FileNotFoundError: If no test data is available.
+
     """
     if data_dir is None:
         data_dir_path = Path(__file__).parent / "data"
@@ -308,7 +315,7 @@ def load_test_inputs(
     model_name = Path(onnx_path).stem
 
     # Try pre-computed data first from standalone data/ directory
-    from tests.test_benchmarks.benchmark_utils import get_model_benchmark_name
+    from benchmark_utils import get_model_benchmark_name  # type: ignore[import-not-found]
 
     benchmark_name = get_model_benchmark_name(Path(onnx_path), benchmarks_dir)
     data_file = data_dir_path / benchmark_name / f"{model_name}.npz"

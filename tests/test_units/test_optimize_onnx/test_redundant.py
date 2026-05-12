@@ -1,16 +1,18 @@
 """Unit tests for redundant operation removal."""
 
+__docformat__ = "restructuredtext"
+
 import numpy as np
 import onnxruntime as ort
 import pytest
-from onnx import helper
-
-from slimonnx.optimize_onnx import optimize_onnx
-from tests.test_units.conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
+from onnx import helper
+
+from slimonnx.optimize_onnx import optimize_onnx
 
 
 class TestRedundantOperations:
@@ -149,8 +151,8 @@ class TestRedundantOperations:
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
 
     def test_add_nonzero_kept(self):
@@ -200,7 +202,7 @@ class TestRedundantOperations:
         X = create_tensor_value_info("X", "float32", [1, 3])
         inputs = [X]
 
-        # Create model with chained ops: MatMul → Add
+        # Create model with chained ops: MatMul -> Add
         W = np.eye(3, 2, dtype=np.float32)
         b = np.zeros(2, dtype=np.float32)
         initializers = [
@@ -222,11 +224,11 @@ class TestRedundantOperations:
         original_sess = ort.InferenceSession(
             model.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        original_out = original_sess.run(None, {"X": test_input})[0]
+        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
 
         optimized_sess = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
         )
-        optimized_out = optimized_sess.run(None, {"X": test_input})[0]
+        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
 
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)

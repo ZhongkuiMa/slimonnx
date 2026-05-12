@@ -1,5 +1,7 @@
 """Tests for redundant operations pattern detection."""
 
+__docformat__ = "restructuredtext"
+
 import sys
 from pathlib import Path
 from typing import Any
@@ -17,7 +19,7 @@ from slimonnx.pattern_detect.redundant_ops import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from conftest import (
+from _helpers import (  # type: ignore[import-not-found]
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -25,7 +27,7 @@ from conftest import (
 
 
 class TestAddZeroDetection:
-    """Test Add(X, 0) → X redundancy detection."""
+    """Test Add(X, 0) -> X redundancy detection."""
 
     def test_detect_add_zero(self):
         """Test detection of Add with zero constant."""
@@ -80,7 +82,7 @@ class TestAddZeroDetection:
 
 
 class TestSubZeroDetection:
-    """Test Sub(X, 0) → X redundancy detection."""
+    """Test Sub(X, 0) -> X redundancy detection."""
 
     def test_detect_sub_zero(self):
         """Test detection of Sub with zero constant."""
@@ -105,7 +107,7 @@ class TestSubZeroDetection:
 
 
 class TestMulOneDetection:
-    """Test Mul(X, 1) → X redundancy detection."""
+    """Test Mul(X, 1) -> X redundancy detection."""
 
     def test_detect_mul_one(self):
         """Test detection of Mul with one constant."""
@@ -130,7 +132,7 @@ class TestMulOneDetection:
 
 
 class TestDivOneDetection:
-    """Test Div(X, 1) → X redundancy detection."""
+    """Test Div(X, 1) -> X redundancy detection."""
 
     def test_detect_div_one(self):
         """Test detection of Div with one constant."""
