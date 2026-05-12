@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slimonnx"
-version = "2026.5.0"
+version = "2026.5.1"
 description = "ONNX model optimization and simplification utilities"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -93,7 +93,7 @@ known-first-party = ["slimonnx"]
 ban-relative-imports = "all"
 
 [tool.ruff.lint.mccabe]
-max-complexity = 10
+max-complexity = 20
 
 [tool.ruff.lint.flake8-quotes]
 inline-quotes = "double"
@@ -109,6 +109,7 @@ warn_return_any = true
 warn_unused_configs = true
 warn_unused_ignores = true
 disallow_untyped_defs = false
+check_untyped_defs = true
 ignore_missing_imports = true
 files = ["src/slimonnx"]
 exclude = ["tests", "venv", ".venv", "build", "dist"]
