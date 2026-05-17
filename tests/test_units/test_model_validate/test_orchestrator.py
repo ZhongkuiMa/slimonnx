@@ -3,7 +3,7 @@
 __docformat__ = "restructuredtext"
 
 import pytest
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_minimal_onnx_model,
     create_tensor_value_info,
 )

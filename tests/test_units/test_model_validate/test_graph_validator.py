@@ -18,7 +18,7 @@ from slimonnx.model_validate.graph_validator import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import create_initializer, create_tensor_value_info  # type: ignore[import-not-found]
+from _helpers import create_initializer, create_tensor_value_info
 
 
 class TestCheckDeadNodes:
@@ -136,7 +136,7 @@ class TestCheckShapeConsistency:
     def test_complete_shapes_have_no_errors(self):
         n = helper.make_node("Relu", inputs=["X"], outputs=["Y"], name="n")
         data_shapes = {"X": [1], "Y": [1]}
-        assert check_shape_consistency([n], data_shapes) == []
+        assert check_shape_consistency([n], data_shapes) == []  # type: ignore[arg-type]  # dict invariance
 
     @pytest.mark.parametrize(
         ("data_shapes", "assert_key", "assert_val"),

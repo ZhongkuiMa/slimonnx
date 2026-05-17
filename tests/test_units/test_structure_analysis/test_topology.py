@@ -203,7 +203,7 @@ class TestExportTopologyJson:
         data_shapes = {"X": [1, 3], "Y": [1, 3]}
 
         output_path = tmp_path / "topology.json"
-        export_topology_json(nodes, str(output_path), data_shapes=data_shapes)
+        export_topology_json(nodes, str(output_path), data_shapes=data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         with output_path.open() as f:
             data = json.load(f)
@@ -302,7 +302,7 @@ class TestExportTopologyJson:
         data_shapes = {"Y": [1, 3]}
 
         output_path = tmp_path / "topology.json"
-        export_topology_json(nodes, str(output_path), data_shapes=data_shapes)
+        export_topology_json(nodes, str(output_path), data_shapes=data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         with output_path.open() as f:
             data = json.load(f)

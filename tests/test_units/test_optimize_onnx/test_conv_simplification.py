@@ -21,7 +21,7 @@ from slimonnx.optimize_onnx._conv import (
 sys.path.insert(0, str(Path(__file__).parent.parent))
 from typing import Any
 
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -143,7 +143,7 @@ class TestSimplifyConvToFlattenGemm:
         initializers_dict = {init.name: init for init in model.graph.initializer}
         data_shapes = {"X": [1, 3, 1, 1], "C": [1, 2], "Y": [1, 2]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Should process nodes
         assert len(result) >= 0
@@ -164,7 +164,7 @@ class TestSimplifyConvToFlattenGemm:
         initializers_dict = {init.name: init for init in model.graph.initializer}
         data_shapes = {"X": [1, 3, 1, 1], "Y": [1, 2]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Should preserve original structure
         assert len(result) == len(nodes)
@@ -181,7 +181,7 @@ class TestSimplifyConvToFlattenGemm:
         initializers_dict: dict[str, Any] = {}
         data_shapes = {"X": [1, 3, 4, 4], "Y": [1, 3, 4, 4]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Should preserve Identity node
         assert len(result) == 1
@@ -204,7 +204,7 @@ class TestSimplifyConvToFlattenGemm:
         initializers_dict = {init.name: init for init in model.graph.initializer}
         data_shapes = {"X": [1, 3, 1, 1], "C": [1, 2], "Y": [1, 2]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Should preserve both nodes (pattern not matched)
         assert len(result) == len(nodes)
@@ -236,7 +236,7 @@ class TestSimplifyConvToFlattenGemm:
             "Y": [1, 2],
         }
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Should process pattern
         assert len(result) >= 0
@@ -367,7 +367,7 @@ class TestSimplifyConvEdgeCases:
 
         # This should fail with "4D weight" error when trying to process conv2
         with pytest.raises((ValueError, NotImplementedError)):
-            _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+            _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
     def test_single_conv_no_simplification(self):
         """Test that single conv node is not simplified."""
@@ -384,7 +384,7 @@ class TestSimplifyConvEdgeCases:
         initializers_dict = {init.name: init for init in model.graph.initializer}
         data_shapes = {"X": [1, 3, 1, 1], "Y": [1, 2]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Single conv should not be simplified (no pre_conv_node)
         assert len(result) == 1
@@ -408,7 +408,7 @@ class TestSimplifyConvEdgeCases:
         # Mix of int and list values in data_shapes
         data_shapes = {"X": [1, 3, 1, 1], "C1": 2, "Y": [1, 2]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers_dict, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Should handle conversion properly
         assert len(result) == len(nodes)

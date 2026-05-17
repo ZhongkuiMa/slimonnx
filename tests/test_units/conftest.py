@@ -11,7 +11,7 @@ from onnx import helper
 
 sys.path.insert(0, str(Path(__file__).parent))
 
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,

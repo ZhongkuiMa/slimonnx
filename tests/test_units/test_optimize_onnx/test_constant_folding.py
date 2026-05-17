@@ -26,7 +26,7 @@ from slimonnx.optimize_onnx._cst_op import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -310,6 +310,7 @@ class TestExecuteTypeAndLogicOps:
         initializers = {"data": data}
 
         result = _execute_type_and_logic_ops(node, initializers, {})
+        assert result is not None
         assert result.dtype == np.float32
 
     def test_produces_elementwise_equality_mask(self):
@@ -351,7 +352,8 @@ class TestExecuteTypeAndLogicOps:
         initializers = {"data": data}
         shapes = {"Y": (2, 3)}
 
-        result = _execute_type_and_logic_ops(node, initializers, shapes)
+        result = _execute_type_and_logic_ops(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
+        assert result is not None
         assert result.shape == (2, 3)
 
     def test_unknown_logic_op(self):
@@ -379,6 +381,7 @@ class TestExecuteShapeManipulationOps:
         nodes_dict: dict[str, Any] = {}
 
         result = _execute_shape_manipulation_ops(node, initializers, {}, nodes_dict)
+        assert result is not None
         assert result.shape == (2, 3)
 
     def test_unknown_shape_op(self):
@@ -407,7 +410,7 @@ class TestExecuteAggregationOps:
         # This simulates concatenating shape values
         shapes = {"Y": [2, 3, 4, 5]}
 
-        result = _execute_aggregation_ops(node, initializers, shapes)
+        result = _execute_aggregation_ops(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
         assert isinstance(result, np.ndarray)
         assert np.array_equal(result, np.array([2, 3, 4, 5], dtype=np.int64))
 
@@ -463,7 +466,7 @@ class TestFuseConstantNodes:
         initializers = {init.name: init for init in model.graph.initializer}
         shapes = {"Y": [2, 3]}
 
-        new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)
+        new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
         # Shape node should be removed
         assert all(node.op_type != "Shape" for node in new_nodes)
 
@@ -482,7 +485,7 @@ class TestFuseConstantNodes:
         initializers = {init.name: init for init in model.graph.initializer}
         shapes = {"Y": [3]}
 
-        new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)
+        new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
         # Add node should be removed since inputs are constants
         assert all(node.op_type != "Add" for node in new_nodes)
 
@@ -498,7 +501,7 @@ class TestFuseConstantNodes:
         initializers = {init.name: init for init in model.graph.initializer}
         shapes = {"Y": [2, 3]}
 
-        new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)
+        new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
         # Relu node should remain
         assert len(new_nodes) == 1
         assert new_nodes[0].op_type == "Relu"

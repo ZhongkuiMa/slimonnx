@@ -9,8 +9,8 @@ __docformat__ = "restructuredtext"
 from collections import defaultdict
 from pathlib import Path
 
-from benchmark_utils import find_onnx_files_from_instances  # type: ignore[import-not-found]
-from utils import if_has_batch_dim  # type: ignore[import-not-found]
+from benchmark_utils import find_onnx_files_from_instances
+from utils import if_has_batch_dim
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX

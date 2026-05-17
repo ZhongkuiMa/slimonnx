@@ -12,12 +12,12 @@ from collections import defaultdict
 from pathlib import Path
 
 import pytest
-from benchmark_utils import (  # type: ignore[import-not-found]
+from benchmark_utils import (
     find_benchmark_folders,
     find_onnx_files_from_instances,
     get_benchmark_name,
 )
-from utils import if_has_batch_dim  # type: ignore[import-not-found]
+from utils import if_has_batch_dim
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX

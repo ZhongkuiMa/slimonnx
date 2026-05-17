@@ -13,7 +13,7 @@ from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -98,7 +98,7 @@ class TestResolveReshapeNegativeOne:
         initializers = {init.name: init for init in model.graph.initializer}
         data_shapes = {"X": [1, 12], "Y": [1, 3, 4]}
 
-        result_nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)
+        result_nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert isinstance(result_nodes, list)
         assert len(result_nodes) == 1
 
@@ -168,6 +168,6 @@ class TestResolveReshapeNegativeOne:
         initializers = {init.name: init for init in model.graph.initializer}
         data_shapes = {"X": [1, 12], "Y": [1, 3, 4], "Z": [3, 4]}
 
-        result_nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)
+        result_nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert isinstance(result_nodes, list)
         assert len(result_nodes) == 2

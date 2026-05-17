@@ -14,17 +14,17 @@ from pathlib import Path
 from typing import Any, cast
 
 import pytest
-from benchmark_utils import (  # type: ignore[import-not-found]
+from benchmark_utils import (
     find_benchmarks,
     find_models,
     get_model_benchmark_name,
 )
-from test_slimonnx import (  # type: ignore[import-not-found]
+from test_slimonnx import (
     compare_outputs,
     optimize_model_with_slimonnx,
     run_onnx_model,
 )
-from utils import load_test_inputs  # type: ignore[import-not-found]
+from utils import load_test_inputs
 
 
 def get_benchmark_models():

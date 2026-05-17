@@ -7,7 +7,7 @@ from typing import Any
 
 import numpy as np
 import onnx
-from benchmark_utils import get_benchmark_dir  # type: ignore[import-not-found]
+from benchmark_utils import get_benchmark_dir
 
 
 def load_onnx_model(onnx_path: str) -> onnx.ModelProto:
@@ -315,7 +315,7 @@ def load_test_inputs(
     model_name = Path(onnx_path).stem
 
     # Try pre-computed data first from standalone data/ directory
-    from benchmark_utils import get_model_benchmark_name  # type: ignore[import-not-found]
+    from benchmark_utils import get_model_benchmark_name
 
     benchmark_name = get_model_benchmark_name(Path(onnx_path), benchmarks_dir)
     data_file = data_dir_path / benchmark_name / f"{model_name}.npz"

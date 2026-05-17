@@ -427,7 +427,7 @@ class TestDetectIdentityReshape:
         nodes = [reshape_node]
         data_shapes: dict[str, int | list[int]] = {}
 
-        result = detect_identity_reshape(nodes, data_shapes)
+        result = detect_identity_reshape(nodes, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
         assert len(result) == 0
 

@@ -166,9 +166,9 @@ class TestIsDepthwiseConv:
         if op_type == "Conv" and "W" in init_dict and init_dict["W"] is None:
             conv_weight = np.ones((3, 1, 3, 3), dtype=np.float32)
             weight_init = create_initializer("W", conv_weight)
-            initializers = {"W": weight_init}
+            initializers: dict[str, Any] = {"W": weight_init}
         else:
-            initializers: dict[str, Any] = dict(init_dict)
+            initializers = dict(init_dict)
 
         node = helper.make_node(op_type, inputs=inputs, outputs=["Z"], **group_kwargs)
 

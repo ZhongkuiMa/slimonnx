@@ -12,7 +12,7 @@ from onnx import helper, save
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_minimal_onnx_model,
     create_tensor_value_info,
 )
@@ -250,6 +250,7 @@ class TestLoadTestInputsFromFile:
 
         result = _load_test_inputs_from_file(str(npy_path), num_samples=num_samples)
 
+        assert result is not None
         assert len(result) == expected_len
         assert "input" in result[0]
         if data.ndim == 1:
@@ -274,6 +275,7 @@ class TestLoadTestInputsFromFile:
 
         result = _load_test_inputs_from_file(str(npz_path), num_samples=2)
 
+        assert result is not None
         assert len(result) == 2
 
     def test_from_npz_no_inputs(self, tmp_path):
@@ -305,6 +307,7 @@ class TestLoadTestInputsFromFile:
 
         result = _load_test_inputs_from_file(str(npy_path), num_samples=2)
 
+        assert result is not None
         assert len(result) == 2
 
 

@@ -168,7 +168,7 @@ class TestLoadAndPreprocess:
     @pytest.fixture(autouse=True)
     def cleanup_temp(self):
         """Cleanup temp files after each test."""
-        self._temp_files = []
+        self._temp_files: list[str] = []
         yield
         for path in self._temp_files:
             Path(path).unlink(missing_ok=True)

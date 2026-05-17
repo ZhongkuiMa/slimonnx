@@ -14,7 +14,7 @@ from pathlib import Path
 import numpy as np
 import onnx
 import pytest
-from benchmark_utils import (  # type: ignore[import-not-found]
+from benchmark_utils import (
     find_benchmark_folders,
     find_onnx_files_from_instances,
     get_benchmark_name,
@@ -26,7 +26,7 @@ from shapeonnx.utils import (
     get_input_nodes,
     get_output_nodes,
 )
-from utils import if_has_batch_dim  # type: ignore[import-not-found]
+from utils import if_has_batch_dim
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX

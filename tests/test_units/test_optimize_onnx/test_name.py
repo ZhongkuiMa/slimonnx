@@ -18,7 +18,7 @@ from slimonnx.optimize_onnx._name import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import create_initializer, create_tensor_value_info  # type: ignore[import-not-found]
+from _helpers import create_initializer, create_tensor_value_info
 
 
 class TestRenameIoNodes:
@@ -38,7 +38,7 @@ class TestRenameIoNodes:
 
     def test_counter_advances_from_start(self):
         inputs = [create_tensor_value_info("a", "float32", [1])]
-        outputs = []
+        outputs: list[str] = []
         _, _, counter = _rename_io_nodes(inputs, outputs, start_counter=10)
 
         assert inputs[0].name == "input_10"

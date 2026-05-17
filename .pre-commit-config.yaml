@@ -23,7 +23,7 @@ repos:
         additional_dependencies:
           - types-PyYAML
           - types-requests
-        args: [--no-error-summary, --show-column-numbers]
+        args: [--no-error-summary, --show-column-numbers, --explicit-package-bases]
         verbose: true
 
   # Standard pre-commit hooks

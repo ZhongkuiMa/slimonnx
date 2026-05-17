@@ -16,12 +16,12 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 import pytest
-from benchmark_utils import (  # type: ignore[import-not-found]
+from benchmark_utils import (
     find_benchmarks,
     find_models,
     get_model_benchmark_name,
 )
-from utils import load_onnx_model, load_test_inputs  # type: ignore[import-not-found]
+from utils import load_onnx_model, load_test_inputs
 
 from slimonnx import get_preset
 from slimonnx.slimonnx import SlimONNX

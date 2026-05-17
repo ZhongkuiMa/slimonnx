@@ -289,7 +289,7 @@ class TestExecuteAggregationOps:
         # When all inputs are in initializers, function returns shape from shapes dict
         shapes = {"Z": [2, 2]}
 
-        result = _execute_aggregation_ops(node, initializers, shapes)
+        result = _execute_aggregation_ops(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Result is the output shape when all inputs are in initializers
         assert np.array_equal(result, np.array([2, 2], dtype=np.int64))
@@ -309,6 +309,7 @@ class TestExecuteTypeAndLogicOps:
 
         result = _execute_type_and_logic_ops(node, initializers, {})
 
+        assert result is not None
         assert result.dtype == np.float32
         assert np.allclose(result, np.array([1.0, 2.0, 3.0]))
 
@@ -360,7 +361,7 @@ class TestExecuteTypeAndLogicOps:
         }
         shapes = {"Y": [3, 2]}
 
-        result = _execute_type_and_logic_ops(node, initializers, shapes)
+        result = _execute_type_and_logic_ops(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
         expected = np.broadcast_to(np.array([[1.0, 2.0]]), (3, 2))
         assert np.allclose(result, expected)
@@ -509,6 +510,7 @@ class TestShapeManipulationOps:
 
         result = _execute_shape_manipulation_ops(node, initializers, {}, nodes_dict)
 
+        assert result is not None
         assert result.shape == (1, 2, 2, 1)
 
     def test_scalar_shape_in_concat(self):
@@ -523,7 +525,7 @@ class TestShapeManipulationOps:
         # Simulate scalar shape in shapes dict
         shapes = {"output": 5}  # scalar shape that needs conversion
 
-        result = _execute_concat(node, initializers, shapes)
+        result = _execute_concat(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
         expected = np.array([5], dtype=np.int64)
         assert np.array_equal(result, expected)
@@ -540,7 +542,7 @@ class TestShapeManipulationOps:
         # Simulate scalar shape in shapes dict
         shapes = {"output": 3}  # scalar shape that needs conversion
 
-        result = _execute_type_and_logic_ops(node, initializers, shapes)
+        result = _execute_type_and_logic_ops(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
         expected = np.array([5.0, 5.0, 5.0], dtype=np.float32)
         assert np.array_equal(result, expected)
@@ -588,7 +590,7 @@ class TestFuseConstantNodes:
         initializers: dict[str, Any] = {}
         shapes = {"ShapeOut": [2, 3]}
 
-        result_nodes, result_initializers = _fuse_constant_nodes(nodes, initializers, shapes)
+        result_nodes, result_initializers = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
         # Shape node should be removed, Reshape should remain
         assert len(result_nodes) == 1

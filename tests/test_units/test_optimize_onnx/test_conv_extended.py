@@ -20,7 +20,7 @@ from slimonnx.optimize_onnx._conv import (
 )
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import create_initializer  # type: ignore[import-not-found]
+from _helpers import create_initializer
 
 
 class TestCanSimplifyConvAdditional:
@@ -79,7 +79,7 @@ class TestSimplifyConvAdditional:
             "Out": [1, 32, 1, 1],
         }
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert len(result) == 3
 
     def test_5d_weight_raises(self):
@@ -97,7 +97,7 @@ class TestSimplifyConvAdditional:
         data_shapes = {"X": [1, 3, 1, 1], "Y": [1, 16, 1, 1], "Out": [1, 32, 1, 1]}
 
         with pytest.raises((ValueError, NotImplementedError)):
-            _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+            _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
 
     def test_list_shape_values(self):
         """All-list data_shapes are accepted and produce valid nodes."""
@@ -113,7 +113,7 @@ class TestSimplifyConvAdditional:
         }
         data_shapes = {"X": [1, 3, 1, 1], "Y": [1, 16, 1, 1], "Out": [1, 32, 1, 1]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert len(result) >= 2
         assert all(hasattr(n, "op_type") for n in result)
 
@@ -137,7 +137,7 @@ class TestSimplifyConvAdditional:
         }
         data_shapes = {"X": [1, 3, 1, 1], "Y": [1, 16, 1, 1], "Out": [1, 32, 3, 3]}
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert len(result) == 2
 
     def test_surrounding_nodes_preserved(self):
@@ -162,7 +162,7 @@ class TestSimplifyConvAdditional:
             "Out": [1, 32, 1, 1],
         }
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert result[0].op_type == "Relu"
         assert result[-1].op_type == "Sigmoid"
 
@@ -188,6 +188,6 @@ class TestSimplifyConvAdditional:
             "Out": [1, 64, 1, 1],
         }
 
-        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)
+        result = _simplify_conv_to_flatten_gemm(nodes, initializers, data_shapes)  # type: ignore[arg-type]  # dict invariance
         assert len(result) >= 3
         assert all(hasattr(n, "op_type") for n in result)

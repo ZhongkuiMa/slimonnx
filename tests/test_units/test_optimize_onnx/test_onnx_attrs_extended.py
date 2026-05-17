@@ -24,7 +24,7 @@ from slimonnx.optimize_onnx._onnx_attrs import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import create_initializer  # type: ignore[import-not-found]
+from _helpers import create_initializer
 
 
 class TestGetAttrsAveragePool:

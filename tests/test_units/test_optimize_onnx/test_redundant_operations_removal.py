@@ -21,7 +21,7 @@ from slimonnx.optimize_onnx._redundant import (
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
-from _helpers import (  # type: ignore[import-not-found]
+from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
@@ -220,7 +220,7 @@ class TestRemoveRedundantOperations:
         data_shapes = {"X": [1, 3], "Y": [1, 3]}
         output_nodes = list(model.graph.output)
 
-        result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)
+        result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)  # type: ignore[arg-type]  # dict invariance
         assert len(result) == 0
 
     def test_keep_non_redundant_operations(self):
@@ -240,7 +240,7 @@ class TestRemoveRedundantOperations:
         data_shapes = {"X": [1, 3], "Y": [1, 3]}
         output_nodes = list(model.graph.output)
 
-        result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)
+        result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)  # type: ignore[arg-type]  # dict invariance
 
         # Should keep the Add node
         assert len(result) == 1
@@ -263,7 +263,7 @@ class TestRemoveRedundantOperations:
         data_shapes = {"X": [1, 3], "temp": [1, 3], "Z": [1, 3]}
         output_nodes = list(model.graph.output)
 
-        result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)
+        result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)  # type: ignore[arg-type]  # dict invariance
 
         # Should remove the Add node (redundant), but Sub node remains
         # because it still references temp (which is now rewired to X)

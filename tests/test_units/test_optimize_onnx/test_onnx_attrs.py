@@ -6,7 +6,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from _helpers import create_initializer  # type: ignore[import-not-found]
+from _helpers import create_initializer
 from onnx import TensorProto, helper
 
 from slimonnx.optimize_onnx._onnx_attrs import (
