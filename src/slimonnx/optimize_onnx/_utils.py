@@ -80,7 +80,6 @@ def _get_conv_params(
     """
     attrs = get_onnx_attrs(node, initializers)
     kernel_size = attrs["kernel_shape"]
-    attrs["group"]
 
     if len(kernel_size) != 2:
         raise NotImplementedError(f"Unsupported kernel_size={kernel_size} for Conv/ConvTranspose.")

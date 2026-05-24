@@ -197,8 +197,6 @@ def optimize_onnx(
 
     :param fuse_bn_conv: Fuse BatchNorm-Conv (skips cases with padding).
 
-    :param fuse_bn_conv: Fuse BatchNorm-Conv with padding by inserting Pad node.
-
     :param fuse_conv_transpose_bn: Fuse ConvTranspose-BatchNorm.
 
     :param fuse_bn_conv_transpose: Fuse BatchNorm-ConvTranspose.

@@ -7,18 +7,52 @@ from functools import lru_cache
 
 from slimonnx.configs import OptimizationConfig
 
+#: Alias map for vnncomp2024 benchmark name changes and shorthand names.
+_ALIASES: dict[str, str] = {
+    "cifar100": "cifar100_2024",
+    "collins_rul_cnn_2023": "collins_rul_cnn_2022",
+    "cora": "cora_2024",
+    "nn4sys": "nn4sys_2023",
+    "safenlp": "safenlp_2024",
+    "tinyimagenet": "tinyimagenet_2024",
+    "vggnet16_2023": "vggnet16_2022",
+}
+
+#: Default config for benchmarks that only need constant folding.
+_CONSTANT_FOLDING_PRESET = OptimizationConfig(constant_folding=True)
+
+#: Benchmarks that only require constant_folding=True (no fusion flags).
+_CF_ONLY_PRESETS = frozenset(
+    {
+        "collins_aerospace_benchmark",
+        "linearizenn",
+        "lsnc",
+        "lsnc_relu",
+        "malbeware",
+        "metaroom_2023",
+        "ml4acopf_2023",
+        "ml4acopf_2024",
+        "relusplitter",
+        "sat_relu",
+        "soundnessbench",
+        "traffic_signs_recognition_2023",
+        "vggnet16_2022",
+        "yolo_2023",
+    }
+)
+
 # Tuple of available preset names
 PRESET_NAMES = (
     "acasxu_2023",
     "cctsdb_yolo_2023",
     "cersyve",
     "cgan_2023",
-    "cifar100",  # vnncomp2024 alias
+    "cifar100",  # alias of cifar100_2024
     "cifar100_2024",
     "collins_aerospace_benchmark",
     "collins_rul_cnn_2022",
-    "collins_rul_cnn_2023",  # vnncomp2024 alias
-    "cora",  # vnncomp2024 alias
+    "collins_rul_cnn_2023",  # alias of collins_rul_cnn_2022
+    "cora",  # alias of cora_2024
     "cora_2024",
     "dist_shift_2023",
     "linearizenn",
@@ -28,19 +62,19 @@ PRESET_NAMES = (
     "metaroom_2023",
     "ml4acopf_2023",
     "ml4acopf_2024",
-    "nn4sys",
+    "nn4sys",  # alias of nn4sys_2023
     "nn4sys_2023",
     "relusplitter",
-    "safenlp",  # vnncomp2024 alias
+    "safenlp",  # alias of safenlp_2024
     "safenlp_2024",
     "sat_relu",
     "soundnessbench",
-    "tinyimagenet",  # vnncomp2024 alias
+    "tinyimagenet",  # alias of tinyimagenet_2024
     "tinyimagenet_2024",
     "tllverifybench_2023",
     "traffic_signs_recognition_2023",
     "vggnet16_2022",
-    "vggnet16_2023",  # vnncomp2024 alias
+    "vggnet16_2023",  # alias of vggnet16_2022
     "vit_2023",
     "yolo_2023",
     "test",
@@ -69,6 +103,15 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             has_batch_dim=False,
         )
 
+    # Resolve aliases (e.g. "cifar100" -> "cifar100_2024")
+    benchmark_name = _ALIASES.get(benchmark_name, benchmark_name)
+
+    # Benchmarks that only need constant folding
+    if benchmark_name in _CF_ONLY_PRESETS:
+        return _CONSTANT_FOLDING_PRESET
+
+    # Presets with non-default optimization flags only.
+    # Benchmarks that only need constant_folding fall through to the default.
     presets = {
         "acasxu_2023": OptimizationConfig(
             fuse_matmul_add=True,
@@ -94,7 +137,8 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             remove_redundant_operations=True,
             has_batch_dim=True,
         ),
-        "collins_aerospace_benchmark": OptimizationConfig(
+        "cersyve": OptimizationConfig(
+            fuse_gemm_gemm=True,
             constant_folding=True,
         ),
         "collins_rul_cnn_2022": OptimizationConfig(
@@ -108,25 +152,6 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
         ),
         "dist_shift_2023": OptimizationConfig(
             remove_redundant_operations=True,
-            constant_folding=True,
-        ),
-        "linearizenn": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "lsnc": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "metaroom_2023": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "ml4acopf_2023": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "ml4acopf_2024": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "nn4sys": OptimizationConfig(
-            fuse_matmul_add=True,
             constant_folding=True,
         ),
         "nn4sys_2023": OptimizationConfig(
@@ -145,12 +170,6 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             fuse_matmul_add=True,
             constant_folding=True,
         ),
-        "traffic_signs_recognition_2023": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "vggnet16_2022": OptimizationConfig(
-            constant_folding=True,
-        ),
         "vit_2023": OptimizationConfig(
             constant_folding=True,
             fuse_matmul_add=True,
@@ -159,58 +178,9 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             fuse_bn_gemm=True,
             remove_redundant_operations=True,
         ),
-        "yolo_2023": OptimizationConfig(
-            constant_folding=True,
-        ),
         "test": all_optimizations(has_batch_dim=False),
-        # Aliases for vnncomp2024 benchmarks with name mismatches
-        "cifar100": OptimizationConfig(
-            fuse_conv_bn=True,
-            fuse_bn_conv=True,
-            constant_folding=True,
-        ),
-        "collins_rul_cnn_2023": OptimizationConfig(
-            simplify_conv_to_flatten_gemm=True,
-            remove_redundant_operations=True,
-            constant_folding=True,
-        ),
-        "cora": OptimizationConfig(
-            fuse_matmul_add=True,
-            constant_folding=True,
-        ),
-        "safenlp": OptimizationConfig(
-            fuse_matmul_add=True,
-            constant_folding=True,
-        ),
-        "tinyimagenet": OptimizationConfig(
-            fuse_conv_bn=True,
-            constant_folding=True,
-        ),
-        "vggnet16_2023": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "cersyve": OptimizationConfig(
-            fuse_gemm_gemm=True,
-            constant_folding=True,
-        ),
-        "lsnc_relu": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "malbeware": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "relusplitter": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "sat_relu": OptimizationConfig(
-            constant_folding=True,
-        ),
-        "soundnessbench": OptimizationConfig(
-            constant_folding=True,
-        ),
     }
 
-    # Return preset or default config
     return presets.get(benchmark_name, OptimizationConfig())
 
 

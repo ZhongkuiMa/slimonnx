@@ -11,7 +11,15 @@ __all__ = [
     "DEFAULT_GEMM_BETA",
     "DEFAULT_GEMM_TRANS_A",
     "DEFAULT_GEMM_TRANS_B",
+    "OPSET_RUNTIME",
+    "OPSET_SHAPEONNX",
 ]
+
+#: Opset version for shapeonnx shape inference compatibility.
+OPSET_SHAPEONNX = 21
+
+#: Opset version for ONNX Runtime compatibility.
+OPSET_RUNTIME = 17
 
 DEFAULT_GEMM_ALPHA = 1.0
 DEFAULT_GEMM_BETA = 1.0

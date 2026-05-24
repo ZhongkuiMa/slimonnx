@@ -3,6 +3,8 @@
 __docformat__ = "restructuredtext"
 __all__ = ["validate_model"]
 
+from onnx import ModelProto
+
 from slimonnx.model_validate.graph_validator import (
     check_broken_connections,
     check_dead_nodes,
@@ -16,7 +18,7 @@ from slimonnx.utils import get_initializers
 
 
 def validate_model(
-    model,
+    model: ModelProto,
     data_shapes: dict[str, int | list[int]] | None = None,
     test_inputs: dict | None = None,
 ) -> dict:

@@ -3,12 +3,7 @@
 __docformat__ = "restructuredtext"
 __all__ = ["analyze_model", "compare_models"]
 
-import sys
 import warnings
-from pathlib import Path
-
-# Add parent to path for shapeonnx import
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shapeonnx.infer_shape import infer_onnx_shape
 

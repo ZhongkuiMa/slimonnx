@@ -5,6 +5,8 @@ __version__ = "2026.5.2"
 
 __all__ = [
     "MAX_TESTED_OPSET",
+    "OPSET_RUNTIME",
+    "OPSET_SHAPEONNX",
     "RECOMMENDED_OPSET",
     "SLIMONNX_VERSION",
     "AnalysisConfig",
@@ -17,6 +19,7 @@ __all__ = [
 ]
 
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
+from slimonnx.constants import OPSET_RUNTIME, OPSET_SHAPEONNX
 from slimonnx.preprocess import MAX_TESTED_OPSET, RECOMMENDED_OPSET, SLIMONNX_VERSION
 from slimonnx.presets import all_optimizations, get_preset
 from slimonnx.slimonnx import SlimONNX

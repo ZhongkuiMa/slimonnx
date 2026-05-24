@@ -12,6 +12,7 @@ from typing import Any, cast
 import onnx
 
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
+from slimonnx.constants import OPSET_RUNTIME
 from slimonnx.optimize_onnx import optimize_onnx
 
 _logger = logging.getLogger(__name__)
@@ -45,7 +46,6 @@ class SlimONNX:
 
         :param verbose: Print stage-by-stage progress.
         """
-        self.verbose = verbose
         if verbose:
             _enable_verbose()
 
@@ -55,16 +55,15 @@ class SlimONNX:
         target_path: str | None = None,
         config: OptimizationConfig | None = None,
         validation: ValidationConfig | None = None,
-    ) -> dict | None:
+    ) -> dict:
         """Optimize ONNX model.
 
         The optimization pipeline:
         1. Load model
-        2. Convert to Opset 21 for compatibility with shapeonnx
+        2. Convert to OPSET_RUNTIME for ONNX Runtime compatibility
         3. Apply optimizations based on config
-        4. Optionally downgrade to Opset 17 for ONNX Runtime compatibility
-        5. Save optimized model
-        6. Optionally validate outputs
+        4. Save optimized model
+        5. Optionally validate outputs
 
         :param onnx_path: Path to input ONNX model.
 
@@ -74,7 +73,7 @@ class SlimONNX:
 
         :param validation: Validation configuration (default: ValidationConfig()).
 
-        :return: Optimization report if validation.validate_outputs=True, else None
+        :return: Optimization report
         """
         config = config or OptimizationConfig()
         validation = validation or ValidationConfig()
@@ -86,7 +85,7 @@ class SlimONNX:
         # Preprocess model (load, convert to opset 17, clear docs, mark SlimONNX)
         model = self.preprocess(
             onnx_path,
-            target_opset=17,
+            target_opset=OPSET_RUNTIME,
             infer_shapes=False,
             clear_docstrings=True,
             mark_slimonnx=True,
@@ -145,26 +144,20 @@ class SlimONNX:
         _logger.info(f"  Export: saved to {target_path} ({time.perf_counter() - t:.4f}s)")
         _logger.info(f"  Total: {time.perf_counter() - t_total:.4f}s")
 
-        # Return report if validation was performed
-        if validation.validate_outputs:
-            original_node_count = len(model.graph.node)
-            optimized_node_count = len(new_model.graph.node)
-            reduction = original_node_count - optimized_node_count
-            reduction_pct = (
-                (reduction / original_node_count * 100) if original_node_count > 0 else 0
-            )
+        original_node_count = len(model.graph.node)
+        optimized_node_count = len(new_model.graph.node)
+        reduction = original_node_count - optimized_node_count
+        reduction_pct = (reduction / original_node_count * 100) if original_node_count > 0 else 0
 
-            return {
-                "original_nodes": original_node_count,
-                "optimized_nodes": optimized_node_count,
-                "reduction": reduction,
-                "reduction_pct": reduction_pct,
-                "optimization_time": optimization_time,
-                "validation": validation_result,
-                "output_path": target_path,
-            }
-
-        return None
+        return {
+            "original_nodes": original_node_count,
+            "optimized_nodes": optimized_node_count,
+            "reduction": reduction,
+            "reduction_pct": reduction_pct,
+            "optimization_time": optimization_time,
+            "validation": validation_result,
+            "output_path": target_path,
+        }
 
     def analyze(
         self,
@@ -409,7 +402,7 @@ class SlimONNX:
 
         model = self.preprocess(
             onnx_path,
-            target_opset=17,
+            target_opset=OPSET_RUNTIME,
             infer_shapes=True,
             clear_docstrings=False,
             mark_slimonnx=False,
@@ -467,7 +460,7 @@ class SlimONNX:
 
         model = self.preprocess(
             onnx_path,
-            target_opset=17,
+            target_opset=OPSET_RUNTIME,
             infer_shapes=True,
             clear_docstrings=False,
             mark_slimonnx=False,

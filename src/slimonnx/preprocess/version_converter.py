@@ -9,11 +9,12 @@ import onnx
 from onnx import ModelProto, version_converter
 
 from slimonnx import utils
+from slimonnx.constants import OPSET_RUNTIME, OPSET_SHAPEONNX
 
 # Recommended opset range based on shapeonnx compatibility testing
 RECOMMENDED_OPSET = 20
-MIN_TESTED_OPSET = 17  # Lowest working version for maximum compatibility
-MAX_TESTED_OPSET = 21  # Highest tested working version
+MIN_TESTED_OPSET = OPSET_RUNTIME
+MAX_TESTED_OPSET = OPSET_SHAPEONNX
 SLIMONNX_VERSION = "2026.1.0"
 
 

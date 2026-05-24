@@ -17,23 +17,17 @@ __all__ = [
 ]
 
 import numpy as np
-import onnx
 from onnx import ModelProto, NodeProto, TensorProto, ValueInfoProto
-
-EXTRACT_ATTR_MAP = {
-    0: lambda x: None,  # UNDEFINED
-    1: lambda x: x.f,  # FLOAT
-    2: lambda x: x.i,  # INT
-    3: lambda x: x.s.decode("utf-8"),  # STRING
-    4: lambda x: onnx.numpy_helper.to_array(x.t),  # TENSOR
-    5: lambda x: x.g,  # GRAPH
-    6: lambda x: tuple(x.floats),  # FLOATS
-    7: lambda x: tuple(x.ints),  # INTS
-    8: lambda x: None,  # STRINGS
-    9: lambda x: None,  # TENSORS
-    10: lambda x: None,  # GRAPHS
-    11: lambda x: None,  # SPARSE_TENSOR
-}
+from shapeonnx.onnx_attrs import EXTRACT_ATTR_MAP
+from shapeonnx.utils import (
+    _reformat_io_shape as reformat_io_shape,
+)
+from shapeonnx.utils import (
+    convert_constant_to_initializer,
+    get_initializers,
+    get_input_nodes,
+    get_output_nodes,
+)
 
 
 def clear_onnx_docstring(model: ModelProto) -> ModelProto:
@@ -46,119 +40,6 @@ def clear_onnx_docstring(model: ModelProto) -> ModelProto:
     for node in model.graph.node:
         node.doc_string = ""
     return model
-
-
-def reformat_io_shape(node: ValueInfoProto, has_batch_dim: bool = True) -> list[int]:
-    """Extract shape from ValueInfoProto node.
-
-    :param node: ONNX ValueInfoProto node.
-    :param has_batch_dim: Whether to include the batch dimension.
-    :return: List of dimension integers.
-    """
-    shape = [d.dim_value for d in node.type.tensor_type.shape.dim]
-    if has_batch_dim:
-        # Allow scalar outputs [] - they don't need batch dimension validation
-        # (e.g., outputs reduced via Squeeze operations)
-        if len(shape) == 0:
-            return shape
-        if len(shape) < 2:
-            raise ValueError(
-                f"There should have been a batch dimension. "
-                f"Node {node.name} has invalid shape {shape}."
-            )
-        if shape[0] != 1:
-            shape[0] = 1
-
-    return shape
-
-
-def get_input_nodes(
-    model: ModelProto,
-    initializers: dict[str, TensorProto],
-    has_batch_dim: bool = True,
-) -> list[ValueInfoProto]:
-    """Get input nodes from ONNX model.
-
-    :param model: ONNX model.
-
-    :param initializers: Dictionary of initializers.
-
-    :param has_batch_dim: Whether the model has batch dimension.
-
-    :return: List of input nodes
-    """
-    # Exclude initializers from inputs because sometimes the initializers are also
-    # included in the inputs
-    nodes = []
-    for input_i in model.graph.input:
-        if input_i.name not in initializers:
-            shape = reformat_io_shape(input_i, has_batch_dim)
-            node = onnx.helper.make_tensor_value_info(
-                name=input_i.name,
-                elem_type=input_i.type.tensor_type.elem_type,
-                shape=shape,
-            )
-            nodes.append(node)
-
-    return nodes
-
-
-def get_output_nodes(model: ModelProto, has_batch_dim: bool = True) -> list[ValueInfoProto]:
-    """Get output nodes from ONNX model.
-
-    :param model: ONNX model.
-
-    :param has_batch_dim: Whether the model has batch dimension.
-
-    :return: List of output nodes
-    """
-    nodes = []
-    for output_i in model.graph.output:
-        shape = reformat_io_shape(output_i, has_batch_dim)
-        node = onnx.helper.make_tensor_value_info(
-            name=output_i.name,
-            elem_type=output_i.type.tensor_type.elem_type,
-            shape=shape,
-        )
-        nodes.append(node)
-
-    return nodes
-
-
-def get_initializers(model: ModelProto) -> dict[str, TensorProto]:
-    """Get initializers from ONNX model.
-
-    :param model: ONNX model.
-
-    :return: Dictionary of initializers
-    """
-    return {initializer.name: initializer for initializer in model.graph.initializer}
-
-
-def convert_constant_to_initializer(
-    nodes: list[NodeProto], initializers: dict[str, TensorProto]
-) -> list[NodeProto]:
-    """Convert Constant nodes to initializers.
-
-    This is critical for shape inference and optimization.
-    Constant nodes are converted to initializers and removed from node list.
-
-    :param nodes: List of ONNX nodes.
-
-    :param initializers: Initializers dictionary to update (modified in-place).
-
-    :return: List of nodes with Constant nodes removed
-    """
-    new_nodes = []
-    for node in nodes:
-        if node.op_type == "Constant":
-            # Extract tensor from Constant node
-            np_array = onnx.numpy_helper.to_array(node.attribute[0].t)
-            initializer = onnx.numpy_helper.from_array(np_array, node.output[0])
-            initializers[node.output[0]] = initializer
-            continue
-        new_nodes.append(node)
-    return new_nodes
 
 
 def extract_nodes(

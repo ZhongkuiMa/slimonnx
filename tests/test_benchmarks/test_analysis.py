@@ -26,7 +26,7 @@ from shapeonnx.utils import (
     get_input_nodes,
     get_output_nodes,
 )
-from utils import if_has_batch_dim
+from utils import has_batch_dim
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
@@ -41,9 +41,9 @@ def run_pattern_detection_test(onnx_path: str) -> dict:
     :return: Pattern detection result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
-    has_batch_dim = if_has_batch_dim(onnx_path)
+    model_has_batch = has_batch_dim(onnx_path)
 
-    config = OptimizationConfig(has_batch_dim=has_batch_dim)
+    config = OptimizationConfig(has_batch_dim=model_has_batch)
     slimonnx = SlimONNX()
 
     try:
@@ -213,7 +213,7 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
     :return: Structure analysis result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
-    has_batch_dim = if_has_batch_dim(onnx_path)
+    model_has_batch = has_batch_dim(onnx_path)
 
     try:
         model = onnx.load(onnx_path)
@@ -232,7 +232,7 @@ def run_structure_analysis_test(onnx_path: str) -> dict:
         for node in model.graph.node:
             op_types[node.op_type] += 1
 
-        data_shapes, has_shapes = _infer_model_shapes(model, has_batch_dim)
+        data_shapes, has_shapes = _infer_model_shapes(model, model_has_batch)
 
         topology = build_topology(model.graph.node)
         predecessors_counts = [len(info["predecessors"]) for info in topology.values()]

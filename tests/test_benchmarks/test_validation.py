@@ -17,7 +17,7 @@ from benchmark_utils import (
     find_onnx_files_from_instances,
     get_benchmark_name,
 )
-from utils import if_has_batch_dim
+from utils import has_batch_dim
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
@@ -168,9 +168,9 @@ def run_validation_test(onnx_path: str) -> dict:
     :return: Validation test result dictionary
     """
     benchmark_name = get_benchmark_name(onnx_path)
-    has_batch_dim = if_has_batch_dim(onnx_path)
+    model_has_batch = has_batch_dim(onnx_path)
 
-    config = OptimizationConfig(has_batch_dim=has_batch_dim)
+    config = OptimizationConfig(has_batch_dim=model_has_batch)
     slimonnx = SlimONNX()
 
     try:

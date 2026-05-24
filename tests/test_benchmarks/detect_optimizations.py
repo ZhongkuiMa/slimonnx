@@ -10,7 +10,7 @@ from collections import defaultdict
 from pathlib import Path
 
 from benchmark_utils import find_onnx_files_from_instances
-from utils import if_has_batch_dim
+from utils import has_batch_dim
 
 from slimonnx import OptimizationConfig
 from slimonnx.slimonnx import SlimONNX
@@ -45,7 +45,7 @@ def detect_benchmark_optimizations(benchmark_dir: str, max_models: int = 5) -> d
         basename = Path(onnx_path).name
         print(f"[{i}/{len(onnx_files)}] {basename}...", end=" ")
 
-        has_batch = if_has_batch_dim(onnx_path)
+        has_batch = has_batch_dim(onnx_path)
         if has_batch:
             has_batch_dim_count += 1
 
@@ -67,11 +67,11 @@ def detect_benchmark_optimizations(benchmark_dir: str, max_models: int = 5) -> d
     print("OPTIMIZATION DETECTION RESULTS")
     print("=" * 70)
 
-    has_batch_dim = has_batch_dim_count > len(onnx_files) / 2
+    batch_dim_majority = has_batch_dim_count > len(onnx_files) / 2
 
     print(f"Total models analyzed: {len(onnx_files)}")
     print(f"Models with batch dim: {has_batch_dim_count}/{len(onnx_files)}")
-    print(f"Recommended has_batch_dim: {has_batch_dim}")
+    print(f"Recommended has_batch_dim: {batch_dim_majority}")
     print()
 
     if pattern_totals:
@@ -85,7 +85,7 @@ def detect_benchmark_optimizations(benchmark_dir: str, max_models: int = 5) -> d
     return {
         "benchmark_name": benchmark_path.name,
         "models_analyzed": len(onnx_files),
-        "has_batch_dim": has_batch_dim,
+        "has_batch_dim": batch_dim_majority,
         "patterns": dict(pattern_totals),
     }
 

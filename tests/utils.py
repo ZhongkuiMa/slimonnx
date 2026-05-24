@@ -29,7 +29,7 @@ def load_onnx_model(onnx_path: str) -> onnx.ModelProto:
 BENCHMARKS_WITHOUT_BATCH_DIM = ("cctsdb_yolo",)
 
 
-def if_has_batch_dim(onnx_path: str) -> bool:
+def has_batch_dim(onnx_path: str) -> bool:
     """Determine if model has batch dimension by checking full path.
 
     Checks both benchmark name and model filename in the path.
