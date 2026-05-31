@@ -1,11 +1,55 @@
 """Reshape optimization operations."""
 
 __docformat__ = "restructuredtext"
-__all__ = ["_resolve_reshape_negative_one"]
+__all__ = ["_collapse_consecutive_reshapes", "_resolve_reshape_negative_one"]
 
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
+
+
+def _collapse_consecutive_reshapes(nodes: list[NodeProto]) -> list[NodeProto]:
+    """Collapse adjacent ``Reshape -> Reshape`` pairs to a single Reshape.
+
+    When two Reshape nodes appear back to back with no other consumer in
+    between, the first reshape is redundant: the second reshape already
+    targets the final shape. This pass rewires the second Reshape to read
+    directly from the predecessor of the first.
+
+    :param nodes: Model nodes.
+
+    :return: New node list with redundant intermediate Reshapes removed.
+    :raises ValueError: If a Reshape node violates the expected 2-input /
+        1-output shape contract.
+    """
+    new_nodes: list[NodeProto] = []
+    pre_pre_node = None
+    pre_node = None
+
+    for node in nodes:
+        if (
+            pre_node is not None
+            and pre_pre_node is not None
+            and node.op_type == "Reshape"
+            and pre_node.op_type == "Reshape"
+        ):
+            if len(pre_node.input) != 2 or len(pre_node.output) != 1 or len(node.input) != 2:
+                raise ValueError(
+                    f"Invalid Reshape node structure: {pre_node.name} "
+                    f"inputs={len(pre_node.input)}, outputs={len(pre_node.output)}, "
+                    f"{node.name} inputs={len(node.input)}. "
+                    "Expected 2 inputs and 1 output."
+                )
+            for output_name in pre_pre_node.output:
+                if output_name == pre_node.input[0]:
+                    node.input[0] = output_name
+            new_nodes.pop()
+
+        pre_pre_node = pre_node
+        pre_node = node
+        new_nodes.append(node)
+
+    return new_nodes
 
 
 def _resolve_reshape_negative_one(

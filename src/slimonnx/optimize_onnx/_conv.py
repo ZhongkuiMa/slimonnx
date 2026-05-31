@@ -94,11 +94,16 @@ def _create_flatten_gemm_nodes(
         output=[middle_output_name],
     )
 
-    # Create a new Gemm node
+    # Create a new Gemm node.  Handle bias-less Conv layers by synthesising
+    # a zero bias initializer.
+    bias_name = conv_node.input[2] if len(conv_node.input) > 2 else conv_node.input[1] + "_bias"
+    if len(conv_node.input) < 3:
+        bias_array = np.zeros(weight.shape[0], dtype=weight.dtype)
+        initializers[bias_name] = onnx.numpy_helper.from_array(bias_array, bias_name)
     gemm_node = NodeProto(
         name=conv_node.name + "_flatten_gemm",
         op_type="Gemm",
-        input=[middle_output_name, conv_node.input[1], conv_node.input[2]],
+        input=[middle_output_name, conv_node.input[1], bias_name],
         output=[conv_node.output[0]],
     )
 

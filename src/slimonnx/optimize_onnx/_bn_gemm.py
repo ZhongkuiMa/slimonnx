@@ -58,24 +58,16 @@ def _fuse_gemm_reshape_bn(
             num_features = bias.shape[0]
             weight = weight.T if trans_b == 1 else weight
 
-            """
-            IDEA
-            GEMM: (M, K) @ (K, N) + (N,) => (M, N)
-            Reshape: (M, N) => (M, c, h, w)
-            BN:
-            bn_weight: (c,) = scale / np.sqrt(var + epsilon)
-            bn_bias: (c,) = b - (mean * bn_weight)
-
-            We need BN to be
-                weight (c,) => (1, c, 1, 1)
-                bias (c,) => (c, 1, 1)
-            We need GEMM to be
-                weight (K, N) => (K, c, h, w)
-                bias (N,) => (c, h, w)
-            Then, we have
-                weight <- (K, c, h, w) * (1, c, 1, 1)
-                bias <- (c, h, w) * (c, 1, 1)
-            """
+            # Idea (shapes):
+            #   Gemm:    (M, K) @ (K, N) + (N,) -> (M, N)
+            #   Reshape: (M, N) -> (M, c, h, w)
+            #   BN:      bn_weight (c,) = scale / sqrt(var + epsilon)
+            #            bn_bias   (c,) = b - mean * bn_weight
+            # Reshape the BN affine into broadcasted form, push it back into
+            # the Gemm weight and bias:
+            #   weight (K, N) -> (K, c, h, w),  bias (N,) -> (c, h, w)
+            #   weight <- (K, c, h, w) * (1, c, 1, 1)
+            #   bias   <- (c, h, w)   * (c, 1, 1)
             weight = weight.reshape(-1, *reshape_shape[1:])
             bias = bias.reshape(*reshape_shape[1:])
 
@@ -153,24 +145,15 @@ def _fuse_bn_reshape_gemm(
                 )
             weight = weight.T if trans_b == 1 else weight
 
-            """
-            IDEA
-            BN:
-            bn_weight (c,) = scale / np.sqrt(var + epsilon)
-            bn_bias (c,) = bn_param_bias - (mean * weight)
-            Reshape: (M, c, h * w) => (M, K) (case (M, c, h, w) is similar)
-            GEMM: (M, K) @ (K, N) + (N,) => (M, N)
-
-            We need BN to be
-                weight (c,) => (c, 1, 1)
-                bias (c,) => (c, 1, 1)
-            We need GEMM to be
-                weight (K, N) => (c, h * w, N)
-                bias (K,) => (N,)
-            Then, we have
-                weight <- (c, 1, 1) * (c, h * w, N)
-                bias <- (N,) * ((c, 1, 1) * (c, h * w, N)).sum(axis=(0, 1))
-            """
+            # Idea (shapes):
+            #   BN:      bn_weight (c,) = scale / sqrt(var + epsilon)
+            #            bn_bias   (c,) = bias - mean * bn_weight
+            #   Reshape: (M, c, h*w) -> (M, K)   ((M, c, h, w) case is analogous)
+            #   Gemm:    (M, K) @ (K, N) + (N,) -> (M, N)
+            # Push BN through Reshape into Gemm:
+            #   weight (K, N) -> (c, h*w, N),   bias (K,) -> (N,)
+            #   weight <- (c, 1, 1) * (c, h*w, N)
+            #   bias   <- (N,) + ((c, 1, 1) * (c, h*w, N)).sum(axis=(0, 1))
             bn_shape = scale.shape
             gemm_shape = weight.shape
             bn_weight_shape = gemm_shape[0] // bn_shape[0]
@@ -248,18 +231,12 @@ def _fuse_bn_gemm(
                 )
             weight = weight.T if trans_b == 1 else weight
 
-            """
-            IDEA
-            BN: (K,)
-            GEMM: (M, K) @ (K, N) + (N,) => (M, N)
-
-            We need BN to be
-                bn_weight (K,) = (K, 1)
-                bn_bias (K,) = (K, 1)
-            Then, we have
-                weight (K, N) = (K, N) * (K, 1)
-                bias (N,) = (N,) - ((K, 1) * (K, N)).sum(axis=0)
-            """
+            # Idea (shapes):
+            #   BN:   (K,) per-channel affine
+            #   Gemm: (M, K) @ (K, N) + (N,) -> (M, N)
+            # Push BN through Gemm:
+            #   weight (K, N) <- (K, N) * bn_weight (K, 1)
+            #   bias   (N,)   <- (N,) + (bn_bias (K, 1) * weight (K, N)).sum(0)
             # Preserve dtype from weight tensor to avoid float32/float64 mismatch
             target_dtype = weight.dtype
             bn_weight, bn_bias = compute_batchnorm_fusion_params(

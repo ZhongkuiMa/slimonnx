@@ -10,7 +10,7 @@ import pytest
 from onnx import helper
 
 from slimonnx.utils import (
-    EXTRACT_ATTR_MAP,
+    EXTRACT_ATTRS_MAP,
     clear_onnx_docstring,
     compare_outputs,
     convert_constant_to_initializer,
@@ -273,21 +273,20 @@ class TestGenerateRandomInputs:
 
 
 class TestExtractAttrMap:
-    """Test EXTRACT_ATTR_MAP functionality."""
+    """Test EXTRACT_ATTRS_MAP functionality."""
 
     def test_has_entries(self):
-        """Test EXTRACT_ATTR_MAP has expected entries."""
-        assert 0 in EXTRACT_ATTR_MAP  # UNDEFINED
-        assert 1 in EXTRACT_ATTR_MAP  # FLOAT
-        assert 2 in EXTRACT_ATTR_MAP  # INT
-        assert 3 in EXTRACT_ATTR_MAP  # STRING
-        assert 6 in EXTRACT_ATTR_MAP  # FLOATS
-        assert 7 in EXTRACT_ATTR_MAP  # INTS
+        """Test EXTRACT_ATTRS_MAP has expected op-name entries."""
+        assert "Conv" in EXTRACT_ATTRS_MAP
+        assert "Gemm" in EXTRACT_ATTRS_MAP
+        assert "MaxPool" in EXTRACT_ATTRS_MAP
+        assert "Reshape" in EXTRACT_ATTRS_MAP
+        assert "Transpose" in EXTRACT_ATTRS_MAP
+        assert "BatchNormalization" in EXTRACT_ATTRS_MAP
 
     def test_undefined_extractor_returns_none(self):
-        """Test extracting undefined attribute returns None."""
-        extractor = EXTRACT_ATTR_MAP[0]
-        result = extractor(None)
+        """Test unknown op type is absent from map."""
+        result = EXTRACT_ATTRS_MAP.get("UndefinedOp")
         assert result is None
 
 

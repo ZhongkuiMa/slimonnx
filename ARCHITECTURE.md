@@ -10,9 +10,8 @@ src/slimonnx/
 ├── configs.py             Frozen dataclasses: OptimizationConfig, ValidationConfig, AnalysisConfig
 ├── presets.py             Pre-tuned OptimizationConfig for VNN-COMP benchmarks
 ├── utils.py               Shared ONNX graph helpers (NOT domain logic)
-├── preprocess/            Opset version conversion, graph cleanup (modify when: supporting new opsets)
-│   ├── version_converter.py   Convert between ONNX opset versions
-│   └── cleanup.py             Remove unused initializers, fix shapes
+├── preprocess/            Opset version conversion + load pipeline (modify when: supporting new opsets)
+│   └── version_converter.py   Convert between ONNX opset versions + load_and_preprocess()
 ├── optimize_onnx/         Optimization passes (modify when: adding/changing fusions)
 │   ├── _optimize.py       Pipeline orchestrator — dispatches to passes based on config flags
 │   ├── _conv.py           Conv-BN fusion variants
@@ -66,7 +65,7 @@ src/slimonnx/
 | Add VNN-COMP preset | `presets.py` | `tests/test_benchmarks/` | `configs.py` (presets compose existing flags) | Alphabetical in `PRESET_NAMES` (observed) | Preset test fails |
 | Add pattern detector | `pattern_detect/new.py` | `pattern_detect/registry.py`, `pattern_detect/__init__.py` | `optimize_onnx/` (detection is separate from execution) | Must register in `PATTERNS` (enforced) | `detect_all_patterns` misses pattern |
 | Add validation check | `model_validate/` | `slimonnx.py` (wire into pipeline) | `optimize_onnx/` (validation is post-optimization) | - | `pytest tests/test_units/test_validation/` |
-| Support new opset | `preprocess/version_converter.py` | `preprocess/cleanup.py` if needed | `optimize_onnx/` (opset-agnostic passes) | Opset 21 internal (enforced) | Shape inference fails |
+| Support new opset | `preprocess/version_converter.py` | n/a (no separate cleanup module) | `optimize_onnx/` (opset-agnostic passes) | Opset 21 internal (enforced) | Shape inference fails |
 
 ## Dependency Rules
 

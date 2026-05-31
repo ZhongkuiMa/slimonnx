@@ -7,7 +7,13 @@ from enum import StrEnum
 
 
 class DetectorSig(StrEnum):
-    """Detector function call signature, determining which arguments are passed."""
+    """Detector function call signature, determining which arguments are passed.
+
+    Detectors that need ``data_shapes`` should tolerate ``data_shapes=None``
+    internally (return an empty match list) so the dispatcher can stay
+    simple. The ``NS`` variant is the one exception: those detectors hard-
+    require shapes and are guarded by the dispatcher.
+    """
 
     N = "n"
     """Signature ``(nodes,)``."""
@@ -16,6 +22,4 @@ class DetectorSig(StrEnum):
     NIS = "nis"
     """Signature ``(nodes, initializers, data_shapes)``."""
     NS = "ns"
-    """Signature ``(nodes, data_shapes)`` — skipped when ``data_shapes`` is ``None``."""
-    NS_INIT = "ns_init"
-    """Signature ``(nodes, initializers, data_shapes)`` — skipped when ``data_shapes`` is ``None``."""
+    """Signature ``(nodes, data_shapes)`` -- skipped when ``data_shapes`` is ``None``."""

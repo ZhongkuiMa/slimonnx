@@ -9,6 +9,8 @@ __all__ = [
 
 from onnx import NodeProto, TensorProto
 
+from slimonnx.utils import has_single_consumer
+
 
 def is_consecutive_nodes(
     first_node: NodeProto,
@@ -20,6 +22,8 @@ def is_consecutive_nodes(
     Verifies that:
     1. first_node output connects to second_node input
     2. No other nodes consume first_node's output (no branching)
+
+    The exclusivity check delegates to ``slimonnx.utils.has_single_consumer``.
 
     :param first_node: First node in potential pattern.
 
@@ -37,15 +41,8 @@ def is_consecutive_nodes(
     if first_node.output[0] != second_node.input[0]:
         return False
 
-    # Check for branching - no other node should use first_node's output
-    first_output = first_node.output[0]
-    for node in nodes:
-        if node == second_node:
-            continue
-        if first_output in node.input:
-            return False  # Branching detected
-
-    return True
+    # Delegate branching check to the canonical utility
+    return has_single_consumer(first_node, second_node, nodes)
 
 
 def validate_bn_inputs(

@@ -106,10 +106,9 @@ slimonnx/
 ## Tests
 
 ```bash
-pytest tests/ -v
-pytest tests/test_validation.py --preprocess-only
-pytest tests/test_benchmarks.py --optimize
-pytest tests/test_benchmarks.py --verify
+pytest tests/test_units/                         # default unit suite (~1000 tests)
+pytest tests/test_units/test_optimize_onnx/      # only optimization passes
+pytest tests/test_benchmarks/                    # opt-in benchmark suite
 ```
 
 ## Known Limitations

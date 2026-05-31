@@ -4,6 +4,7 @@ __docformat__ = "restructuredtext"
 __all__ = ["PATTERNS", "detect_all_patterns"]
 
 from collections.abc import Callable
+from functools import cache
 from typing import Any
 
 from onnx import NodeProto, TensorProto
@@ -137,8 +138,17 @@ PATTERNS = {
 _DetectorEntry = tuple[str, DetectorSig, Callable[..., list[Any]]]
 
 
+@cache
 def _build_detector_registry() -> list[_DetectorEntry]:
-    """Build the detector registry with lazy imports."""
+    """Build the detector registry with lazy imports.
+
+    Cached: subsequent calls reuse the same list of ``(name, sig, detector)``
+    tuples. Detector functions themselves are pure dispatch targets, so
+    sharing the list across calls is safe and avoids re-running 17 module
+    imports on every ``detect_all_patterns`` invocation -- important when the
+    pipeline is embedded in a tight loop (e.g. a verifier branch-and-bound
+    schedule).
+    """
     from slimonnx.pattern_detect.constant_ops import detect_constant_foldable
     from slimonnx.pattern_detect.conv_bn import (
         detect_bn_conv,
@@ -202,7 +212,9 @@ def _build_detector_registry() -> list[_DetectorEntry]:
         # Constant folding
         ("constant_foldable", DetectorSig.NIS, detect_constant_foldable),
         # Shape optimization
-        ("reshape_negative_one", DetectorSig.NS_INIT, detect_reshape_with_negative_one),
+        # detect_reshape_with_negative_one tolerates ``data_shapes=None``
+        # (returns []), so the regular NIS signature is enough.
+        ("reshape_negative_one", DetectorSig.NIS, detect_reshape_with_negative_one),
     ]
 
 
@@ -230,17 +242,8 @@ def detect_all_patterns(
         elif sig == DetectorSig.NIS:
             instances = detector(nodes, initializers, data_shapes)
         elif sig == DetectorSig.NS:
-            # Requires data_shapes — skip if not available
-            if data_shapes is not None:
-                instances = detector(nodes, data_shapes)
-            else:
-                instances = []
-        elif sig == DetectorSig.NS_INIT:
-            # Requires both initializers and data_shapes
-            if data_shapes is not None:
-                instances = detector(nodes, initializers, data_shapes)
-            else:
-                instances = []
+            # NS detectors hard-require shapes; skip when none were inferred.
+            instances = detector(nodes, data_shapes) if data_shapes is not None else []
         else:
             instances = []
 

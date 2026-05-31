@@ -10,12 +10,34 @@ from pathlib import Path
 from typing import Any, cast
 
 import onnx
+from onnx import NodeProto, TensorProto
 
+# Module-level imports preserve mock.patch hot-swap of symbols in their owning
+# subpackages: tests that ``mock.patch("slimonnx.model_validate.X")`` rely on
+# the call site re-resolving ``X`` against ``slimonnx.model_validate`` rather
+# than against a name bound at import time inside this module.
+from slimonnx import (
+    model_validate,
+    pattern_detect,
+    preprocess,
+    structure_analysis,
+    utils,
+)
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
 from slimonnx.constants import OPSET_RUNTIME
-from slimonnx.optimize_onnx import optimize_onnx
+from slimonnx.optimize_onnx._optimize import _optimize_with_config
 
 _logger = logging.getLogger(__name__)
+
+# Exceptions tolerated by shape inference fallback. shapeonnx is optional
+# at runtime and may raise any of these on partial coverage / bad graphs.
+_SHAPE_INFER_FALLBACK_ERRORS = (
+    ImportError,
+    ValueError,
+    AttributeError,
+    KeyError,
+    RuntimeError,
+)
 
 
 def _enable_verbose() -> None:
@@ -26,6 +48,55 @@ def _enable_verbose() -> None:
         handler.setFormatter(logging.Formatter("%(message)s"))
         pkg_logger.addHandler(handler)
     pkg_logger.setLevel(logging.DEBUG)
+
+
+def _safe_infer_shapes(
+    input_nodes: list,
+    output_nodes: list,
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    has_batch_dim: bool,
+) -> Any:
+    """Run shapeonnx inference, returning None on any tolerated failure.
+
+    Shape inference is best-effort: shapeonnx is optional and tolerates partial
+    coverage. Tolerated exception types are listed in
+    ``_SHAPE_INFER_FALLBACK_ERRORS``. A warning is emitted on failure so callers
+    that swallow ``None`` still surface the cause.
+
+    :param input_nodes: Graph input value infos.
+
+    :param output_nodes: Graph output value infos.
+
+    :param nodes: Graph nodes.
+
+    :param initializers: Initializer map keyed by name.
+
+    :param has_batch_dim: Whether the model carries a leading batch dimension.
+
+    :return: Shape map keyed by tensor name, or ``None`` on failure.
+    """
+    try:
+        from shapeonnx.infer_shape import infer_onnx_shape
+
+        return infer_onnx_shape(
+            input_nodes,
+            output_nodes,
+            nodes,
+            initializers,
+            has_batch_dim=has_batch_dim,
+        )
+    except _SHAPE_INFER_FALLBACK_ERRORS as error:
+        # Include graph size in the warning so downstream callers (which
+        # collapse the failure to ``None``) can correlate symptoms in
+        # subsequent passes with the model that triggered them.
+        warnings.warn(
+            f"Shape inference failed on graph with {len(nodes)} nodes, "
+            f"{len(initializers)} initializers ({type(error).__name__}): {error}",
+            UserWarning,
+            stacklevel=3,
+        )
+        return None
 
 
 class SlimONNX:
@@ -42,10 +113,7 @@ class SlimONNX:
     """
 
     def __init__(self, verbose: bool = False):
-        """Initialize SlimONNX optimizer.
-
-        :param verbose: Print stage-by-stage progress.
-        """
+        """Wire stage-level logging when ``verbose`` is requested."""
         if verbose:
             _enable_verbose()
 
@@ -82,7 +150,6 @@ class SlimONNX:
         t_total = time.perf_counter()
         t = time.perf_counter()
 
-        # Preprocess model (load, convert to opset 17, clear docs, mark SlimONNX)
         model = self.preprocess(
             onnx_path,
             target_opset=OPSET_RUNTIME,
@@ -92,48 +159,33 @@ class SlimONNX:
         )
         _logger.info(f"  Preprocess: loaded, opset conversion ({time.perf_counter() - t:.4f}s)")
 
-        # Apply optimizations (simplify_gemm, reorder always True)
+        # simplify_gemm + reorder_by_strict_topological_order are pipeline
+        # invariants -- always on at the SlimONNX entry point but exposed as
+        # kwargs in optimize_onnx() for direct callers and unit tests.
         t = time.perf_counter()
-        new_model = optimize_onnx(
+        new_model = _optimize_with_config(
             model,
-            constant_folding=config.constant_folding,
-            fuse_matmul_add=config.fuse_matmul_add,
-            fuse_gemm_reshape_bn=config.fuse_gemm_reshape_bn,
-            fuse_bn_reshape_gemm=config.fuse_bn_reshape_gemm,
-            fuse_bn_gemm=config.fuse_bn_gemm,
-            fuse_transpose_bn_transpose=config.fuse_transpose_bn_transpose,
-            fuse_gemm_gemm=config.fuse_gemm_gemm,
-            fuse_conv_bn=config.fuse_conv_bn,
-            fuse_bn_conv=config.fuse_bn_conv,
-            fuse_conv_transpose_bn=config.fuse_conv_transpose_bn,
-            fuse_bn_conv_transpose=config.fuse_bn_conv_transpose,
-            simplify_conv_to_flatten_gemm=config.simplify_conv_to_flatten_gemm,
-            simplify_gemm=True,  # Always True
-            remove_redundant_operations=config.remove_redundant_operations,
-            remove_dropout=config.remove_dropout,
-            fuse_depthwise_conv_bn=config.fuse_depthwise_conv_bn,
-            fuse_bn_depthwise_conv=config.fuse_bn_depthwise_conv,
-            reorder_by_strict_topological_order=True,  # Always True
-            simplify_node_name=config.simplify_node_name,
-            has_batch_dim=config.has_batch_dim,
+            config,
+            simplify_gemm=True,
+            reorder_by_strict_topological_order=True,
         )
-
         optimization_time = time.perf_counter() - t
         _logger.info(f"  Optimize: passes applied ({optimization_time:.4f}s)")
 
-        # Determine save path
         t = time.perf_counter()
         if target_path is None:
-            target_path = onnx_path.replace(".onnx", "_simplified.onnx")
+            target_path = str(Path(onnx_path).with_name(Path(onnx_path).stem + "_simplified.onnx"))
         target_path_obj = Path(target_path)
         target_path_obj.parent.mkdir(parents=True, exist_ok=True)
         onnx.save(new_model, str(target_path_obj))
+        export_time = time.perf_counter() - t
+        _logger.info(f"  Export: saved to {target_path} ({export_time:.4f}s)")
 
-        # Validate outputs if requested
         validation_result = None
         if validation.validate_outputs:
+            t = time.perf_counter()
             validation_result = self.validate_outputs(onnx_path, target_path, validation)
-
+            _logger.info(f"  Validate: outputs compared ({time.perf_counter() - t:.4f}s)")
             if not validation_result["all_match"]:
                 raise ValueError(
                     f"Validation failed: "
@@ -141,7 +193,6 @@ class SlimONNX:
                     f"max_diff={validation_result['max_diff']:.2e}"
                 )
 
-        _logger.info(f"  Export: saved to {target_path} ({time.perf_counter() - t:.4f}s)")
         _logger.info(f"  Total: {time.perf_counter() - t_total:.4f}s")
 
         original_node_count = len(model.graph.node)
@@ -184,7 +235,6 @@ class SlimONNX:
         config = config or OptimizationConfig()
         analysis = analysis or AnalysisConfig()
 
-        # Preprocess model (keep original version for accurate analysis)
         model = self.preprocess(
             onnx_path,
             target_opset=None,
@@ -196,56 +246,22 @@ class SlimONNX:
         original_opset = model.opset_import[0].version if model.opset_import else 0
         original_ir = model.ir_version
 
-        # Extract nodes (converts Constant nodes to initializers)
-        from slimonnx import utils
-
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
         )
 
-        # Infer shapes using shapeonnx
-        try:
-            from shapeonnx.infer_shape import infer_onnx_shape
+        data_shapes = _safe_infer_shapes(
+            input_nodes, output_nodes, nodes, initializers, config.has_batch_dim
+        )
+        shape_inference_success = data_shapes is not None
 
-            data_shapes = infer_onnx_shape(
-                input_nodes,
-                output_nodes,
-                nodes,
-                initializers,
-                has_batch_dim=config.has_batch_dim,
-            )
-            shape_inference_success = True
-        except (
-            ImportError,
-            ValueError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-        ) as error:
-            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
-            data_shapes = None
-            shape_inference_success = False
+        validation = model_validate.validate_model(model, data_shapes=data_shapes)
+        patterns = pattern_detect.detect_all_patterns(nodes, initializers, data_shapes)
+        structure = structure_analysis.analyze_structure(model, data_shapes)
 
-        # Validate model
-        from slimonnx.model_validate import validate_model
-
-        validation = validate_model(model, data_shapes=data_shapes)
-
-        # Detect patterns
-        from slimonnx.pattern_detect import detect_all_patterns
-
-        patterns = detect_all_patterns(nodes, initializers, data_shapes)
-
-        # Analyze structure
-        from slimonnx.structure_analysis import analyze_structure
-
-        structure = analyze_structure(model, data_shapes)
-
-        # Calculate optimization recommendations
         total_fusible = sum(p["count"] for p in patterns.values() if p["category"] == "fusion")
         total_redundant = sum(p["count"] for p in patterns.values() if p["category"] == "redundant")
 
-        # Build report structure
         report = {
             "model": {
                 "path": onnx_path,
@@ -263,19 +279,18 @@ class SlimONNX:
             },
         }
 
-        # Export topology if requested
+        onnx_path_obj = Path(onnx_path)
         if analysis.export_topology:
-            from slimonnx.structure_analysis import export_topology_json
+            topo_path = analysis.topology_path or str(
+                onnx_path_obj.with_name(onnx_path_obj.stem + "_topology.json")
+            )
+            structure_analysis.export_topology_json(nodes, topo_path, data_shapes)
 
-            topo_path = analysis.topology_path or onnx_path.replace(".onnx", "_topology.json")
-            export_topology_json(nodes, topo_path, data_shapes)
-
-        # Export full analysis if requested
         if analysis.export_json:
-            from slimonnx.structure_analysis import generate_json_report
-
-            json_path = analysis.json_path or onnx_path.replace(".onnx", "_analysis.json")
-            generate_json_report(report, json_path)
+            json_path = analysis.json_path or str(
+                onnx_path_obj.with_name(onnx_path_obj.stem + "_analysis.json")
+            )
+            structure_analysis.generate_json_report(report, json_path)
 
         return report
 
@@ -294,11 +309,9 @@ class SlimONNX:
 
         :return: Comparison report
         """
-        # Analyze both models
         original_report = self.analyze(original_path)
         optimized_report = self.analyze(optimized_path)
 
-        # Calculate pattern differences
         patterns_fixed = {}
         for pattern_name in original_report["patterns"]:
             original_count = original_report["patterns"][pattern_name]["count"]
@@ -311,13 +324,11 @@ class SlimONNX:
                     "fixed": fixed,
                 }
 
-        # Calculate node reduction
         original_nodes = original_report["structure"]["node_count"]
         optimized_nodes = optimized_report["structure"]["node_count"]
         node_reduction = original_nodes - optimized_nodes
         node_reduction_pct = (node_reduction / original_nodes * 100) if original_nodes > 0 else 0
 
-        # Build comparison structure
         return {
             "original": original_report,
             "optimized": optimized_report,
@@ -365,9 +376,7 @@ class SlimONNX:
 
         :return: Preprocessed model
         """
-        from slimonnx.preprocess import load_and_preprocess
-
-        return load_and_preprocess(
+        return preprocess.load_and_preprocess(
             onnx_path,
             target_opset=target_opset,
             infer_shapes=infer_shapes,
@@ -408,36 +417,15 @@ class SlimONNX:
             mark_slimonnx=False,
         )
 
-        from slimonnx import utils
-
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
         )
 
-        # Infer shapes
-        try:
-            from shapeonnx.infer_shape import infer_onnx_shape
+        data_shapes = _safe_infer_shapes(
+            input_nodes, output_nodes, nodes, initializers, config.has_batch_dim
+        )
 
-            data_shapes = infer_onnx_shape(
-                input_nodes,
-                output_nodes,
-                nodes,
-                initializers,
-                has_batch_dim=config.has_batch_dim,
-            )
-        except (
-            ImportError,
-            ValueError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-        ) as error:
-            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
-            data_shapes = None
-
-        from slimonnx.model_validate import validate_model
-
-        return validate_model(model, data_shapes=data_shapes)
+        return model_validate.validate_model(model, data_shapes=data_shapes)
 
     def detect_patterns(
         self,
@@ -466,36 +454,18 @@ class SlimONNX:
             mark_slimonnx=False,
         )
 
-        from slimonnx import utils
-
         input_nodes, output_nodes, nodes, initializers = utils.extract_nodes(
             model, has_batch_dim=config.has_batch_dim
         )
 
-        # Infer shapes
-        try:
-            from shapeonnx.infer_shape import infer_onnx_shape
+        data_shapes = _safe_infer_shapes(
+            input_nodes, output_nodes, nodes, initializers, config.has_batch_dim
+        )
 
-            data_shapes = infer_onnx_shape(
-                input_nodes,
-                output_nodes,
-                nodes,
-                initializers,
-                has_batch_dim=config.has_batch_dim,
-            )
-        except (
-            ImportError,
-            ValueError,
-            AttributeError,
-            KeyError,
-            RuntimeError,
-        ) as error:
-            warnings.warn(f"Shape inference failed: {error}", UserWarning, stacklevel=2)
-            data_shapes = None
-
-        from slimonnx.pattern_detect import detect_all_patterns
-
-        return cast(dict[Any, Any], detect_all_patterns(nodes, initializers, data_shapes))
+        return cast(
+            dict[Any, Any],
+            pattern_detect.detect_all_patterns(nodes, initializers, data_shapes),
+        )
 
     def validate_outputs(
         self,
@@ -515,9 +485,7 @@ class SlimONNX:
         """
         validation = validation or ValidationConfig()
 
-        from slimonnx.model_validate import compare_model_outputs
-
-        return compare_model_outputs(
+        return model_validate.compare_model_outputs(
             original_path,
             optimized_path,
             input_bounds=validation.input_bounds,

@@ -14,8 +14,7 @@ from slimonnx.optimize_onnx._constants import AUTO_PAD_NOTSET
 
 
 def scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
-    """
-    Scan and extract ONNX node attributes.
+    """Scan and extract ONNX node attributes.
 
     :param default_attrs: Default attribute values.
 
@@ -35,11 +34,9 @@ def scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
 
 
 def check_pads_symmetric(pads: tuple[int, ...]) -> None:
-    """
-    Verify that padding is symmetric.
+    """Verify that padding is symmetric.
 
     :param pads: Padding tuple.
-
     """
     dims = len(pads) // 2
     for i in range(dims):
@@ -50,8 +47,7 @@ def check_pads_symmetric(pads: tuple[int, ...]) -> None:
 
 
 def infer_kernel_defaults(attrs: dict[str, Any], kernel_shape: tuple[int, ...]) -> dict[str, Any]:
-    """
-    Infer default values for dilations, strides, and pads.
+    """Infer default values for dilations, strides, and pads.
 
     :param attrs: Attribute dictionary.
 
@@ -70,13 +66,11 @@ def infer_kernel_defaults(attrs: dict[str, Any], kernel_shape: tuple[int, ...]) 
 
 
 def validate_auto_pad(auto_pad: str, op_name: str) -> None:
-    """
-    Validate auto_pad attribute is NOTSET.
+    """Validate auto_pad attribute is NOTSET.
 
     :param auto_pad: auto_pad value.
 
     :param op_name: Operator name for error message.
-
     """
     if auto_pad != AUTO_PAD_NOTSET:
         raise ValueError(f"{op_name} with auto_pad={auto_pad} is not supported")
@@ -215,21 +209,6 @@ def get_attrs_constantofshape(
     return attrs
 
 
-def get_attrs_simple(defaults: dict[str, Any]) -> Callable:
-    """
-    Create a simple attribute extractor for operators with only defaults.
-
-    :param defaults: Default attribute values.
-
-    :return: Attribute extraction function
-    """
-
-    def extractor(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
-        return scan_attrs(defaults, node.attribute)
-
-    return extractor
-
-
 def get_attrs_maxpool(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
     """Extract MaxPool operator attributes."""
     attrs = scan_attrs(
@@ -258,8 +237,7 @@ def get_attrs_maxpool(node: NodeProto, initializers: dict[str, TensorProto]) -> 
 
 
 def get_attrs_reduce(op_name: str) -> Callable:
-    """
-    Create attribute extractor for reduce operators.
+    """Create attribute extractor for reduce operators.
 
     :param op_name: Operator name for error messages.
 
@@ -304,11 +282,6 @@ def get_attrs_resize(node: NodeProto, initializers: dict[str, TensorProto]) -> d
     )
 
 
-def get_attrs_scatter(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
-    """Extract Scatter operator attributes."""
-    return get_attrs_scatterelement(node, initializers)
-
-
 def get_attrs_scatterelement(
     node: NodeProto, initializers: dict[str, TensorProto]
 ) -> dict[str, Any]:
@@ -317,6 +290,15 @@ def get_attrs_scatterelement(
     if attrs["reduction"] != "none":
         raise ValueError(f"ScatterElements with reduction={attrs['reduction']} is not supported")
     return attrs
+
+
+def get_attrs_scatter(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
+    """Extract Scatter (deprecated) operator attributes.
+
+    Scatter op (opset 9-12) is deprecated in favour of ScatterElements.
+    The attribute schema is identical, so we delegate.
+    """
+    return get_attrs_scatterelement(node, initializers)
 
 
 def get_attrs_scatternd(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
@@ -345,7 +327,24 @@ def get_attrs_transpose(node: NodeProto, initializers: dict[str, TensorProto]) -
     return attrs
 
 
-EXTRACT_ATTRS_MAP: dict[str, Callable[[NodeProto, dict[str, TensorProto]], dict[str, Any]]] = {
+# Operators whose attributes have only defaults and need no validation.
+# Keyed by op_type; value is the default attr dict passed to scan_attrs.
+_OP_ATTR_DEFAULTS: dict[str, dict[str, Any]] = {
+    "Elu": {"alpha": 1.0},
+    "Flatten": {"axis": 1},
+    "Gather": {"axis": 0},
+    "Gelu": {"approximate": "none"},
+    "Gemm": DEFAULT_GEMM_ATTRS,
+    "LeakyRelu": {"alpha": 0.01},
+    "Pad": {"mode": "constant"},
+    "Softmax": {"axis": -1},
+    "Split": {"axis": 0, "num_outputs": None},
+    "Unsqueeze": {"axes": None},
+    "Upsample": {"mode": "nearest"},
+}
+
+# Operators requiring validation beyond scan_attrs.
+_OP_ATTR_VALIDATORS: dict[str, Callable[[NodeProto, dict[str, TensorProto]], dict[str, Any]]] = {
     "ArgMax": get_attrs_argmax,
     "AveragePool": get_attrs_avgpool,
     "BatchNormalization": get_attrs_batchnorm,
@@ -355,33 +354,21 @@ EXTRACT_ATTRS_MAP: dict[str, Callable[[NodeProto, dict[str, TensorProto]], dict[
     "Constant": get_attrs_constant,
     "ConvTranspose": get_attrs_conv_transpose,
     "ConstantOfShape": get_attrs_constantofshape,
-    "Elu": get_attrs_simple({"alpha": 1.0}),
-    "Flatten": get_attrs_simple({"axis": 1}),
-    "Gather": get_attrs_simple({"axis": 0}),
-    "Gelu": get_attrs_simple({"approximate": "none"}),
-    "Gemm": get_attrs_simple(DEFAULT_GEMM_ATTRS),
-    "LeakyRelu": get_attrs_simple({"alpha": 0.01}),
     "MaxPool": get_attrs_maxpool,
-    "Pad": get_attrs_simple({"mode": "constant"}),
     "ReduceMean": get_attrs_reduce("ReduceMean"),
     "ReduceSum": get_attrs_reduce("ReduceSum"),
     "Reshape": get_attrs_reshape,
     "Resize": get_attrs_resize,
-    "Shape": get_attrs_shape,
-    "Scatter": get_attrs_scatter,
+    "Scatter": get_attrs_scatterelement,  # Scatter alias redirects to ScatterElements
     "ScatterElements": get_attrs_scatterelement,
     "ScatterND": get_attrs_scatternd,
-    "Softmax": get_attrs_simple({"axis": -1}),
-    "Split": get_attrs_simple({"axis": 0, "num_outputs": None}),
+    "Shape": get_attrs_shape,
     "Transpose": get_attrs_transpose,
-    "Unsqueeze": get_attrs_simple({"axes": None}),
-    "Upsample": get_attrs_simple({"mode": "nearest"}),
 }
 
 
 def get_onnx_attrs(node: NodeProto, initializers: dict[str, TensorProto]) -> dict[str, Any]:
-    """
-    Extract attributes from an ONNX node.
+    """Extract attributes from an ONNX node.
 
     :param node: ONNX node.
 
@@ -389,7 +376,10 @@ def get_onnx_attrs(node: NodeProto, initializers: dict[str, TensorProto]) -> dic
 
     :return: Dictionary of extracted attributes
     """
-    extractor = EXTRACT_ATTRS_MAP.get(node.op_type)
-    if extractor is None:
-        raise NotImplementedError(f"Unsupported operator: {node.op_type}")
-    return extractor(node, initializers)
+    defaults = _OP_ATTR_DEFAULTS.get(node.op_type)
+    if defaults is not None:
+        return scan_attrs(defaults, node.attribute)
+    validator = _OP_ATTR_VALIDATORS.get(node.op_type)
+    if validator is not None:
+        return validator(node, initializers)
+    raise NotImplementedError(f"Unsupported operator: {node.op_type}")

@@ -2,7 +2,7 @@
 
 __docformat__ = "restructuredtext"
 __all__ = [
-    "EXTRACT_ATTR_MAP",
+    "EXTRACT_ATTRS_MAP",
     "clear_onnx_docstring",
     "compare_outputs",
     "convert_constant_to_initializer",
@@ -12,13 +12,16 @@ __all__ = [
     "get_input_nodes",
     "get_next_nodes_mapping",
     "get_output_nodes",
+    "has_single_consumer",
     "load_test_data_from_file",
     "reformat_io_shape",
 ]
 
+from pathlib import Path
+
 import numpy as np
 from onnx import ModelProto, NodeProto, TensorProto, ValueInfoProto
-from shapeonnx.onnx_attrs import EXTRACT_ATTR_MAP
+from shapeonnx.onnx_attrs import EXTRACT_ATTRS_MAP
 from shapeonnx.utils import (
     _reformat_io_shape as reformat_io_shape,
 )
@@ -28,6 +31,23 @@ from shapeonnx.utils import (
     get_input_nodes,
     get_output_nodes,
 )
+
+# ONNX TensorProto element-type -> numpy dtype. Built once at import time so
+# generate_random_inputs() does not rebuild it per call. Keyed on the
+# TensorProto enum values to keep the source of truth at the ONNX spec.
+_TENSOR_PROTO_TO_NUMPY_DTYPE: dict[int, type] = {
+    TensorProto.FLOAT: np.float32,
+    TensorProto.UINT8: np.uint8,
+    TensorProto.INT8: np.int8,
+    TensorProto.INT32: np.int32,
+    TensorProto.INT64: np.int64,
+    TensorProto.FLOAT16: np.float16,
+    TensorProto.DOUBLE: np.float64,
+}
+
+# Floating-point numpy dtypes that get sampled from a standard normal
+# distribution; everything else gets uniform integer sampling.
+_FLOAT_NUMPY_DTYPES: frozenset[type] = frozenset({np.float16, np.float32, np.float64})
 
 
 def clear_onnx_docstring(model: ModelProto) -> ModelProto:
@@ -40,6 +60,31 @@ def clear_onnx_docstring(model: ModelProto) -> ModelProto:
     for node in model.graph.node:
         node.doc_string = ""
     return model
+
+
+def has_single_consumer(
+    producer: NodeProto,
+    consumer: NodeProto,
+    nodes: list[NodeProto],
+) -> bool:
+    """Check if ``consumer`` is the only node reading ``producer``'s first output.
+
+    Linear fusion passes (Conv-BN, Gemm-BN, etc.) may rewrite the producer
+    only when no other node depends on its first output -- otherwise the
+    fusion silently drops a forward edge from the computation graph.
+
+    :param producer: Candidate upstream node whose ``output[0]`` is checked.
+
+    :param consumer: Candidate downstream node that should be the exclusive
+        reader of ``producer.output[0]``.
+
+    :param nodes: Full graph node list, scanned for other consumers.
+
+    :return: ``True`` if no node other than ``consumer`` reads
+        ``producer.output[0]``.
+    """
+    prod_output = producer.output[0]
+    return all(not (prod_output in node.input and node is not consumer) for node in nodes)
 
 
 def extract_nodes(
@@ -77,26 +122,35 @@ def extract_nodes(
 def get_next_nodes_mapping(nodes: list[NodeProto]) -> dict[str, list[str]]:
     """Get the mapping from each node to its next nodes.
 
+    .. note::
+        Side effect: nodes whose ``name`` is the empty string (which can
+        happen after ONNX version conversion) are assigned a synthesized
+        name of the form ``"<op_type>_<n>"`` so they can be used as map
+        keys. This mutation is required for the returned mapping to be
+        coherent; callers that need to preserve the original node names
+        should snapshot them before calling.
+
     :param nodes: List of ONNX nodes.
 
     :return: Dictionary mapping node names to list of next node names
     """
     empty_name_counter = 0
-    name_and_output_name_mapping = {}
+    output_name_to_node_name: dict[str, str] = {}
     for node in nodes:
+        if node.name == "":
+            # ONNX version conversion can leave nodes with empty names; assign
+            # a deterministic synthetic name so map keys exist.
+            node.name = f"{node.op_type}_{empty_name_counter}"
+            empty_name_counter += 1
         for output_name in node.output:
-            if node.name == "":
-                # Sometimes, there will be a node with empty string name.
-                # This is caused during the ONNX version conversion.
-                node.name = f"{node.op_type}_{empty_name_counter}"
-                empty_name_counter += 1
-            name_and_output_name_mapping[output_name] = node.name
+            output_name_to_node_name[output_name] = node.name
 
     next_nodes_mapping: dict[str, list[str]] = {node.name: [] for node in nodes}
     for node in nodes:
         for input_name in node.input:
-            if input_name in name_and_output_name_mapping:
-                next_nodes_mapping[name_and_output_name_mapping[input_name]].append(node.name)
+            producer_name = output_name_to_node_name.get(input_name)
+            if producer_name is not None:
+                next_nodes_mapping[producer_name].append(node.name)
 
     return next_nodes_mapping
 
@@ -115,36 +169,23 @@ def generate_random_inputs(
     """
     inputs_list = []
     rng = np.random.default_rng()
+    initializer_names = {init.name for init in model.graph.initializer}
 
     for _ in range(num_samples):
         input_dict = {}
         for input_info in model.graph.input:
-            # Skip if this is an initializer (not a true input)
-            initializer_names = {init.name for init in model.graph.initializer}
+            # Initializer-backed inputs are not real model inputs.
             if input_info.name in initializer_names:
                 continue
 
-            # Get shape
             shape = tuple(
                 d.dim_value if d.HasField("dim_value") else 1
                 for d in input_info.type.tensor_type.shape.dim
             )
-
-            # Get dtype
-            dtype_map = {
-                1: np.float32,  # FLOAT
-                2: np.uint8,  # UINT8
-                3: np.int8,  # INT8
-                6: np.int32,  # INT32
-                7: np.int64,  # INT64
-                10: np.float16,  # FLOAT16
-                11: np.float64,  # DOUBLE
-            }
             elem_type = input_info.type.tensor_type.elem_type
-            dtype = dtype_map.get(elem_type, np.float32)
+            dtype = _TENSOR_PROTO_TO_NUMPY_DTYPE.get(elem_type, np.float32)
 
-            # Generate random input
-            if dtype in (np.float32, np.float64, np.float16):
+            if dtype in _FLOAT_NUMPY_DTYPES:
                 input_array = rng.standard_normal(shape).astype(dtype)
             else:
                 input_array = rng.integers(0, 10, size=shape).astype(dtype)
@@ -167,8 +208,6 @@ def load_test_data_from_file(data_path: str) -> list[dict[str, np.ndarray]]:
     :raises ValueError: If unsupported file format.
 
     """
-    from pathlib import Path
-
     if not Path(data_path).exists():
         raise FileNotFoundError(f"Test data file not found: {data_path}")
 

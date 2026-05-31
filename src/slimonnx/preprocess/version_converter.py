@@ -4,6 +4,8 @@ __docformat__ = "restructuredtext"
 __all__ = ["convert_model_version", "load_and_preprocess"]
 
 import warnings
+from importlib.metadata import PackageNotFoundError
+from importlib.metadata import version as _pkg_version
 
 import onnx
 from onnx import ModelProto, version_converter
@@ -15,7 +17,15 @@ from slimonnx.constants import OPSET_RUNTIME, OPSET_SHAPEONNX
 RECOMMENDED_OPSET = 20
 MIN_TESTED_OPSET = OPSET_RUNTIME
 MAX_TESTED_OPSET = OPSET_SHAPEONNX
-SLIMONNX_VERSION = "2026.1.0"
+
+# Producer-tag version embedded in optimized ModelProto.producer_name /
+# doc_string. Pulled from package metadata so it stays in sync with the
+# pyproject version automatically. Falls back to a static tag for source-tree
+# imports without an installed distribution.
+try:
+    SLIMONNX_VERSION = _pkg_version("slimonnx")
+except PackageNotFoundError:  # pragma: no cover - source-tree fallback
+    SLIMONNX_VERSION = "0.0.0+unknown"
 
 
 def convert_model_version(

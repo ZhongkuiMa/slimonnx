@@ -13,39 +13,44 @@ from onnx import NodeProto
 def build_topology(nodes: list[NodeProto]) -> dict:
     """Build topological graph from nodes.
 
+    Runs in O(n + e) time -- one pass to map outputs to producer names, one
+    pass to populate predecessors / successors via that map.
+
     :param nodes: Model nodes.
 
     :return: Topology dictionary with predecessors/successors
     """
-    # Build output-to-node mapping
-    output_to_node = {}
-    for node in nodes:
+    # Pass 1: stable node names + output -> producer-name index.
+    node_names: list[str] = [node.name or f"{node.op_type}_unnamed" for node in nodes]
+    output_to_node: dict[str, str] = {}
+    for node, name in zip(nodes, node_names, strict=True):
         for out in node.output:
-            output_to_node[out] = node.name or f"{node.op_type}_unnamed"
+            output_to_node[out] = name
 
-    # Build predecessor/successor relationships
-    topology = {}
-    for node in nodes:
-        node_name = node.name or f"{node.op_type}_unnamed"
-
-        predecessors = [output_to_node[inp] for inp in node.input if inp in output_to_node]
-
-        topology[node_name] = {
+    # Pass 2: build the topology table with empty successor slots.
+    topology: dict[str, dict] = {
+        name: {
             "op_type": node.op_type,
             "inputs": list(node.input),
             "outputs": list(node.output),
-            "predecessors": predecessors,
+            "predecessors": [output_to_node[inp] for inp in node.input if inp in output_to_node],
+            "successors": [],
         }
+        for node, name in zip(nodes, node_names, strict=True)
+    }
 
-    # Add successors
-    for info in topology.values():
-        successors = [
-            other_name
-            for out in info["outputs"]
-            for other_name, other_info in topology.items()
-            if out in other_info["inputs"]
-        ]
-        info["successors"] = successors
+    # Pass 3: invert predecessors to successors. Linear in total edges, no
+    # nested scan -- replaces the previous O(n^2) "look at every other node".
+    # A consumer that lists the same predecessor twice (e.g. ``Add(Y, Y)``)
+    # appears only once on the producer's successor list, matching the
+    # original O(n^2) behaviour which dedup'd implicitly.
+    for name, info in topology.items():
+        seen: set[str] = set()
+        for predecessor in info["predecessors"]:
+            if predecessor in seen:
+                continue
+            seen.add(predecessor)
+            topology[predecessor]["successors"].append(name)
 
     return topology
 

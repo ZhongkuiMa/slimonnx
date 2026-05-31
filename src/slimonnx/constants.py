@@ -15,6 +15,12 @@ __all__ = [
     "OPSET_SHAPEONNX",
 ]
 
+from typing import TypeAlias
+
+#: Map from tensor name to its shape. Scalar tensors may produce ``int``
+#: while multi-dimensional tensors produce ``list[int]``.
+DataShapes: TypeAlias = dict[str, int | list[int]]
+
 #: Opset version for shapeonnx shape inference compatibility.
 OPSET_SHAPEONNX = 21
 

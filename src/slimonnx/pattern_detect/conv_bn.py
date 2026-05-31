@@ -17,6 +17,76 @@ from slimonnx.pattern_detect.utils import (
 )
 
 
+def _detect_conv_family_bn_pair(
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    conv_op: str,
+    *,
+    conv_first: bool,
+    conv_key: str,
+    conv_weight_key: str,
+) -> list[dict]:
+    """Detect a Conv-family/BatchNormalization directed pair.
+
+    Shared scanner for the four ``conv_bn`` variants. Walks the node list
+    looking for consecutive single-consumer pairs of the requested op
+    types, validates that the Conv-family node has a constant weight and
+    the BN node has its full parameter set, and yields one match dict
+    per location.
+
+    :param nodes: Model nodes.
+
+    :param initializers: Initializer map keyed by name.
+
+    :param conv_op: ``"Conv"`` or ``"ConvTranspose"`` -- the op_type to
+        pair with BatchNormalization.
+
+    :param conv_first: ``True`` for ``Conv -> BN``, ``False`` for
+        ``BN -> Conv``. Determines which slot validates which constraints.
+
+    :param conv_key: Key under which the Conv-family node name lands in
+        the result dict (``"conv_node"`` / ``"conv_transpose_node"``).
+
+    :param conv_weight_key: Key under which the Conv-family weight tensor
+        name lands in the result dict.
+
+    :return: List of match dicts with the same legacy schema the four
+        public detectors used to return.
+    """
+    instances: list[dict] = []
+    bn_op = "BatchNormalization"
+    pre_op, post_op = (conv_op, bn_op) if conv_first else (bn_op, conv_op)
+
+    for i in range(len(nodes) - 1):
+        curr_node = nodes[i]
+        next_node = nodes[i + 1]
+
+        if curr_node.op_type != pre_op or next_node.op_type != post_op:
+            continue
+        if not is_consecutive_nodes(curr_node, next_node, nodes):
+            continue
+
+        conv_node = curr_node if conv_first else next_node
+        bn_node = next_node if conv_first else curr_node
+
+        if not has_constant_weight(conv_node, initializers):
+            continue
+        if not validate_bn_inputs(bn_node, initializers):
+            continue
+
+        instances.append(
+            {
+                conv_key: conv_node.name,
+                "bn_node": bn_node.name,
+                conv_weight_key: conv_node.input[1],
+                "bn_scale": bn_node.input[1],
+                "can_fuse": True,
+            }
+        )
+
+    return instances
+
+
 def detect_conv_bn(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
@@ -33,41 +103,17 @@ def detect_conv_bn(
 
     :param data_shapes: Optional shape information (unused).
 
-    :return: List of pattern instances with Conv and BN node info
+    :return: List of pattern instances with Conv and BN node info.
     """
-    instances = []
-
-    for i in range(len(nodes) - 1):
-        curr_node = nodes[i]
-        next_node = nodes[i + 1]
-
-        # Check pattern: Conv followed by BatchNormalization
-        if curr_node.op_type != "Conv" or next_node.op_type != "BatchNormalization":
-            continue
-
-        # Check if they are consecutive with no branching
-        if not is_consecutive_nodes(curr_node, next_node, nodes):
-            continue
-
-        # Check if Conv has constant weight
-        if not has_constant_weight(curr_node, initializers):
-            continue
-
-        # Check if BN has all required parameters
-        if not validate_bn_inputs(next_node, initializers):
-            continue
-
-        instances.append(
-            {
-                "conv_node": curr_node.name,
-                "bn_node": next_node.name,
-                "conv_weight": curr_node.input[1],
-                "bn_scale": next_node.input[1],
-                "can_fuse": True,
-            }
-        )
-
-    return instances
+    del data_shapes
+    return _detect_conv_family_bn_pair(
+        nodes,
+        initializers,
+        conv_op="Conv",
+        conv_first=True,
+        conv_key="conv_node",
+        conv_weight_key="conv_weight",
+    )
 
 
 def detect_bn_conv(
@@ -86,41 +132,17 @@ def detect_bn_conv(
 
     :param data_shapes: Optional shape information (unused).
 
-    :return: List of pattern instances with BN and Conv node info
+    :return: List of pattern instances with BN and Conv node info.
     """
-    instances = []
-
-    for i in range(len(nodes) - 1):
-        curr_node = nodes[i]
-        next_node = nodes[i + 1]
-
-        # Check pattern: BatchNormalization followed by Conv
-        if curr_node.op_type != "BatchNormalization" or next_node.op_type != "Conv":
-            continue
-
-        # Check if they are consecutive with no branching
-        if not is_consecutive_nodes(curr_node, next_node, nodes):
-            continue
-
-        # Check if BN has all required parameters
-        if not validate_bn_inputs(curr_node, initializers):
-            continue
-
-        # Check if Conv has constant weight
-        if not has_constant_weight(next_node, initializers):
-            continue
-
-        instances.append(
-            {
-                "bn_node": curr_node.name,
-                "conv_node": next_node.name,
-                "bn_scale": curr_node.input[1],
-                "conv_weight": next_node.input[1],
-                "can_fuse": True,
-            }
-        )
-
-    return instances
+    del data_shapes
+    return _detect_conv_family_bn_pair(
+        nodes,
+        initializers,
+        conv_op="Conv",
+        conv_first=False,
+        conv_key="conv_node",
+        conv_weight_key="conv_weight",
+    )
 
 
 def detect_conv_transpose_bn(
@@ -139,41 +161,17 @@ def detect_conv_transpose_bn(
 
     :param data_shapes: Optional shape information (unused).
 
-    :return: List of pattern instances with ConvTranspose and BN node info
+    :return: List of pattern instances with ConvTranspose and BN node info.
     """
-    instances = []
-
-    for i in range(len(nodes) - 1):
-        curr_node = nodes[i]
-        next_node = nodes[i + 1]
-
-        # Check pattern: ConvTranspose followed by BatchNormalization
-        if curr_node.op_type != "ConvTranspose" or next_node.op_type != "BatchNormalization":
-            continue
-
-        # Check if they are consecutive with no branching
-        if not is_consecutive_nodes(curr_node, next_node, nodes):
-            continue
-
-        # Check if ConvTranspose has constant weight
-        if not has_constant_weight(curr_node, initializers):
-            continue
-
-        # Check if BN has all required parameters
-        if not validate_bn_inputs(next_node, initializers):
-            continue
-
-        instances.append(
-            {
-                "conv_transpose_node": curr_node.name,
-                "bn_node": next_node.name,
-                "conv_transpose_weight": curr_node.input[1],
-                "bn_scale": next_node.input[1],
-                "can_fuse": True,
-            }
-        )
-
-    return instances
+    del data_shapes
+    return _detect_conv_family_bn_pair(
+        nodes,
+        initializers,
+        conv_op="ConvTranspose",
+        conv_first=True,
+        conv_key="conv_transpose_node",
+        conv_weight_key="conv_transpose_weight",
+    )
 
 
 def detect_bn_conv_transpose(
@@ -192,38 +190,14 @@ def detect_bn_conv_transpose(
 
     :param data_shapes: Optional shape information (unused).
 
-    :return: List of pattern instances with BN and ConvTranspose node info
+    :return: List of pattern instances with BN and ConvTranspose node info.
     """
-    instances = []
-
-    for i in range(len(nodes) - 1):
-        curr_node = nodes[i]
-        next_node = nodes[i + 1]
-
-        # Check pattern: BatchNormalization followed by ConvTranspose
-        if curr_node.op_type != "BatchNormalization" or next_node.op_type != "ConvTranspose":
-            continue
-
-        # Check if they are consecutive with no branching
-        if not is_consecutive_nodes(curr_node, next_node, nodes):
-            continue
-
-        # Check if BN has all required parameters
-        if not validate_bn_inputs(curr_node, initializers):
-            continue
-
-        # Check if ConvTranspose has constant weight
-        if not has_constant_weight(next_node, initializers):
-            continue
-
-        instances.append(
-            {
-                "bn_node": curr_node.name,
-                "conv_transpose_node": next_node.name,
-                "bn_scale": curr_node.input[1],
-                "conv_transpose_weight": next_node.input[1],
-                "can_fuse": True,
-            }
-        )
-
-    return instances
+    del data_shapes
+    return _detect_conv_family_bn_pair(
+        nodes,
+        initializers,
+        conv_op="ConvTranspose",
+        conv_first=False,
+        conv_key="conv_transpose_node",
+        conv_weight_key="conv_transpose_weight",
+    )

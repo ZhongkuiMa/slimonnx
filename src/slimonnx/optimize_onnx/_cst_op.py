@@ -1,7 +1,7 @@
 """Fuse constant-input operations by pre-computing results."""
 
 __docformat__ = "restructuredtext"
-__all__ = ["_fuse_constant_nodes"]
+__all__ = ["_constant_to_initializer", "_fuse_constant_nodes"]
 
 from typing import cast
 
@@ -279,8 +279,9 @@ def _execute_binary_arithmetic(node: NodeProto, initializers: dict[str, TensorPr
         return cast(np.ndarray, tensor1 / tensor2)
     if op_type == "MatMul":
         return cast(np.ndarray, np.matmul(tensor1, tensor2))
-    # Pow
-    return cast(np.ndarray, np.power(tensor1, tensor2))
+    if op_type == "Pow":
+        return cast(np.ndarray, np.power(tensor1, tensor2))
+    raise ValueError(f"_execute_binary_arithmetic called with unsupported op_type: {op_type}")
 
 
 def _can_fold_node(
@@ -485,6 +486,41 @@ def _execute_constant_operation(
         return result
 
     raise NotImplementedError(f"Not supported node type: {node.op_type}.")
+
+
+def _constant_to_initializer(
+    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+) -> list[NodeProto]:
+    """Convert Constant nodes to initializers.
+
+    ONNX forbids name collisions between initializers and node outputs.
+    A collision indicates a non-conformant ONNX export and raises
+    ``ValueError`` so the caller does not silently produce a wrong model.
+
+    :param nodes: List of ONNX nodes.
+    :param initializers: Dictionary of ONNX initializers (mutated in place).
+    :return: Nodes with Constant nodes removed.
+    :raises ValueError: If a Constant output name collides with an existing
+        initializer.
+    """
+    new_nodes = []
+    for node in nodes:
+        if node.op_type != "Constant":
+            new_nodes.append(node)
+            continue
+
+        output_name = node.output[0]
+        if output_name in initializers:
+            raise ValueError(
+                f"Constant node output {output_name!r} collides with an "
+                f"existing initializer. This indicates a non-conformant "
+                f"ONNX export and must be fixed at the source."
+            )
+
+        np_array = onnx.numpy_helper.to_array(node.attribute[0].t)
+        initializers[output_name] = onnx.numpy_helper.from_array(np_array, output_name)
+
+    return new_nodes
 
 
 def _fuse_constant_nodes(

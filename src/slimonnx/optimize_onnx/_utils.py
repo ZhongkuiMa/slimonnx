@@ -1,30 +1,47 @@
-"""Shared utilities for ONNX graph optimization passes."""
+"""Shared utilities for ONNX graph optimization passes.
+
+This module's public surface is ``compute_batchnorm_fusion_params``;
+everything else is a subpackage-internal helper marked with the standard
+single-underscore prefix and intentionally absent from ``__all__``.
+"""
 
 __docformat__ = "restructuredtext"
-__all__ = [
-    "_get_batchnorm_params",
-    "_get_conv_params",
-    "_get_conv_transpose_params",
-    "_get_gemm_params",
-    "_is_only_next_node",
-    "compute_batchnorm_fusion_params",
-]
+__all__ = ["compute_batchnorm_fusion_params"]
+
+from typing import Any
 
 import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto
 
 from slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
+from slimonnx.utils import has_single_consumer
 
 
-def _is_only_next_node(pre_node: NodeProto, cur_node: NodeProto, nodes: list[NodeProto]) -> bool:
-    """Check the pre_node and node are in a single path.
+def _is_only_next_node(
+    pre_node: NodeProto,
+    cur_node: NodeProto,
+    nodes: list[NodeProto],
+) -> bool:
+    """Return ``True`` when ``cur_node`` is the only consumer of ``pre_node``.
 
-    Because if there are multiple paths, we cannot fuse the nodes to avoid changing
-    the computation graph.
+    Linear fusion passes (Conv-BN, Gemm-BN, etc.) may rewrite the predecessor
+    only when no other node depends on its output -- otherwise the fusion
+    silently drops a forward edge from the computation graph.
+
+    Delegates to the canonical ``slimonnx.utils.has_single_consumer``.
+
+    :param pre_node: Candidate upstream node.
+
+    :param cur_node: Candidate downstream node.
+
+    :param nodes: Full graph node list, scanned for other consumers of
+        ``pre_node.output[0]``.
+
+    :return: ``True`` if no node other than ``cur_node`` reads
+        ``pre_node.output[0]``.
     """
-    pre_node_name = pre_node.output[0]
-    return all(not (pre_node_name in node.input and node != cur_node) for node in nodes)
+    return has_single_consumer(pre_node, cur_node, nodes)
 
 
 def _get_batchnorm_params(
@@ -32,7 +49,19 @@ def _get_batchnorm_params(
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
 ) -> tuple[float, np.ndarray, np.ndarray, np.ndarray, np.ndarray]:
-    """Get the parameters of a BatchNormalization node."""
+    """Extract BatchNormalization parameters from initializers.
+
+    :param node: BatchNormalization NodeProto.
+
+    :param initializers: Initializer map keyed by tensor name. When
+        ``remove_initializers`` is true the four BN parameter initializers
+        are popped from the map.
+
+    :param remove_initializers: Whether to pop the consumed initializers.
+
+    :return: Tuple ``(epsilon, scale, bias, mean, var)`` -- the BN affine
+        parameters and the running statistics needed by the fusion math.
+    """
     attrs = get_onnx_attrs(node, initializers)
     epsilon = attrs["epsilon"]
     scale = onnx.numpy_helper.to_array(initializers[node.input[1]])
@@ -53,7 +82,18 @@ def _get_gemm_params(
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
 ) -> tuple[float, float, int, int, np.ndarray, np.ndarray]:
-    """Get the parameters of a Gemm node."""
+    """Extract Gemm scalar attrs and weight/bias initializers.
+
+    :param node: Gemm NodeProto.
+
+    :param initializers: Initializer map keyed by tensor name. When
+        ``remove_initializers`` is true the weight and bias initializers
+        are popped from the map.
+
+    :param remove_initializers: Whether to pop the consumed initializers.
+
+    :return: Tuple ``(alpha, beta, trans_a, trans_b, weight, bias)``.
+    """
     attrs = get_onnx_attrs(node, initializers)
     alpha = attrs["alpha"]
     beta = attrs["beta"]
@@ -72,11 +112,23 @@ def _get_conv_params(
     node: NodeProto,
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
-) -> tuple[np.ndarray, np.ndarray, dict]:
-    """Get the parameters of a Conv or ConvTranspose node.
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    """Extract Conv parameters and the resolved attribute map.
 
-    Supports both regular convolutions (group=1) and grouped/depthwise
-    convolutions (group > 1).
+    Supports both regular convolutions (group=1) and grouped / depthwise
+    convolutions (group > 1). Missing bias is materialised as a zero
+    vector matched to ``weight.shape[0]`` so callers always see a real
+    array.
+
+    :param node: Conv NodeProto.
+
+    :param initializers: Initializer map keyed by tensor name. When
+        ``remove_initializers`` is true the weight (and bias when present)
+        initializers are popped from the map.
+
+    :param remove_initializers: Whether to pop the consumed initializers.
+
+    :return: Tuple ``(weight, bias, attrs)``.
     """
     attrs = get_onnx_attrs(node, initializers)
     kernel_size = attrs["kernel_shape"]
@@ -102,8 +154,24 @@ def _get_conv_transpose_params(
     node: NodeProto,
     initializers: dict[str, TensorProto],
     remove_initializers: bool = False,
-):
-    """Get the parameters of a ConvTranspose node."""
+) -> tuple[np.ndarray, np.ndarray, dict[str, Any]]:
+    """Extract ConvTranspose parameters and the resolved attribute map.
+
+    Restricted to ``group == 1`` and 2-D kernels; grouped ConvTranspose
+    fusion is not supported yet. Missing bias is materialised as a zero
+    vector matched to ``weight.shape[1]`` so callers always see a real
+    array.
+
+    :param node: ConvTranspose NodeProto.
+
+    :param initializers: Initializer map keyed by tensor name. When
+        ``remove_initializers`` is true the weight (and bias when present)
+        initializers are popped from the map.
+
+    :param remove_initializers: Whether to pop the consumed initializers.
+
+    :return: Tuple ``(weight, bias, attrs)``.
+    """
     attrs = get_onnx_attrs(node, initializers)
     kernel_size = attrs["kernel_shape"]
     group = attrs["group"]
@@ -135,9 +203,10 @@ def compute_batchnorm_fusion_params(
     var: np.ndarray,
     target_dtype: np.dtype | None = None,
 ) -> tuple[np.ndarray, np.ndarray]:
-    """Compute fused BatchNorm weight and bias for fusion operations.
+    """Compute the fused BatchNorm scale and bias for a downstream linear op.
 
-    This shared computation is used in Conv-BN, Gemm-BN, and Transpose-BN fusions.
+    This shared computation is used in Conv-BN, Gemm-BN, and Transpose-BN
+    fusions.
 
     :param epsilon: BatchNorm epsilon value.
 
@@ -151,19 +220,17 @@ def compute_batchnorm_fusion_params(
 
     :param target_dtype: Target dtype to preserve precision (default: float32).
 
-    :return: Tuple of (bn_weight, bn_bias) for fusion
+    :return: Tuple of (bn_weight, bn_bias) for fusion.
     """
-    # Use default dtype if not specified
     if target_dtype is None:
         target_dtype = np.dtype(np.float32)
 
-    # Cast all inputs to target dtype to avoid float32/float64 mismatch
+    # Cast all inputs to target dtype to avoid float32 / float64 mismatch.
     scale = scale.astype(target_dtype, copy=False)
     bias = bias.astype(target_dtype, copy=False)
     mean = mean.astype(target_dtype, copy=False)
     var = var.astype(target_dtype, copy=False)
 
-    # Perform computation in target dtype
     bn_weight = scale / np.sqrt(var + target_dtype.type(epsilon))
     bn_bias = bias - mean * bn_weight
     return bn_weight, bn_bias

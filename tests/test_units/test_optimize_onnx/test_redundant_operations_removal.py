@@ -16,7 +16,7 @@ from slimonnx.optimize_onnx._redundant import (
     _is_redundant_pad,
     _is_redundant_reshape_or_flatten,
     _remove_redundant_operations,
-    _skip_redundant_node,
+    _rewire_redundant_node,
 )
 
 # Add parent directory to sys.path for conftest imports
@@ -29,9 +29,9 @@ from _helpers import (
 
 
 class TestSkipRedundantNode:
-    """Test _skip_redundant_node function."""
+    """Test _rewire_redundant_node function."""
 
-    def test_skip_redundant_node_rewires_input(self):
+    def test_rewire_redundant_node_rewires_input(self):
         """Test that skip_redundant_node rewires node connections."""
         # Create two nodes: Identity -> Relu
         identity_node = helper.make_node("Identity", inputs=["X"], outputs=["temp"])
@@ -41,12 +41,12 @@ class TestSkipRedundantNode:
         output_info = [create_tensor_value_info("Z", "float32", [1, 3])]
 
         # Skip the identity node
-        _skip_redundant_node(identity_node, nodes_list, output_info)
+        _rewire_redundant_node(identity_node, nodes_list, output_info)
 
         # Relu should now take X directly
         assert relu_node.input[0] == "X"
 
-    def test_skip_redundant_node_updates_graph_output(self):
+    def test_rewire_redundant_node_updates_graph_output(self):
         """Test that skip_redundant_node updates graph outputs."""
         identity_node = helper.make_node("Identity", inputs=["X"], outputs=["temp"])
         nodes_list = [identity_node]
@@ -56,7 +56,7 @@ class TestSkipRedundantNode:
         output_info[0].name = "temp"
 
         # Skip the identity node
-        _skip_redundant_node(identity_node, nodes_list, output_info)
+        _rewire_redundant_node(identity_node, nodes_list, output_info)
 
         # Output should be updated to X
         assert output_info[0].name == "X"

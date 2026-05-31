@@ -7,65 +7,39 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto, ValueInfoProto
 
+from slimonnx.optimize_onnx._reshape import _collapse_consecutive_reshapes
 
-def _skip_redundant_node(
+
+def _rewire_redundant_node(
     node: NodeProto, nodes: list[NodeProto], output_nodes: list[ValueInfoProto]
 ) -> None:
-    """Skip a redundant node by rewiring its connections.
+    """Rewire downstream consumers around a redundant identity-like node.
 
-    :param node: Node to skip.
+    Replaces ``node.output[0]`` everywhere it is consumed (in other nodes'
+    inputs and in the graph output list) with ``node.input[0]``. The node
+    itself remains in the list; callers are responsible for dropping it
+    afterwards. Was previously named ``_skip_redundant_node`` -- the
+    verb here is genuinely rewiring, not skipping.
+
+    :param node: Identity-like node to bypass.
 
     :param nodes: All nodes in the graph.
 
-    :param output_nodes: Graph output nodes.
-
+    :param output_nodes: Graph output value-infos that may name
+        ``node.output[0]`` and need redirecting.
     """
+    redundant_output = node.output[0]
+    replacement = node.input[0]
     for node_j in nodes:
-        if node.output[0] in node_j.input:
-            for k in range(len(node_j.input)):
-                if node_j.input[k] == node.output[0]:
-                    node_j.input[k] = node.input[0]
+        if redundant_output not in node_j.input:
+            continue
+        for k, input_name in enumerate(node_j.input):
+            if input_name == redundant_output:
+                node_j.input[k] = replacement
 
     for output_node_j in output_nodes:
-        if node.output[0] == output_node_j.name:
-            output_node_j.name = node.input[0]
-
-
-def _collapse_consecutive_reshapes(nodes: list[NodeProto]) -> list[NodeProto]:
-    """Collapse consecutive Reshape nodes.
-
-    :param nodes: List of nodes.
-
-    :return: List of nodes with consecutive Reshapes collapsed
-    """
-    new_nodes = []
-    pre_pre_node = None
-    pre_node = None
-
-    for node in nodes:
-        if (
-            pre_node is not None
-            and pre_pre_node is not None
-            and node.op_type == "Reshape"
-            and pre_node.op_type == "Reshape"
-        ):
-            if len(pre_node.input) != 2 or len(pre_node.output) != 1 or len(node.input) != 2:
-                raise ValueError(
-                    f"Invalid Reshape node structure: {pre_node.name} "
-                    f"inputs={len(pre_node.input)}, outputs={len(pre_node.output)}, "
-                    f"{node.name} inputs={len(node.input)}. "
-                    "Expected 2 inputs and 1 output."
-                )
-            for _i, output_name in enumerate(pre_pre_node.output):
-                if output_name == pre_node.input[0]:
-                    node.input[0] = output_name
-            new_nodes.pop()
-
-        pre_pre_node = pre_node
-        pre_node = node
-        new_nodes.append(node)
-
-    return new_nodes
+        if output_node_j.name == redundant_output:
+            output_node_j.name = replacement
 
 
 def _is_redundant_reshape_or_flatten(
@@ -140,21 +114,21 @@ def _remove_redundant_operations(
     for node in nodes:
         if node.op_type in {"Reshape", "Flatten"}:
             if _is_redundant_reshape_or_flatten(node, data_shapes):
-                if node.op_type == "Reshape":
+                if node.op_type == "Reshape" and node.input[1] in initializers:
                     del initializers[node.input[1]]
-                _skip_redundant_node(node, nodes, output_nodes)
+                _rewire_redundant_node(node, nodes, output_nodes)
                 continue
 
         elif node.op_type in {"Add", "Sub", "Mul", "Div"}:
             is_redundant, initializer_name = _is_redundant_arithmetic_op(node, initializers)
             if is_redundant and initializer_name is not None:
                 del initializers[initializer_name]
-                _skip_redundant_node(node, nodes, output_nodes)
+                _rewire_redundant_node(node, nodes, output_nodes)
                 continue
 
         elif node.op_type == "Pad" and _is_redundant_pad(node, initializers):
             del initializers[node.input[1]]
-            _skip_redundant_node(node, nodes, output_nodes)
+            _rewire_redundant_node(node, nodes, output_nodes)
             continue
 
         new_nodes.append(node)

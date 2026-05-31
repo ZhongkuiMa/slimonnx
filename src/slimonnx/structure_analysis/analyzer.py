@@ -7,6 +7,8 @@ from collections import Counter
 
 from onnx import ModelProto, NodeProto
 
+from slimonnx import utils
+
 
 def count_op_types(nodes: list[NodeProto]) -> dict[str, int]:
     """Count operations by type.
@@ -74,8 +76,6 @@ def analyze_structure(
     nodes = list(model.graph.node)
     op_type_counts = count_op_types(nodes)
     io_info = analyze_inputs_outputs(model)
-
-    from slimonnx import utils
 
     initializers = utils.get_initializers(model)
 

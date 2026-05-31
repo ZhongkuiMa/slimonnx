@@ -13,6 +13,8 @@ import numpy as np
 import onnx
 import onnxruntime as ort
 
+from slimonnx import utils
+
 
 def generate_inputs_from_bounds(
     input_bounds: tuple[list[float], list[float]],
@@ -139,8 +141,6 @@ def _generate_test_inputs(
     if input_bounds is not None:
         input_shape = tuple(d.dim_value for d in model.graph.input[0].type.tensor_type.shape.dim)
         return generate_inputs_from_bounds(input_bounds, input_shape, num_samples)
-
-    from slimonnx import utils
 
     return utils.generate_random_inputs(model, num_samples)
 

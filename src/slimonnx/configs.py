@@ -23,7 +23,6 @@ class OptimizationConfig:
     fuse_matmul_add: bool = False
     fuse_conv_bn: bool = False
     fuse_bn_conv: bool = False
-    fuse_bn_conv_with_padding: bool = False
     fuse_conv_transpose_bn: bool = False
     fuse_bn_conv_transpose: bool = False
     fuse_depthwise_conv_bn: bool = False

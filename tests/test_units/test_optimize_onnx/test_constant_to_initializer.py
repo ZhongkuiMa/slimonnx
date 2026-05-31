@@ -9,7 +9,7 @@ from typing import Any
 import numpy as np
 from onnx import helper, numpy_helper
 
-from slimonnx.optimize_onnx._cst2initer import _constant_to_initializer
+from slimonnx.optimize_onnx._cst_op import _constant_to_initializer
 
 # Add parent directory to sys.path for conftest imports
 sys.path.insert(0, str(Path(__file__).parent.parent))
