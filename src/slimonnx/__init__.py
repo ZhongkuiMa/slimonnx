@@ -1,4 +1,7 @@
-"""SlimONNX: ONNX model optimization and simplification."""
+"""SlimONNX: ONNX model optimization and simplification.
+
+.. seealso:: ``slimonnx/CONVENTIONS.md`` for code conventions.
+"""
 
 __docformat__ = "restructuredtext"
 

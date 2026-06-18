@@ -1,3 +1,10 @@
+---
+type: DESCRIPTION
+note: "Descriptive. Mirrors current code; update to follow code changes. < functional code."
+---
+
+> **This file IS**: slimonnx-specific contribution workflow and guidelines. **It is NOT**: shared project-wide conventions (see root CONTRIBUTING.md).
+
 # Contributing to SlimONNX
 
 Shared conventions (code style, type hints, docstrings, import rules) are in the

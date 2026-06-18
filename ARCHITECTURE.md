@@ -1,3 +1,10 @@
+---
+type: DESCRIPTION
+note: "Descriptive. Mirrors current code; update to follow code changes. < functional code."
+---
+
+> **This file IS**: the package tree, module relationships, and design decisions for slimonnx. **It is NOT**: conventions or runtime behavior documentation.
+
 # SlimONNX Architecture
 
 ONNX model optimizer using flag-driven optimization passes, pattern detection, and numerical validation.

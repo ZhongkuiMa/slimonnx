@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slimonnx"
-version = "2026.5.4"
+version = "2026.6.0"
 description = "ONNX model optimization and simplification utilities"
 readme = "README.md"
 requires-python = ">=3.11"
