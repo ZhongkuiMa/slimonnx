@@ -6,11 +6,30 @@ __all__ = ["get_onnx_attrs"]
 from collections.abc import Callable
 from typing import Any
 
+import onnx
 from onnx import NodeProto, TensorProto
-from shapeonnx.onnx_attrs import EXTRACT_ATTR_MAP
 
 from slimonnx.constants import DEFAULT_GEMM_ATTRS
 from slimonnx.optimize_onnx._constants import AUTO_PAD_NOTSET
+
+# Per-attribute-type value extractors, keyed by AttributeProto.AttributeType.
+# Recovered into slimonnx when shapeonnx removed its public EXTRACT_ATTR_MAP
+# (ShapeONNX v2026.5.4 onnx_attrs cleanup kept only the op-type EXTRACT_ATTRS_MAP);
+# slimonnx owns its own copy rather than depend on a removed shapeonnx internal.
+EXTRACT_ATTR_MAP: dict[int, Any] = {
+    0: lambda x: None,  # UNDEFINED
+    1: lambda x: x.f,  # FLOAT
+    2: lambda x: x.i,  # INT
+    3: lambda x: x.s.decode("utf-8"),  # STRING
+    4: lambda x: onnx.numpy_helper.to_array(x.t),  # TENSOR
+    5: lambda x: x.g,  # GRAPH
+    6: lambda x: tuple(x.floats),  # FLOATS
+    7: lambda x: tuple(x.ints),  # INTS
+    8: lambda x: None,  # STRINGS
+    9: lambda x: None,  # TENSORS
+    10: lambda x: None,  # GRAPHS
+    11: lambda x: None,  # SPARSE_TENSOR
+}
 
 
 def scan_attrs(default_attrs: dict[str, Any], attrs) -> dict[str, Any]:
