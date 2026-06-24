@@ -37,3 +37,15 @@ repos:
         args: ['--maxkb=1000']  # Warn on files >1MB
       - id: check-merge-conflict
       - id: debug-statements  # Check for debugger imports and breakpoints
+
+  # pytest -- the unit suite (the daily local gate; mirrors the GitHub CI).
+  # Runs on any commit that touches src/ or tests/. Matches what CI runs so a
+  # test failure is caught locally BEFORE push, not only on GitHub.
+  - repo: local
+    hooks:
+      - id: pytest
+        name: slimonnx unit tests
+        entry: python -m pytest tests/ -q
+        language: system
+        pass_filenames: false
+        files: ^(src|tests)/.*\.py$
