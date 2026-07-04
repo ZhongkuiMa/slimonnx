@@ -12,7 +12,7 @@ ENV/
 .eggs/
 
 # === Distribution / packaging ===
-build/
+
 dist/
 *.egg
 *.whl
@@ -76,7 +76,7 @@ Thumbs.db
 # === Test directories (large files - auto-generated, not version-controlled) ===
 # Note: tests/baselines/ contains golden reference .json files (version-controlled)
 tests/data/
-tests/vnncomp2024_benchmarks/
+tests/vnncomp_benchmarks/
 tests/benchmarks/
 tests/temp/
 

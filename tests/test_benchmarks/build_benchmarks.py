@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Build script to set up benchmarks symlink for slimonnx tests.
 
-This script creates a symlink from slimonnx/test/vnncomp2024_benchmarks
+This script creates a symlink from slimonnx/test/vnncomp_benchmarks
 to the actual benchmarks directory location.
 """
 
@@ -21,17 +21,17 @@ def setup_benchmarks_symlink() -> int:
     tests_dir = Path(__file__).parent
 
     # Target symlink path
-    symlink_path = tests_dir / "vnncomp2024_benchmarks"
+    symlink_path = tests_dir / "vnncomp_benchmarks"
 
     # Find the benchmarks directory
-    # Try ../../../vnncomp2024_benchmarks/benchmarks relative to tests dir
+    # Try ../../../vnncomp_benchmarks/benchmarks relative to tests dir
     benchmarks_dir = (
-        tests_dir / ".." / ".." / ".." / "vnncomp2024_benchmarks" / "benchmarks"
+        tests_dir / ".." / ".." / ".." / "vnncomp_benchmarks" / "benchmarks"
     ).resolve()
 
     if not benchmarks_dir.exists():
         print(f"Error: Benchmarks directory not found at {benchmarks_dir}")
-        print("Please ensure vnncomp2024_benchmarks is cloned in the parent directory")
+        print("Please ensure vnncomp_benchmarks is cloned in the parent directory")
         return 1
 
     # Check if symlink/file already exists

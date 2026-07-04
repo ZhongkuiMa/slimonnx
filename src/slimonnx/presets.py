@@ -12,10 +12,10 @@ _ALIASES: dict[str, str] = {
     "cifar100": "cifar100_2024",
     "collins_rul_cnn_2023": "collins_rul_cnn_2022",
     "cora": "cora_2024",
-    "nn4sys": "nn4sys_2023",
+    "nn4sys_2024": "nn4sys",
     "safenlp": "safenlp_2024",
     "tinyimagenet": "tinyimagenet_2024",
-    "vggnet16_2023": "vggnet16_2022",
+    "vggnet16_2022": "vggnet16_2023",
 }
 
 #: Default config for benchmarks that only need constant folding.
@@ -36,7 +36,7 @@ _CF_ONLY_PRESETS = frozenset(
         "sat_relu",
         "soundnessbench",
         "traffic_signs_recognition_2023",
-        "vggnet16_2022",
+        "vggnet16_2023",
         "yolo_2023",
     }
 )
@@ -62,8 +62,7 @@ PRESET_NAMES = (
     "metaroom_2023",
     "ml4acopf_2023",
     "ml4acopf_2024",
-    "nn4sys",  # alias of nn4sys_2023
-    "nn4sys_2023",
+    "nn4sys",
     "relusplitter",
     "safenlp",  # alias of safenlp_2024
     "safenlp_2024",
@@ -73,8 +72,8 @@ PRESET_NAMES = (
     "tinyimagenet_2024",
     "tllverifybench_2023",
     "traffic_signs_recognition_2023",
-    "vggnet16_2022",
-    "vggnet16_2023",  # alias of vggnet16_2022
+    "vggnet16_2023",
+    "vggnet16_2022",  # alias of vggnet16_2023
     "vit_2023",
     "yolo_2023",
     "test",
@@ -91,9 +90,9 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
 
     :return: Optimization configuration optimized for the benchmark
     """
-    # Model-specific exceptions for nn4sys_2023 (some have batch dim, some don't)
+    # Model-specific exceptions for nn4sys (some have batch dim, some don't)
     if (
-        benchmark_name == "nn4sys_2023"
+        benchmark_name == "nn4sys"
         and model_name
         and "pensieve" in model_name
         and "parallel" in model_name
@@ -154,7 +153,7 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             remove_redundant_operations=True,
             constant_folding=True,
         ),
-        "nn4sys_2023": OptimizationConfig(
+        "nn4sys": OptimizationConfig(
             fuse_matmul_add=True,
             constant_folding=True,
         ),

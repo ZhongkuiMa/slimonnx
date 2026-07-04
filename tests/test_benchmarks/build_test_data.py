@@ -1,9 +1,9 @@
-"""Build test data efficiently from vnncomp2024_benchmarks symlink.
+"""Build test data efficiently from vnncomp_benchmarks symlink.
 
 Optimizations:
 - Only uses FIRST vnnlib per model (faster generation)
 - Limits to max_per_benchmark models (configurable)
-- Works with symlink structure (vnncomp2024_benchmarks)
+- Works with symlink structure (vnncomp_benchmarks)
 - Direct generation to data/ (no intermediate vnnlib_data)
 """
 
@@ -215,7 +215,7 @@ def generate_data_from_vnnlib(
 
 
 def build_test_data(
-    benchmarks_root: str = "vnncomp2024_benchmarks",
+    benchmarks_root: str = "vnncomp_benchmarks",
     data_root: str = "data",
     max_per_benchmark: int = 20,
 ):

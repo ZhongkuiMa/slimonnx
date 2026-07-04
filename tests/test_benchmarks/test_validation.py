@@ -306,7 +306,7 @@ def run_all_validation(benchmark_dir: str = "benchmarks", max_per_benchmark: int
 
 def test_preprocess_benchmarks() -> None:
     """Pytest: Test preprocessing on all benchmark models."""
-    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 
@@ -317,7 +317,7 @@ def test_preprocess_benchmarks() -> None:
 
 def test_validation_benchmarks() -> None:
     """Pytest: Test validation on all benchmark models."""
-    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 

@@ -370,7 +370,7 @@ def run_all_structure_analysis(
 
 def test_pattern_detection_benchmarks() -> None:
     """Pytest: Test pattern detection on all benchmark models."""
-    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 
@@ -381,7 +381,7 @@ def test_pattern_detection_benchmarks() -> None:
 
 def test_structure_analysis_benchmarks() -> None:
     """Pytest: Test structure analysis on all benchmark models."""
-    benchmark_dir = Path(__file__).parent / "vnncomp2024_benchmarks"
+    benchmark_dir = Path(__file__).parent / "vnncomp_benchmarks"
     if not benchmark_dir.exists():
         pytest.skip(f"Benchmark directory not found: {benchmark_dir}")
 

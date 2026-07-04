@@ -284,7 +284,7 @@ def _load_from_vnnlib_data(
 
 
 def load_test_inputs(
-    onnx_path: str, benchmarks_dir: str = "vnncomp2024_benchmarks", data_dir: str | None = None
+    onnx_path: str, benchmarks_dir: str = "vnncomp_benchmarks", data_dir: str | None = None
 ) -> list[np.ndarray]:
     """Load test inputs for an ONNX model.
 

@@ -124,7 +124,6 @@ class TestGetPreset:
         "preset_name",
         [
             pytest.param("nn4sys", id="nn4sys"),
-            pytest.param("nn4sys_2023", id="nn4sys_2023"),
             pytest.param("safenlp_2024", id="safenlp_2024"),
         ],
     )
@@ -136,17 +135,17 @@ class TestGetPreset:
         assert config.fuse_matmul_add is True
         assert config.constant_folding is True
 
-    def test_nn4sys_2023_pensieve_parallel(self):
-        """Test nn4sys_2023 model-specific exception for pensieve_parallel."""
-        config = get_preset("nn4sys_2023", "pensieve_parallel_model.onnx")
+    def test_nn4sys_pensieve_parallel(self):
+        """Test nn4sys model-specific exception for pensieve_parallel."""
+        config = get_preset("nn4sys", "pensieve_parallel_model.onnx")
 
         assert isinstance(config, OptimizationConfig)
         assert config.fuse_matmul_add is True
         assert config.has_batch_dim is False
 
-    def test_nn4sys_2023_other_model(self):
-        """Test nn4sys_2023 with non-matching model name."""
-        config = get_preset("nn4sys_2023", "other_model.onnx")
+    def test_nn4sys_other_model(self):
+        """Test nn4sys with non-matching model name."""
+        config = get_preset("nn4sys", "other_model.onnx")
 
         assert isinstance(config, OptimizationConfig)
         assert config.fuse_matmul_add is True

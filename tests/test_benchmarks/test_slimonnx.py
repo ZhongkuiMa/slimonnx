@@ -33,7 +33,7 @@ KNOWN_FAILURES: dict[str, str] = {}
 def get_benchmark_models():
     """Collect all models from vnncomp2024 benchmarks."""
     test_dir = Path(__file__).parent
-    benchmarks_dir = test_dir / "vnncomp2024_benchmarks"
+    benchmarks_dir = test_dir / "vnncomp_benchmarks"
     benchmarks = find_benchmarks(str(benchmarks_dir))
     models = find_models(benchmarks, max_per_benchmark=20)
     return [str(m) for m in models]
