@@ -210,6 +210,31 @@ class SlimONNX:
             "output_path": target_path,
         }
 
+    def slim_model(
+        self,
+        model: onnx.ModelProto,
+        config: OptimizationConfig | None = None,
+    ) -> onnx.ModelProto:
+        """Optimize a pre-loaded ModelProto in memory.
+
+        Skips file load and opset conversion — callers that have already
+        loaded and version-converted the model call this method instead of
+        :meth:`slim` to avoid redundant file I/O.
+
+        :param model: Pre-loaded ONNX model (caller is responsible for
+            version conversion and shape inference).
+        :param config: Optimization configuration. ``None`` uses defaults.
+        :return: Optimized :class:`onnx.ModelProto`.
+        """
+        config = config or OptimizationConfig()
+        new_model = _optimize_with_config(
+            model,
+            config,
+            simplify_gemm=True,
+            reorder_by_strict_topological_order=True,
+        )
+        return new_model
+
     def analyze(
         self,
         onnx_path: str,
