@@ -88,39 +88,6 @@ def _normalize_gemm_bias_input(
     return new_name, beta
 
 
-def _swap_gemm_inputs_if_needed(
-    var_name: str,
-    weight_name: str,
-    initializers: dict[str, TensorProto],
-) -> tuple[str, str]:
-    """Ensure variable is first input, weight is second.
-
-    If both are initializers or both are variables, keep original order.
-    If only one is initializer, make the variable be the first input.
-
-    :param var_name: First input name.
-
-    :param weight_name: Second input name.
-
-    :param initializers: Dictionary of initializers (modified in-place).
-
-    :return: Tuple of (new_var_name, new_weight_name)
-    """
-    var_is_init = var_name in initializers
-    weight_is_init = weight_name in initializers
-
-    # If var is initializer but weight is not, swap them
-    if var_is_init and not weight_is_init:
-        var_name, weight_name = weight_name, var_name
-        # Transpose the weight matrix
-        weight_tensor = initializers[weight_name]
-        weight_array = onnx.numpy_helper.to_array(weight_tensor)
-        weight_array = weight_array.copy().T
-        initializers[weight_name] = onnx.numpy_helper.from_array(weight_array, weight_name)
-
-    return var_name, weight_name
-
-
 def _simplify_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
@@ -130,8 +97,8 @@ def _simplify_gemm(
     This function:
     1. Absorbs alpha/beta/transA/transB into initializer values
     2. Creates unique copies of initializers for each Gemm (avoids shared state)
-    3. Swaps inputs to ensure variable is first, weight is second
-    4. Removes default attributes
+    3. Preserves every attribute that cannot be absorbed
+    4. Removes only normalized default attributes
     5. Cleans up unused initializers
 
     :param nodes: List of nodes.
@@ -171,21 +138,28 @@ def _simplify_gemm(
             else (None, beta)
         )
 
-        # Swap inputs if needed (variable first, weight second)
-        input_0, input_1 = _swap_gemm_inputs_if_needed(input_0, input_1, initializers)
-
         # Build new input list
         input_names = [input_0, input_1]
         if input_2 is not None:
             input_names.append(input_2)
 
-        # Create simplified Gemm node with minimal attributes
-        new_node = NodeProto(
-            name=node.name,
-            op_type="Gemm",
-            input=input_names,
-            output=node.output,
-        )
+        # Preserve protobuf metadata and every residual semantic attribute.
+        # Matrix multiplication is not commutative, so input order is never
+        # changed merely to put a runtime tensor first.
+        new_node = NodeProto()
+        new_node.CopyFrom(node)
+        del new_node.input[:]
+        new_node.input.extend(input_names)
+        del new_node.attribute[:]
+        residual_attrs = {
+            "alpha": alpha,
+            "beta": beta if input_2 is not None else 1.0,
+            "transA": trans_a,
+            "transB": trans_b,
+        }
+        for name, value in residual_attrs.items():
+            if value != (1.0 if name in {"alpha", "beta"} else 0):
+                new_node.attribute.append(onnx.helper.make_attribute(name, value))
 
         new_nodes.append(new_node)
         gemm_count += 1

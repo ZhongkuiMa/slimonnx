@@ -106,7 +106,7 @@ class SlimONNX:
 
     The following optimizations are always applied (hardcoded as True):
     - constant_to_initializer: Converts Constant nodes to initializers
-    - simplify_gemm: Normalizes Gemm attributes (alpha=1, beta=1, trans=False)
+    - simplify_gemm: Absorbs Gemm attributes into static inputs when possible
     - reorder_by_strict_topological_order: Topological sorting of nodes
 
     :param verbose: Print stage-by-stage progress.

@@ -140,8 +140,8 @@ class TestMatMulAddFusion:
         X = create_tensor_value_info("X", "float32", [1, 3, 4, 4])
         inputs = [X]
 
-        # Flatten output would be (1, 48) but input is 4D
-        W = np.random.randn(48, 2).astype(np.float32)
+        # MatMul contracts the last input axis and preserves the other axes.
+        W = np.random.randn(4, 2).astype(np.float32)
         b = np.random.randn(2).astype(np.float32)
         initializers = [
             create_initializer("W", W),
@@ -151,10 +151,10 @@ class TestMatMulAddFusion:
         matmul_node = helper.make_node("MatMul", inputs=["X", "W"], outputs=["matmul_output"])
         add_node = helper.make_node("Add", inputs=["matmul_output", "b"], outputs=["Y"])
 
-        outputs = [create_tensor_value_info("Y", "float32", [1, 2])]
+        outputs = [create_tensor_value_info("Y", "float32", [1, 3, 4, 2])]
         model = create_minimal_onnx_model([matmul_node, add_node], inputs, outputs, initializers)
 
-        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=True)
+        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=False)
         gemm_nodes = [n for n in optimized.graph.node if n.op_type == "Gemm"]
         assert len(gemm_nodes) == 0, "4D MatMul should NOT fuse to Gemm"
 
@@ -185,7 +185,7 @@ class TestMatMulAddFusion:
             [matmul_node, add_node, mul_node], inputs, outputs, initializers
         )
 
-        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=True)
+        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=False)
         # Should not fuse because MatMul output has multiple consumers
         gemm_nodes = [n for n in optimized.graph.node if n.op_type == "Gemm"]
         assert len(gemm_nodes) == 0, "MatMul with multiple consumers should NOT fuse"
@@ -205,7 +205,7 @@ class TestMatMulAddFusion:
         outputs = [create_tensor_value_info("Y", "float32", [2, 2])]
         model = create_minimal_onnx_model([matmul_node, add_node], inputs, outputs, initializers)
 
-        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=True)
+        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=False)
         gemm_nodes = [n for n in optimized.graph.node if n.op_type == "Gemm"]
         assert len(gemm_nodes) == 0, "MatMul with variable weight should NOT fuse"
 
@@ -224,7 +224,7 @@ class TestMatMulAddFusion:
         outputs = [create_tensor_value_info("Y", "float32", [1, 2])]
         model = create_minimal_onnx_model([matmul_node, add_node], inputs, outputs, initializers)
 
-        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=True)
+        optimized = optimize_onnx(model, fuse_matmul_add=True, has_batch_dim=False)
         gemm_nodes = [n for n in optimized.graph.node if n.op_type == "Gemm"]
         assert len(gemm_nodes) == 0, "MatMul+Add with variable weight should NOT fuse"
 

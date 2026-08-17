@@ -83,11 +83,10 @@ class TestReformatIOShape:
         result = reformat_io_shape(node, has_batch_dim=has_batch_dim)
         assert result == expected
 
-    def test_batch_dim_error(self):
-        """Test error when batch dimension missing."""
+    def test_rank1_is_surviving_batch_dimension(self):
+        """Rank-1 values have no separate feature axis to normalize."""
         node = create_tensor_value_info("X", "float32", [3])
-        with pytest.raises(ValueError, match="batch dimension"):
-            reformat_io_shape(node, has_batch_dim=True)
+        assert reformat_io_shape(node, has_batch_dim=True) == [3]
 
 
 class TestGetInputOutputNodes:

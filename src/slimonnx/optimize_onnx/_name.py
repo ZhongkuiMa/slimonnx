@@ -33,10 +33,12 @@ def _rename_io_nodes(
 
     output_old_new_mapping = {}
     for node in output_nodes:
-        new_name = f"output_{counter}"
+        old_name = node.name
+        new_name = node_output_names_mapping.get(old_name, f"output_{counter}")
         output_old_new_mapping[node.name] = new_name
         node.name = new_name
-        counter += 1
+        if old_name not in node_output_names_mapping:
+            counter += 1
 
     return node_output_names_mapping, output_old_new_mapping, counter
 

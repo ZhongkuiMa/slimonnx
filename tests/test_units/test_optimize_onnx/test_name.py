@@ -44,6 +44,19 @@ class TestRenameIoNodes:
         assert inputs[0].name == "input_10"
         assert counter == 11
 
+    def test_input_output_alias_keeps_one_value_name(self):
+        """An identity graph must not invent a disconnected output value."""
+        inputs = [create_tensor_value_info("value", "float32", [1])]
+        outputs = [create_tensor_value_info("value", "float32", [1])]
+
+        in_map, out_map, counter = _rename_io_nodes(inputs, outputs, start_counter=0)
+
+        assert inputs[0].name == "input_0"
+        assert outputs[0].name == "input_0"
+        assert in_map == {"value": "input_0"}
+        assert out_map == {"value": "input_0"}
+        assert counter == 1
+
 
 class TestUpdateNodeOutputNames:
     """_update_node_output_names renames node + outputs and updates mapping."""

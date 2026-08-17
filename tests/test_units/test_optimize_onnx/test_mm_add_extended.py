@@ -17,17 +17,17 @@ class TestExtractMatmulAddParams:
     """Test _extract_matmul_add_params function."""
 
     @pytest.mark.parametrize(
-        ("matmul_inputs", "add_inputs", "expected_trans_b"),
+        ("matmul_inputs", "add_inputs", "expected"),
         [
-            (["X", "W"], ["Y", "B"], 0),
-            (["W", "X"], ["Y", "B"], 1),
+            (["X", "W"], ["Y", "B"], ("X", "W", "B")),
+            (["W", "X"], ["Y", "B"], None),
         ],
-        ids=["weight_second", "weight_first_transposed"],
+        ids=["right_weight_linear", "left_constant_not_linear"],
     )
     def test_extracts_params_with_weight_position(
-        self, matmul_inputs, add_inputs, expected_trans_b, make_initializer
+        self, matmul_inputs, add_inputs, expected, make_initializer
     ):
-        """Test extracting params handles weight in first or second position."""
+        """Only a static right operand is a Gemm linear-layer pattern."""
         matmul = helper.make_node("MatMul", inputs=matmul_inputs, outputs=["Y"], name="mm_0")
         add = helper.make_node("Add", inputs=add_inputs, outputs=["Z"], name="add_0")
 
@@ -36,14 +36,7 @@ class TestExtractMatmulAddParams:
             "B": make_initializer("B", np.ones(3)),
         }
 
-        input_name, weight_name, bias_name, trans_b = _extract_matmul_add_params(
-            matmul, add, initializers
-        )
-
-        assert input_name == "X"
-        assert weight_name == "W"
-        assert bias_name == "B"
-        assert trans_b == expected_trans_b
+        assert _extract_matmul_add_params(matmul, add, initializers) == expected
 
     @pytest.mark.parametrize(
         "add_inputs",
@@ -63,11 +56,10 @@ class TestExtractMatmulAddParams:
             "B": make_initializer("B", np.ones(3)),
         }
 
-        _input_name, _weight_name, bias_name, _trans_b = _extract_matmul_add_params(
-            matmul, add, initializers
-        )
+        result = _extract_matmul_add_params(matmul, add, initializers)
 
-        assert bias_name == "B"
+        assert result is not None
+        assert result[2] == "B"
 
 
 class TestCanFuseToGemmMatmulAdd:
@@ -89,7 +81,7 @@ class TestCanFuseToGemmMatmulAdd:
             "W": make_initializer("W", np.ones(w_shape)),
             "B": make_initializer("B", np.ones(b_shape)),
         }
-        result = _can_fuse_to_gemm_matmul_add("X", "W", "B", initializers, None, None)
+        result = _can_fuse_to_gemm_matmul_add("X", "W", "B", initializers, None, {"X": [1, 3]})
         assert result is expected
 
     @pytest.mark.parametrize(
@@ -127,7 +119,7 @@ class TestCanFuseToGemmMatmulAdd:
         assert result is expected
 
     def test_with_input_nodes_input_not_found(self, make_initializer):
-        """Test fusion defaults to True when input not found in input_nodes."""
+        """Fusion is skipped when rank-two eligibility cannot be proven."""
         initializers = {
             "W": make_initializer("W", np.ones((3, 3))),
             "B": make_initializer("B", np.ones(3)),
@@ -136,23 +128,21 @@ class TestCanFuseToGemmMatmulAdd:
         input_info = helper.make_tensor_value_info("Other", TensorProto.FLOAT, [1, 2, 3])
         input_nodes = [input_info]
 
-        # Should return True when input not found (optimization assumption)
         result = _can_fuse_to_gemm_matmul_add("X", "W", "B", initializers, input_nodes, None)
 
-        assert result is True
+        assert result is False
 
     def test_with_data_shapes_input_not_found(self, make_initializer):
-        """Test fusion with data_shapes when input not found."""
+        """Missing inferred geometry is not permission to rewrite the graph."""
         initializers = {
             "W": make_initializer("W", np.ones((3, 3))),
             "B": make_initializer("B", np.ones(3)),
         }
         data_shapes = {"Other": [1, 3]}
 
-        # Should return True when input not in data_shapes
         result = _can_fuse_to_gemm_matmul_add("X", "W", "B", initializers, None, data_shapes)
 
-        assert result is True
+        assert result is False
 
 
 class TestFuseMatmulAdd:
@@ -183,7 +173,7 @@ class TestFuseMatmulAdd:
             for op, inputs, outputs, name in extra_nodes:
                 nodes.append(helper.make_node(op, inputs=inputs, outputs=outputs, name=name))
 
-        result = _fuse_matmul_add(nodes, initializers)
+        result = _fuse_matmul_add(nodes, initializers, data_shapes={"X": [1, 3]})
 
         assert len(result) == expected_len
         assert [n.op_type for n in result] == expected_ops
@@ -214,7 +204,7 @@ class TestFuseMatmulAdd:
         }
 
         nodes = [matmul, add]
-        result = _fuse_matmul_add(nodes, initializers)
+        result = _fuse_matmul_add(nodes, initializers, data_shapes={"X": [1, 3]})
 
         if has_all_initializers:
             assert len(result) == 1
@@ -279,8 +269,8 @@ class TestFuseMatmulAdd:
         assert len(result) == 1
         assert result[0].op_type == "Gemm"
 
-    def test_fuses_with_weight_transposed(self, make_initializer):
-        """Test fusion when weight is first MatMul input (transposed)."""
+    def test_preserves_constant_left_matmul(self, make_initializer):
+        """W @ X is not commuted into the X @ W Gemm linear form."""
         matmul = helper.make_node("MatMul", inputs=["W", "X"], outputs=["Y"], name="mm_0")
         add = helper.make_node("Add", inputs=["Y", "B"], outputs=["Z"], name="add_0")
 
@@ -290,12 +280,9 @@ class TestFuseMatmulAdd:
         }
 
         nodes = [matmul, add]
-        result = _fuse_matmul_add(nodes, initializers)
+        result = _fuse_matmul_add(nodes, initializers, data_shapes={"X": [3, 3]})
 
-        assert len(result) == 1
-        assert result[0].op_type == "Gemm"
-        # With trans_b=1, inputs should be W, X, B
-        assert list(result[0].input) == ["W", "X", "B"]
+        assert [node.op_type for node in result] == ["MatMul", "Add"]
 
     def test_preserves_other_nodes(self, make_initializer):
         """Test that other nodes are preserved."""
@@ -310,7 +297,7 @@ class TestFuseMatmulAdd:
         }
 
         nodes = [relu1, matmul, add, relu2]
-        result = _fuse_matmul_add(nodes, initializers)
+        result = _fuse_matmul_add(nodes, initializers, data_shapes={"B": [1, 3]})
 
         # Should have Relu, Gemm, Relu
         assert len(result) == 3
@@ -333,7 +320,11 @@ class TestFuseMatmulAdd:
         }
 
         nodes = [matmul1, add1, matmul2, add2]
-        result = _fuse_matmul_add(nodes, initializers)
+        result = _fuse_matmul_add(
+            nodes,
+            initializers,
+            data_shapes={"X": [1, 3], "Z1": [1, 3]},
+        )
 
         # Should have 2 Gemm nodes
         assert len(result) == 2

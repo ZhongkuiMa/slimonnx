@@ -14,7 +14,6 @@ from slimonnx.optimize_onnx._gemm import (
     _normalize_gemm_bias_input,
     _normalize_gemm_matrix_input,
     _simplify_gemm,
-    _swap_gemm_inputs_if_needed,
 )
 
 # Add parent directory to sys.path for conftest imports
@@ -129,46 +128,6 @@ class TestNormalizeGemmBiasInput:
         # Should return unchanged
         assert input_name == "C"
         assert beta == 2.0
-
-
-class TestSwapGemmInputs:
-    """Test _swap_gemm_inputs_if_needed function."""
-
-    @pytest.mark.parametrize(
-        ("first_init", "second_init", "expect_swap"),
-        [
-            (True, True, False),
-            (False, False, False),
-            (True, False, True),
-            (False, True, False),
-        ],
-    )
-    def test_swaps_inputs_based_on_initializer_status(self, first_init, second_init, expect_swap):
-        """Test input swapping with various initializer combinations."""
-        initializers: dict[str, Any] = {}
-
-        if first_init:
-            A = create_initializer("A", np.random.randn(2, 3).astype(np.float32))
-            initializers["A"] = A
-            first_name = "A"
-        else:
-            first_name = "X"
-
-        if second_init:
-            B = create_initializer("B", np.random.randn(3, 4).astype(np.float32))
-            initializers["B"] = B
-            second_name = "B"
-        else:
-            second_name = "Y"
-
-        var_name, weight_name = _swap_gemm_inputs_if_needed(first_name, second_name, initializers)
-
-        if expect_swap:
-            assert var_name == second_name
-            assert weight_name == first_name
-        else:
-            assert var_name == first_name
-            assert weight_name == second_name
 
 
 class TestSimplifyGemm:
@@ -345,3 +304,41 @@ class TestSimplifyGemm:
         assert len(result) == 2
         assert result[0].op_type == "Gemm"
         assert result[1].op_type == "Relu"
+
+    def test_preserves_matrix_operand_order(self):
+        """A constant left operand is not swapped with a runtime right operand."""
+        a = create_initializer("A", np.arange(6, dtype=np.float32).reshape(2, 3))
+        node = helper.make_node("Gemm", inputs=["A", "X"], outputs=["Y"])
+        initializers = {"A": a}
+
+        result = _simplify_gemm([node], initializers)
+
+        assert list(result[0].input) == ["A_0", "X"]
+
+    @pytest.mark.parametrize(
+        ("attrs", "expected"),
+        [
+            ({"transA": 1}, {"transA": 1}),
+            ({"transB": 1}, {"transB": 1}),
+            ({"alpha": 2.0}, {"alpha": 2.0}),
+        ],
+        ids=["dynamic_transa", "dynamic_transb", "dynamic_alpha"],
+    )
+    def test_preserves_attributes_on_dynamic_matrix_inputs(self, attrs, expected):
+        """Attributes remain on the node when no initializer can absorb them."""
+        node = helper.make_node("Gemm", inputs=["X", "W"], outputs=["Y"], **attrs)
+
+        result = _simplify_gemm([node], {})
+
+        actual = {attr.name: helper.get_attribute_value(attr) for attr in result[0].attribute}
+        assert actual == expected
+
+    def test_preserves_beta_on_dynamic_bias(self):
+        """A runtime C input keeps its beta scale on the normalized node."""
+        weight = create_initializer("W", np.eye(2, dtype=np.float32))
+        node = helper.make_node("Gemm", inputs=["X", "W", "C"], outputs=["Y"], beta=0.25)
+
+        result = _simplify_gemm([node], {"W": weight})
+
+        attrs = {attr.name: helper.get_attribute_value(attr) for attr in result[0].attribute}
+        assert attrs == {"beta": pytest.approx(0.25)}

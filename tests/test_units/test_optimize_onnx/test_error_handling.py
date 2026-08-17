@@ -3,6 +3,7 @@
 __docformat__ = "restructuredtext"
 
 import numpy as np
+import pytest
 from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
@@ -151,7 +152,7 @@ class TestInvalidShapeHandling:
     """Test error handling for invalid tensor shapes."""
 
     def test_matmul_incompatible_shapes(self):
-        """MatMul with incompatible shapes - operation may fail at runtime."""
+        """MatMul with incompatible shapes is rejected during shape inference."""
         X = create_tensor_value_info("X", "float32", [2, 3])
         inputs = [X]
 
@@ -165,13 +166,12 @@ class TestInvalidShapeHandling:
             outputs=["Y"],
         )
 
-        # Output shape will be undefined at graph construction
+        # The declared output cannot make an invalid contraction executable.
         outputs = [create_tensor_value_info("Y", "float32", [2, 5])]
         model = create_minimal_onnx_model([matmul_node], inputs, outputs, initializers)
 
-        # Optimizer should handle without crashing
-        optimized = optimize_onnx(model, has_batch_dim=False)
-        assert optimized
+        with pytest.raises(RuntimeError, match="MatMul contraction dimensions must match"):
+            optimize_onnx(model, has_batch_dim=False)
 
     def test_empty_graph(self):
         """Empty model with no nodes."""

@@ -38,6 +38,8 @@ coverage.xml
 # === pytest / unittest ===
 .pytest_cache/
 tests/.pytest_cache/
+.testmondata
+.testmondata-*
 tests/results/
 tests/__pycache__/
 

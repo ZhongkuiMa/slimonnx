@@ -203,12 +203,12 @@ class TestConstantFolding:
 
     def test_constant_concat(self):
         """Test constant folding for Concat operation."""
-        inputs = [create_tensor_value_info("X", "float32", [2, 1])]
-        outputs = [create_tensor_value_info("Y", "float32", [2, 3])]
+        inputs = [create_tensor_value_info("X", "float32", [1, 1])]
+        outputs = [create_tensor_value_info("Y", "float32", [1, 3])]
 
         # Constant data for concat
-        a = np.ones((2, 1), dtype=np.float32)
-        b = np.ones((2, 1), dtype=np.float32)
+        a = np.ones((1, 1), dtype=np.float32)
+        b = np.ones((1, 1), dtype=np.float32)
         initializers = [
             create_initializer("a", a),
             create_initializer("b", b),

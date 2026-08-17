@@ -496,6 +496,7 @@ class TestConvTransposeBNFusion:
             outputs=["conv_out"],
             kernel_shape=[3, 3],
             output_padding=[1, 1],
+            strides=[2, 2],
         )
         bn_node = helper.make_node(
             "BatchNormalization",
@@ -504,7 +505,7 @@ class TestConvTransposeBNFusion:
             epsilon=1e-5,
         )
 
-        outputs = [create_tensor_value_info("Y", "float32", [1, 3, 7, 7])]
+        outputs = [create_tensor_value_info("Y", "float32", [1, 3, 10, 10])]
         model = create_minimal_onnx_model([conv_node, bn_node], inputs, outputs, initializers)
 
         optimized = optimize_onnx(model, fuse_conv_bn=True, has_batch_dim=True)
