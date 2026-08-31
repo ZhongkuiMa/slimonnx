@@ -101,14 +101,23 @@ def _is_redundant_pad(node: NodeProto, initializers: dict[str, TensorProto]) -> 
     return bool(np.all(array == 0))
 
 
+def _is_redundant_cast(node: NodeProto, data_types: dict[str, int]) -> bool:
+    """Return whether ``Cast`` preserves an already-known element type."""
+    source_type = data_types.get(node.input[0])
+    target_type = next((int(attr.i) for attr in node.attribute if attr.name == "to"), None)
+    return source_type is not None and target_type == source_type
+
+
 def _remove_redundant_operations(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     data_shapes: dict[str, int | list[int]],
     output_nodes: list[ValueInfoProto],
+    data_types: dict[str, int] | None = None,
 ) -> list[NodeProto]:
-    """Remove zero adding, subtracting, multiplying, dividing operations."""
+    """Remove identity-like operations proved redundant by shape/value/type."""
     nodes = _collapse_consecutive_reshapes(nodes)
+    data_types = {} if data_types is None else data_types
 
     new_nodes = []
     for node in nodes:
@@ -128,6 +137,10 @@ def _remove_redundant_operations(
 
         elif node.op_type == "Pad" and _is_redundant_pad(node, initializers):
             del initializers[node.input[1]]
+            _rewire_redundant_node(node, nodes, output_nodes)
+            continue
+
+        elif node.op_type == "Cast" and _is_redundant_cast(node, data_types):
             _rewire_redundant_node(node, nodes, output_nodes)
             continue
 

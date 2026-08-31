@@ -8,7 +8,7 @@ from typing import Any
 
 import numpy as np
 import pytest
-from onnx import helper
+from onnx import TensorProto, helper
 
 from slimonnx.optimize_onnx._redundant import (
     _collapse_consecutive_reshapes,
@@ -245,6 +245,35 @@ class TestRemoveRedundantOperations:
         # Should keep the Add node
         assert len(result) == 1
         assert result[0].op_type == "Add"
+
+    @pytest.mark.parametrize(
+        ("source_type", "target_type", "removed"),
+        [
+            (TensorProto.FLOAT, TensorProto.FLOAT, True),
+            (TensorProto.FLOAT, TensorProto.DOUBLE, False),
+        ],
+    )
+    def test_remove_only_element_type_preserving_cast(
+        self,
+        source_type: int,
+        target_type: int,
+        removed: bool,
+    ) -> None:
+        """A Cast is an identity only when type inference proves equal types."""
+        cast = helper.make_node("Cast", inputs=["X"], outputs=["cast_out"], to=target_type)
+        relu = helper.make_node("Relu", inputs=["cast_out"], outputs=["Y"])
+        output = create_tensor_value_info("Y", "float32", [1, 3])
+
+        result = _remove_redundant_operations(
+            [cast, relu],
+            {},
+            {"X": [1, 3], "cast_out": [1, 3], "Y": [1, 3]},
+            [output],
+            {"X": source_type, "cast_out": target_type},
+        )
+
+        assert (cast not in result) is removed
+        assert relu.input[0] == ("X" if removed else "cast_out")
 
     def test_remove_multiple_redundant_operations(self):
         """Test removing multiple redundant operations."""

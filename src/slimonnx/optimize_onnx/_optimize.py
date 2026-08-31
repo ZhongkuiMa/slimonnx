@@ -57,12 +57,31 @@ def _infer_shapes(
     return infer_onnx_shape(input_nodes, output_nodes, nodes, initializers, has_batch_dim)
 
 
+def _infer_element_types(model: ModelProto) -> dict[str, int]:
+    """Infer tensor element types used to prove no-op Cast removal."""
+    inferred = onnx.shape_inference.infer_shapes(model)
+    data_types = {
+        value.name: int(value.type.tensor_type.elem_type)
+        for value in (
+            *inferred.graph.input,
+            *inferred.graph.value_info,
+            *inferred.graph.output,
+        )
+        if value.type.HasField("tensor_type") and value.type.tensor_type.elem_type != 0
+    }
+    data_types.update(
+        {initializer.name: int(initializer.data_type) for initializer in inferred.graph.initializer}
+    )
+    return data_types
+
+
 def _run_shape_based_passes(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     input_nodes: list[ValueInfoProto],
     output_nodes: list[ValueInfoProto],
     config: OptimizationConfig,
+    data_types: dict[str, int],
 ) -> tuple[list[NodeProto], dict[str, TensorProto]]:
     """Run optimizations that consume shape inference output.
 
@@ -91,7 +110,13 @@ def _run_shape_based_passes(
                 nodes, initializers, input_nodes, output_nodes, has_batch_dim
             )
         nodes = _reorder_by_strict_topological_order(nodes)
-        nodes = _remove_redundant_operations(nodes, initializers, data_shapes, output_nodes)
+        nodes = _remove_redundant_operations(
+            nodes,
+            initializers,
+            data_shapes,
+            output_nodes,
+            data_types,
+        )
         data_shapes = None
 
     if config.simplify_conv_to_flatten_gemm:
@@ -302,6 +327,7 @@ def _optimize_with_config(
 
     graph_name = model.graph.name + "_slimmed"
     model = clear_onnx_docstring(model)
+    data_types = _infer_element_types(model) if config.remove_redundant_operations else {}
 
     initializers = get_initializers(model)
     input_nodes = get_input_nodes(model, initializers, has_batch_dim)
@@ -324,7 +350,12 @@ def _optimize_with_config(
         output_nodes = get_output_nodes(model, has_batch_dim)
 
     nodes, initializers = _run_shape_based_passes(
-        nodes, initializers, input_nodes, output_nodes, config
+        nodes,
+        initializers,
+        input_nodes,
+        output_nodes,
+        config,
+        data_types,
     )
     nodes = _run_gemm_bn_passes(
         nodes, initializers, input_nodes, output_nodes, config, simplify_gemm
