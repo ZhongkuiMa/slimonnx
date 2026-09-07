@@ -77,6 +77,20 @@ class TestGetPreset:
         assert config.fuse_bn_gemm is True
         assert config.remove_redundant_operations is True
 
+    @pytest.mark.parametrize(
+        "preset_name",
+        [
+            pytest.param("ml4acopf_2023", id="ml4acopf_2023"),
+            pytest.param("ml4acopf_2024", id="ml4acopf_2024"),
+        ],
+    )
+    def test_ml4acopf_flags(self, preset_name):
+        """Test ML4ACOPF presets canonicalize rank-2 matrix products."""
+        config = get_preset(preset_name)
+
+        assert config.constant_folding is True
+        assert config.fuse_transpose_matmul_transpose is True
+
     def test_cifar100_flags(self):
         """Test cifar100 preset enables conv/bn fusion and folding."""
         config = get_preset("cifar100")
@@ -269,6 +283,7 @@ class TestAllOptimizations:
         assert config.fuse_bn_reshape_gemm is True
         assert config.fuse_bn_gemm is True
         assert config.fuse_transpose_bn_transpose is True
+        assert config.fuse_transpose_matmul_transpose is True
         assert config.fuse_gemm_gemm is True
         assert config.simplify_conv_to_flatten_gemm is True
         assert config.remove_redundant_operations is True

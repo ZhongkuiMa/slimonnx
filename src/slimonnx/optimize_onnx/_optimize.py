@@ -33,6 +33,7 @@ from slimonnx.optimize_onnx._name import _simplify_names
 from slimonnx.optimize_onnx._ordering import _reorder_by_strict_topological_order
 from slimonnx.optimize_onnx._redundant import _remove_redundant_operations
 from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
+from slimonnx.optimize_onnx._transpose_matmul import _fuse_transpose_matmul_transpose
 from slimonnx.utils import (
     clear_onnx_docstring,
     get_initializers,
@@ -103,6 +104,18 @@ def _run_shape_based_passes(
         data_shapes = _infer_shapes(nodes, initializers, input_nodes, output_nodes, has_batch_dim)
     nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)
     data_shapes = None  # _resolve_reshape may have changed shapes
+
+    if config.fuse_transpose_matmul_transpose:
+        if data_shapes is None:
+            data_shapes = _infer_shapes(
+                nodes, initializers, input_nodes, output_nodes, has_batch_dim
+            )
+        nodes, initializers = _fuse_transpose_matmul_transpose(
+            nodes,
+            initializers,
+            data_shapes,
+        )
+        data_shapes = None
 
     if config.remove_redundant_operations:
         if data_shapes is None:
@@ -215,6 +228,7 @@ def optimize_onnx(
     fuse_bn_reshape_gemm: bool = False,
     fuse_bn_gemm: bool = False,
     fuse_transpose_bn_transpose: bool = False,
+    fuse_transpose_matmul_transpose: bool = False,
     fuse_gemm_gemm: bool = False,
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
@@ -247,6 +261,8 @@ def optimize_onnx(
     :param fuse_bn_gemm: Fuse BatchNorm-Gemm.
 
     :param fuse_transpose_bn_transpose: Fuse Transpose-BN-Transpose.
+
+    :param fuse_transpose_matmul_transpose: Fuse rank-2 Transpose-MatMul-Transpose.
 
     :param fuse_gemm_gemm: Fuse consecutive Gemm nodes.
 
@@ -287,6 +303,7 @@ def optimize_onnx(
         fuse_bn_reshape_gemm=fuse_bn_reshape_gemm,
         fuse_bn_gemm=fuse_bn_gemm,
         fuse_transpose_bn_transpose=fuse_transpose_bn_transpose,
+        fuse_transpose_matmul_transpose=fuse_transpose_matmul_transpose,
         fuse_gemm_gemm=fuse_gemm_gemm,
         fuse_conv_bn=fuse_conv_bn,
         fuse_bn_conv=fuse_bn_conv,

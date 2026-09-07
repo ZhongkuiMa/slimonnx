@@ -30,8 +30,6 @@ _CF_ONLY_PRESETS = frozenset(
         "lsnc_relu",
         "malbeware",
         "metaroom_2023",
-        "ml4acopf_2023",
-        "ml4acopf_2024",
         "relusplitter",
         "sat_relu",
         "soundnessbench",
@@ -157,6 +155,14 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             fuse_matmul_add=True,
             constant_folding=True,
         ),
+        "ml4acopf_2023": OptimizationConfig(
+            constant_folding=True,
+            fuse_transpose_matmul_transpose=True,
+        ),
+        "ml4acopf_2024": OptimizationConfig(
+            constant_folding=True,
+            fuse_transpose_matmul_transpose=True,
+        ),
         "safenlp_2024": OptimizationConfig(
             fuse_matmul_add=True,
             constant_folding=True,
@@ -200,6 +206,7 @@ def all_optimizations(has_batch_dim: bool = True) -> OptimizationConfig:
         fuse_bn_reshape_gemm=True,
         fuse_bn_gemm=True,
         fuse_transpose_bn_transpose=True,
+        fuse_transpose_matmul_transpose=True,
         fuse_gemm_gemm=True,
         simplify_conv_to_flatten_gemm=True,
         remove_redundant_operations=True,

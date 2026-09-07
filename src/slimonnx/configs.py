@@ -31,6 +31,7 @@ class OptimizationConfig:
     fuse_bn_reshape_gemm: bool = False
     fuse_bn_gemm: bool = False
     fuse_transpose_bn_transpose: bool = False
+    fuse_transpose_matmul_transpose: bool = False
     fuse_gemm_gemm: bool = False
 
     # Simplification optimizations
