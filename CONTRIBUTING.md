@@ -57,4 +57,4 @@ The dominant contribution pattern is adding a new fusion/simplification optimiza
 | Frozen dataclasses | All configs use `@dataclass(frozen=True)` |
 | `__docformat__` + `__all__` | Required in every module |
 | Private modules | Optimization passes use `_` prefix; public API via `__init__.py` re-exports |
-| Always-on transforms | `constant_to_initializer`, `simplify_gemm`, `reorder_by_strict_topological_order` always run |
+| Always-on transforms | `constant_to_initializer`, self-Mul-to-Pow(2), `simplify_gemm`, `reorder_by_strict_topological_order` always run |

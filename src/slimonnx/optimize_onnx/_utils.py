@@ -18,6 +18,22 @@ from slimonnx.optimize_onnx._onnx_attrs import get_onnx_attrs
 from slimonnx.utils import has_single_consumer
 
 
+def _make_unique_name(base: str, used_names: set[str]) -> str:
+    """Reserve and return a deterministic tensor name.
+
+    :param base: Preferred tensor name.
+    :param used_names: Occupied names, mutated with the selected name.
+    :return: ``base`` or its first free positive-integer suffix.
+    """
+    candidate = base
+    suffix = 1
+    while candidate in used_names:
+        candidate = f"{base}_{suffix}"
+        suffix += 1
+    used_names.add(candidate)
+    return candidate
+
+
 def _is_only_next_node(
     pre_node: NodeProto,
     cur_node: NodeProto,

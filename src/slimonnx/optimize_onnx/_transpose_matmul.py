@@ -9,6 +9,8 @@ import numpy as np
 import onnx
 from onnx import NodeProto, TensorProto, numpy_helper
 
+from slimonnx.optimize_onnx._utils import _make_unique_name
+
 
 def _get_perm(node: NodeProto) -> tuple[int, ...] | None:
     """Return a Transpose permutation when it is explicitly declared."""
@@ -16,17 +18,6 @@ def _get_perm(node: NodeProto) -> tuple[int, ...] | None:
         if attr.name == "perm":
             return tuple(attr.ints)
     return None
-
-
-def _make_unique_name(base: str, used_names: set[str]) -> str:
-    """Return a tensor name not already used by the graph."""
-    candidate = base
-    suffix = 1
-    while candidate in used_names:
-        candidate = f"{base}_{suffix}"
-        suffix += 1
-    used_names.add(candidate)
-    return candidate
 
 
 def _has_static_rank_two(shape: list[int] | None) -> bool:

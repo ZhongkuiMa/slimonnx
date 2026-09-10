@@ -10,6 +10,7 @@ from onnx import ModelProto, NodeProto, TensorProto, ValueInfoProto
 from shapeonnx.infer_shape import infer_onnx_shape
 
 from slimonnx.configs import OptimizationConfig
+from slimonnx.optimize_onnx._arith import _canonicalize_self_mul
 from slimonnx.optimize_onnx._bn_conv import (
     _fuse_conv_bn_or_bn_conv,
     _fuse_conv_transpose_bn_or_bn_conv_transpose,
@@ -352,6 +353,7 @@ def _optimize_with_config(
 
     nodes = list(model.graph.node)
     nodes = _constant_to_initializer(nodes, initializers)
+    nodes = _canonicalize_self_mul(nodes, initializers)
 
     # Push the post-folding graph back onto ``model`` before shape inference:
     # shapeonnx reads from input ValueInfoProto, but the Constant->initializer

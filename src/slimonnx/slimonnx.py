@@ -106,6 +106,7 @@ class SlimONNX:
 
     The following optimizations are always applied (hardcoded as True):
     - constant_to_initializer: Converts Constant nodes to initializers
+    - self-Mul-to-Pow(2): Preserves exact square structure
     - simplify_gemm: Absorbs Gemm attributes into static inputs when possible
     - reorder_by_strict_topological_order: Topological sorting of nodes
 

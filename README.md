@@ -63,7 +63,9 @@ print(result["validation"]["all_match"])
 
 ### Optimization Flags
 
-All flags default to `False` except `remove_dropout`. Three transforms always run: constant-to-initializer, Gemm normalization, topological reordering.
+All flags default to `False` except `remove_dropout`. Four transforms always
+run: constant-to-initializer, self-Mul-to-Pow(2) canonicalization, Gemm
+normalization, and topological reordering.
 
 | Category | Flags |
 |----------|-------|
