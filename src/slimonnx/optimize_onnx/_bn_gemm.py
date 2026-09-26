@@ -22,6 +22,8 @@ from slimonnx.optimize_onnx._utils import (
 def _fuse_gemm_reshape_bn(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    *,
+    invalidated_values: set[str] | None = None,
 ) -> list[NodeProto]:
     """Fuse a Gemm, a Reshape, and a BatchNormalization node into a Gemm and a Reshape node."""
     new_nodes = []
@@ -93,6 +95,8 @@ def _fuse_gemm_reshape_bn(
             new_gemm_node = onnx.NodeProto()
             new_gemm_node.CopyFrom(gemm_node)
             new_gemm_node.ClearField("attribute")
+            if invalidated_values is not None:
+                invalidated_values.update(gemm_node.output)
 
             new_reshape_node = onnx.NodeProto()
             new_reshape_node.CopyFrom(reshape_node)
@@ -114,6 +118,8 @@ def _fuse_gemm_reshape_bn(
 def _fuse_bn_reshape_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    *,
+    invalidated_values: set[str] | None = None,
 ) -> list[NodeProto]:
     """Fuse a BatchNormalization, a Reshape, and a Gemm node into a Reshape and a Gemm node."""
     new_nodes = []
@@ -183,6 +189,8 @@ def _fuse_bn_reshape_gemm(
             new_reshape_node.CopyFrom(reshape_node)
             new_reshape_node.ClearField("input")
             new_reshape_node.input.extend([bn_node.input[0], reshape_node.input[1]])
+            if invalidated_values is not None:
+                invalidated_values.update(reshape_node.output)
 
             new_gemm_node = onnx.NodeProto()
             new_gemm_node.CopyFrom(gemm_node)

@@ -215,6 +215,8 @@ class SlimONNX:
         self,
         model: onnx.ModelProto,
         config: OptimizationConfig | None = None,
+        *,
+        trace_values: tuple[str, ...] = (),
     ) -> onnx.ModelProto:
         """Optimize a pre-loaded ModelProto in memory.
 
@@ -225,6 +227,11 @@ class SlimONNX:
         :param model: Pre-loaded ONNX model (caller is responsible for
             version conversion and shape inference).
         :param config: Optimization configuration. ``None`` uses defaults.
+        :param trace_values: Source node-output names to track through this
+            normalization. Read the serialized result with ``get_value_map``.
+            Eliminated or repurposed values map to ``None``; absent or duplicate
+            source producers are rejected before mutation. Shape-changing
+            Conv-to-Gemm simplification is incompatible. Empty disables tracking.
         :return: Optimized :class:`onnx.ModelProto`.
         """
         config = config or OptimizationConfig()
@@ -233,6 +240,7 @@ class SlimONNX:
             config,
             simplify_gemm=True,
             reorder_by_strict_topological_order=True,
+            trace_values=trace_values,
         )
         return new_model
 

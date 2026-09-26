@@ -36,6 +36,7 @@ src/slimonnx/
 │   ├── _dropout.py        Remove dropout nodes
 │   ├── _ordering.py       Topological sort
 │   ├── _name.py           Node name simplification
+│   ├── _value_map.py      Requested source-value identity and serialized provenance
 │   ├── _constants.py      Op type string constants
 │   ├── _onnx_attrs.py     Attribute extraction helpers
 │   └── _utils.py          Internal graph manipulation helpers

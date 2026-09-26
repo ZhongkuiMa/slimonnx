@@ -18,6 +18,7 @@ __all__ = [
     "__version__",
     "all_optimizations",
     "get_preset",
+    "get_value_map",
 ]
 
 from importlib.metadata import PackageNotFoundError
@@ -25,6 +26,7 @@ from importlib.metadata import version as _pkg_version
 
 from slimonnx.configs import AnalysisConfig, OptimizationConfig, ValidationConfig
 from slimonnx.constants import OPSET_RUNTIME, OPSET_SHAPEONNX
+from slimonnx.optimize_onnx._value_map import get_value_map
 from slimonnx.preprocess import MAX_TESTED_OPSET, RECOMMENDED_OPSET, SLIMONNX_VERSION
 from slimonnx.presets import all_optimizations, get_preset
 from slimonnx.slimonnx import SlimONNX

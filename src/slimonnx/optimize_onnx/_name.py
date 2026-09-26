@@ -135,6 +135,8 @@ def _simplify_names(
     output_nodes: list[onnx.ValueInfoProto],
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    *,
+    value_map: dict[str, str | None] | None = None,
 ) -> tuple[list[NodeProto], dict[str, TensorProto]]:
     """Simplify the names of the nodes and initializers."""
     node_output_names_mapping, output_old_new_mapping, counter = _rename_io_nodes(
@@ -143,6 +145,10 @@ def _simplify_names(
 
     _update_node_output_names(nodes, output_old_new_mapping, node_output_names_mapping, counter)
     _update_node_input_names(nodes, node_output_names_mapping)
+    if value_map is not None:
+        for source, current in value_map.items():
+            if current is not None:
+                value_map[source] = node_output_names_mapping[current]
     new_initializers = _rename_initializers(nodes, initializers)
 
     return nodes, new_initializers

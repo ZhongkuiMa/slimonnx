@@ -186,6 +186,7 @@ def clear_onnx_docstring(model: ModelProto) -> ModelProto:
 | 7.5 | Shape inference is called once per optimization group, not per individual fusion | ☐ |
 | 7.6 | `has_batch_dim: bool` is threaded through all optimization functions to handle batch-aware vs batch-agnostic shapes | ☐ |
 | 7.7 | Optimizations that depend on shape inference run after shape-based passes | ☐ |
+| 7.8 | A fusion that reuses an intermediate output name for a different value must invalidate that value's requested provenance. Only surviving equivalent tensor values may cross the serialized value-map boundary. | ☐ |
 
 ---
 

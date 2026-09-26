@@ -47,6 +47,25 @@ SlimONNX().slim("vit_model.onnx", "vit_slim.onnx", config=config)
 
 Use `all_optimizations(has_batch_dim=True)` to enable all flags.
 
+### Tracking selected values
+
+```python
+from slimonnx import SlimONNX, get_value_map
+
+slimmed = SlimONNX().slim_model(model, config=config, trace_values=("relu_output",))
+mapping = get_value_map(slimmed)  # original output name -> canonical output name or None
+```
+
+Tracking is opt-in and does not alter operators or numerical parameters. The
+mapping survives ONNX serialization and both naming passes. It describes one
+normalization call, not transitive model history. Eliminated outputs, folded
+constants and internal values repurposed by fusion map to `None`; no alias is
+guessed by node order, shape or name similarity. Invalid/ambiguous source names
+and malformed stored mappings raise errors. Shape-changing Conv-to-Gemm
+simplification is incompatible with tracking and is rejected before mutation.
+An untraced model returns an empty map. Consumers own the interpretation of
+source constants; this metadata is not a numerical certificate.
+
 ### Output Validation
 
 ```python
