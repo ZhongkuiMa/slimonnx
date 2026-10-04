@@ -15,6 +15,7 @@ class OptimizationConfig:
 
     Note: The following optimizations are always applied (hardcoded):
     - constant_to_initializer (converts Constant nodes to initializers)
+    - canonicalize_legacy_softmax (removes exact converter-owned scaffolds)
     - simplify_gemm (normalizes Gemm attributes)
     - reorder_by_strict_topological_order (topological sorting)
     """

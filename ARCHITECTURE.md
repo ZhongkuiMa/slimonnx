@@ -30,13 +30,13 @@ src/slimonnx/
 │   ├── _bn_transpose.py   Transpose-BN-Transpose fusion
 │   ├── _mm_add.py         MatMul+Add pattern
 │   ├── _reshape.py        Conv-to-Flatten-Gemm simplification
+│   ├── _softmax.py        Exact legacy Softmax scaffold canonicalization
 │   ├── _cst_op.py         Constant folding
 │   ├── _cst2initer.py     Constant nodes to initializers
 │   ├── _redundant.py      Remove identity ops (add 0, mul 1, etc.)
 │   ├── _dropout.py        Remove dropout nodes
 │   ├── _ordering.py       Topological sort
 │   ├── _name.py           Node name simplification
-│   ├── _value_map.py      Requested source-value identity and serialized provenance
 │   ├── _constants.py      Op type string constants
 │   ├── _onnx_attrs.py     Attribute extraction helpers
 │   └── _utils.py          Internal graph manipulation helpers

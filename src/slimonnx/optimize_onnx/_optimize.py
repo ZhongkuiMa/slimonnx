@@ -34,8 +34,8 @@ from slimonnx.optimize_onnx._name import _simplify_names
 from slimonnx.optimize_onnx._ordering import _reorder_by_strict_topological_order
 from slimonnx.optimize_onnx._redundant import _remove_redundant_operations
 from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
+from slimonnx.optimize_onnx._softmax import _canonicalize_legacy_softmax
 from slimonnx.optimize_onnx._transpose_matmul import _fuse_transpose_matmul_transpose
-from slimonnx.optimize_onnx._value_map import _make_value_map, _store_value_map
 from slimonnx.utils import (
     clear_onnx_docstring,
     get_initializers,
@@ -104,6 +104,7 @@ def _run_shape_based_passes(
 
     if data_shapes is None:
         data_shapes = _infer_shapes(nodes, initializers, input_nodes, output_nodes, has_batch_dim)
+    nodes = _canonicalize_legacy_softmax(nodes, initializers, data_shapes, output_nodes)
     nodes = _resolve_reshape_negative_one(nodes, initializers, data_shapes)
     data_shapes = None  # _resolve_reshape may have changed shapes
 
@@ -151,7 +152,6 @@ def _run_gemm_bn_passes(
     output_nodes: list[ValueInfoProto],
     config: OptimizationConfig,
     simplify_gemm: bool,
-    invalidated_values: set[str] | None = None,
 ) -> list[NodeProto]:
     """Run Gemm + BatchNorm fusion passes."""
     has_batch_dim = config.has_batch_dim
@@ -163,10 +163,10 @@ def _run_gemm_bn_passes(
         data_shapes = None
 
     if config.fuse_gemm_reshape_bn:
-        nodes = _fuse_gemm_reshape_bn(nodes, initializers, invalidated_values=invalidated_values)
+        nodes = _fuse_gemm_reshape_bn(nodes, initializers)
         data_shapes = None
     if config.fuse_bn_reshape_gemm:
-        nodes = _fuse_bn_reshape_gemm(nodes, initializers, invalidated_values=invalidated_values)
+        nodes = _fuse_bn_reshape_gemm(nodes, initializers)
         data_shapes = None
     if config.fuse_bn_gemm:
         nodes = _fuse_bn_gemm(nodes, initializers)
@@ -334,7 +334,6 @@ def _optimize_with_config(
     *,
     simplify_gemm: bool,
     reorder_by_strict_topological_order: bool,
-    trace_values: tuple[str, ...] = (),
 ) -> ModelProto:
     """Drive the optimization pipeline from an OptimizationConfig.
 
@@ -345,11 +344,6 @@ def _optimize_with_config(
     tests can isolate them.
     """
     has_batch_dim = config.has_batch_dim
-
-    value_map = _make_value_map(model, trace_values)
-    if value_map and config.simplify_conv_to_flatten_gemm:
-        raise ValueError("trace_values does not support shape-changing Conv-to-Gemm simplification")
-    invalidated_values: set[str] | None = set() if value_map else None
 
     graph_name = model.graph.name + "_slimmed"
     model = clear_onnx_docstring(model)
@@ -385,25 +379,15 @@ def _optimize_with_config(
         data_types,
     )
     nodes = _run_gemm_bn_passes(
-        nodes, initializers, input_nodes, output_nodes, config, simplify_gemm, invalidated_values
+        nodes, initializers, input_nodes, output_nodes, config, simplify_gemm
     )
     nodes = _run_conv_passes(nodes, initializers, config)
 
-    # Repurposed internal names are not identities even when their spelling
-    # survives fusion. Removed/invalidated values have no inferred alias.
-    if value_map:
-        surviving = {name for node in nodes for name in node.output} - (invalidated_values or set())
-        value_map = {name: name if name in surviving else None for name in value_map}
-
     if reorder_by_strict_topological_order:
-        nodes, initializers = _simplify_names(
-            input_nodes, output_nodes, nodes, initializers, value_map=value_map
-        )
+        nodes, initializers = _simplify_names(input_nodes, output_nodes, nodes, initializers)
         nodes = _reorder_by_strict_topological_order(nodes)
     if config.simplify_node_name:
-        nodes, initializers = _simplify_names(
-            input_nodes, output_nodes, nodes, initializers, value_map=value_map
-        )
+        nodes, initializers = _simplify_names(input_nodes, output_nodes, nodes, initializers)
 
     new_model = onnx.helper.make_model(
         onnx.helper.make_graph(
@@ -415,5 +399,4 @@ def _optimize_with_config(
         ),
         opset_imports=model.opset_import,
     )
-    _store_value_map(new_model, value_map)
     return new_model
