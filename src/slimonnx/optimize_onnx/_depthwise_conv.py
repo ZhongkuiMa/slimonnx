@@ -3,6 +3,8 @@
 __docformat__ = "restructuredtext"
 __all__ = ["_fuse_depthwise_conv_bn_or_bn_depthwise_conv"]
 
+from typing import cast
+
 import numpy as np
 from onnx import NodeProto, TensorProto
 
@@ -71,7 +73,7 @@ def _depthwise_simplified_bias(
     per-channel scalar ``bias + bn_bias`` (legacy historical formula --
     not the mathematically exact closed form in general).
     """
-    return bias + bn_bias
+    return cast(np.ndarray, bias + bn_bias)
 
 
 def _fuse_depthwise_conv_bn_or_bn_depthwise_conv(

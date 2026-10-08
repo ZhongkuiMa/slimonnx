@@ -103,7 +103,9 @@ def _update_node_input_names(
 
 
 def _rename_initializers(
-    nodes: list[NodeProto], initializers: dict[str, TensorProto]
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    graph_output_names_mapping: dict[str, str] | None = None,
 ) -> dict[str, TensorProto]:
     """Rename initializers and update node references.
 
@@ -111,13 +113,18 @@ def _rename_initializers(
 
     :param initializers: Dictionary of initializers.
 
+    :param graph_output_names_mapping: Renamed graph-output values. An
+        initializer that directly backs a graph output must receive that same
+        value name rather than an unrelated ``Initializer_<n>`` name.
+
     :return: New dictionary of renamed initializers
     """
     new_initializers = {}
     initializers_name_mapping = {}
 
+    graph_output_names_mapping = graph_output_names_mapping or {}
     for counter, (name, initializer) in enumerate(initializers.items()):
-        new_name = f"Initializer_{counter}"
+        new_name = graph_output_names_mapping.get(name, f"Initializer_{counter}")
         new_initializers[new_name] = initializer
         initializer.name = new_name
         initializers_name_mapping[name] = new_name
@@ -143,6 +150,6 @@ def _simplify_names(
 
     _update_node_output_names(nodes, output_old_new_mapping, node_output_names_mapping, counter)
     _update_node_input_names(nodes, node_output_names_mapping)
-    new_initializers = _rename_initializers(nodes, initializers)
+    new_initializers = _rename_initializers(nodes, initializers, output_old_new_mapping)
 
     return nodes, new_initializers

@@ -79,9 +79,10 @@ class TestOptimizationFlags:
             inputs=["X", "ratio"],
             outputs=["Y"],
         )
+        relu_node = helper.make_node("Relu", inputs=["Y"], outputs=["Z"])
 
-        outputs = [create_tensor_value_info("Y", "float32", [2, 3])]
-        model = create_minimal_onnx_model([dropout_node], inputs, outputs, [ratio_init])
+        outputs = [create_tensor_value_info("Z", "float32", [2, 3])]
+        model = create_minimal_onnx_model([dropout_node, relu_node], inputs, outputs, [ratio_init])
 
         # Test with dropout removal
         optimized = optimize_onnx(model, remove_dropout=True)

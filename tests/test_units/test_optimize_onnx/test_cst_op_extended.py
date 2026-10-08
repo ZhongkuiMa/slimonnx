@@ -278,7 +278,7 @@ class TestExecuteAggregationOps:
             _execute_aggregation_ops(node, initializers, {})
 
     def test_concatenates_along_axis(self):
-        """Test Concat returns output shape from shapes dict."""
+        """Test Concat returns its input values along the requested axis."""
         node = helper.make_node("Concat", inputs=["X", "Y"], outputs=["Z"], name="concat_0", axis=0)
         x_array = np.array([[1.0, 2.0]])
         y_array = np.array([[3.0, 4.0]])
@@ -286,13 +286,11 @@ class TestExecuteAggregationOps:
             "X": numpy_helper.from_array(x_array, "X"),
             "Y": numpy_helper.from_array(y_array, "Y"),
         }
-        # When all inputs are in initializers, function returns shape from shapes dict
         shapes = {"Z": [2, 2]}
 
         result = _execute_aggregation_ops(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
-        # Result is the output shape when all inputs are in initializers
-        assert np.array_equal(result, np.array([2, 2], dtype=np.int64))
+        assert np.array_equal(result, np.array([[1.0, 2.0], [3.0, 4.0]]))
 
 
 class TestExecuteTypeAndLogicOps:
@@ -513,8 +511,8 @@ class TestShapeManipulationOps:
         assert result is not None
         assert result.shape == (1, 2, 2, 1)
 
-    def test_scalar_shape_in_concat(self):
-        """Test scalar shape conversion in Concat operation."""
+    def test_concat_ignores_output_shape_metadata(self):
+        """Concat computes values even when shape metadata is scalar."""
         node = helper.make_node(
             "Concat", inputs=["shape1", "shape2"], outputs=["output"], name="concat_0", axis=0
         )
@@ -527,7 +525,7 @@ class TestShapeManipulationOps:
 
         result = _execute_concat(node, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 
-        expected = np.array([5], dtype=np.int64)
+        expected = np.array([2, 3], dtype=np.int64)
         assert np.array_equal(result, expected)
 
     def test_scalar_shape_in_expand(self):
@@ -588,7 +586,7 @@ class TestFuseConstantNodes:
 
         nodes = [shape_node, reshape_node]
         initializers: dict[str, Any] = {}
-        shapes = {"ShapeOut": [2, 3]}
+        shapes = {"X": [2, 3], "ShapeOut": [2]}
 
         result_nodes, result_initializers = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
 

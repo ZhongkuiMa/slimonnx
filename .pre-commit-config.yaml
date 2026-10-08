@@ -15,17 +15,6 @@ repos:
       # Run the formatter
       - id: ruff-format
 
-  # Mypy - Static type checking
-  - repo: https://github.com/pre-commit/mirrors-mypy
-    rev: v1.19.1
-    hooks:
-      - id: mypy
-        additional_dependencies:
-          - types-PyYAML
-          - types-requests
-        args: [--no-error-summary, --show-column-numbers, --explicit-package-bases]
-        verbose: true
-
   # Standard pre-commit hooks
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v5.0.0
@@ -43,6 +32,13 @@ repos:
   # test failure is caught locally BEFORE push, not only on GitHub.
   - repo: local
     hooks:
+      - id: mypy
+        name: slimonnx type check
+        entry: mypy --config-file pyproject.toml
+        language: system
+        pass_filenames: false
+        files: ^src/slimonnx/.*\.py$
+
       - id: pytest
         name: slimonnx unit tests
         entry: python -m pytest tests/ -q

@@ -8,6 +8,7 @@ __all__ = [
 ]
 
 from collections.abc import Callable
+from typing import cast
 
 import numpy as np
 import onnx
@@ -51,9 +52,13 @@ def _generic_bn_to_op_bias(
     the linear op's input channel axis. This is the math-correct closed
     form when the receptive field does no implicit padding.
     """
-    return bias + np.sum(
-        weight * bn_bias.reshape(weight_axis_bn_to_op),
-        axis=bias_reduce_axes,
+    return cast(
+        np.ndarray,
+        bias
+        + np.sum(
+            weight * bn_bias.reshape(weight_axis_bn_to_op),
+            axis=bias_reduce_axes,
+        ),
     )
 
 

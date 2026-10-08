@@ -77,7 +77,8 @@ class TestCollapseConsecutiveReshapes:
         model = create_minimal_onnx_model([reshape_node], [X], [Y], [shape_init])
         nodes = list(model.graph.node)
 
-        result = _collapse_consecutive_reshapes(nodes)
+        initializers = {init.name: init for init in model.graph.initializer}
+        result = _collapse_consecutive_reshapes(nodes, initializers, {"Y"})
         assert len(result) == 1
         assert result[0].op_type == "Reshape"
 
@@ -99,12 +100,11 @@ class TestCollapseConsecutiveReshapes:
         )
         nodes = list(model.graph.node)
 
-        result = _collapse_consecutive_reshapes(nodes)
-        # After collapse, consecutive reshapes should be collapsed
-        # reshape2 gets removed when it's collapsed with reshape3
-        assert len(result) == 2  # Two reshapes remain (reshape1 and reshaped reshape3)
-        # The second reshape should use temp1 as input (reshape1's output)
-        assert result[1].input[0] == "temp1"
+        initializers = {init.name: init for init in model.graph.initializer}
+        result = _collapse_consecutive_reshapes(nodes, initializers, {"W"})
+
+        assert len(result) == 1
+        assert result[0].input[0] == "X"
 
     def test_collapse_invalid_reshape_raises(self):
         """Middle of 3 Reshapes with 1 input triggers structural ValueError."""
@@ -116,7 +116,88 @@ class TestCollapseConsecutiveReshapes:
         reshape3 = helper.make_node("Reshape", inputs=["t2", "shape3"], outputs=["Y"])
 
         with pytest.raises(ValueError, match="Invalid Reshape node structure"):
-            _collapse_consecutive_reshapes([reshape1, reshape2, reshape3])
+            _collapse_consecutive_reshapes([reshape1, reshape2, reshape3], {}, set())
+
+    def test_does_not_collapse_disconnected_adjacent_reshapes(self):
+        """Adjacency without a data edge does not authorize node removal."""
+        shape1 = create_initializer("shape1", [3, 2], dtype="int64")
+        shape2 = create_initializer("shape2", [6], dtype="int64")
+        source = helper.make_node("Identity", inputs=["X"], outputs=["source"])
+        first = helper.make_node("Reshape", inputs=["source", "shape1"], outputs=["middle"])
+        second = helper.make_node("Reshape", inputs=["X", "shape2"], outputs=["Y"])
+
+        result = _collapse_consecutive_reshapes(
+            [source, first, second],
+            {"shape1": shape1, "shape2": shape2},
+            {"Y"},
+        )
+
+        assert result == [source, first, second]
+
+    def test_does_not_collapse_branched_intermediate(self):
+        """A reshape shared by two consumers must remain a graph producer."""
+        shape1 = create_initializer("shape1", [3, 2], dtype="int64")
+        shape2 = create_initializer("shape2", [6], dtype="int64")
+        first = helper.make_node("Reshape", inputs=["X", "shape1"], outputs=["middle"])
+        second = helper.make_node("Reshape", inputs=["middle", "shape2"], outputs=["Y"])
+        branch = helper.make_node("Identity", inputs=["middle"], outputs=["Z"])
+
+        result = _collapse_consecutive_reshapes(
+            [first, second, branch],
+            {"shape1": shape1, "shape2": shape2},
+            {"Y", "Z"},
+        )
+
+        assert result == [first, second, branch]
+
+    def test_does_not_collapse_public_intermediate(self):
+        """An externally visible intermediate keeps its named producer."""
+        shape1 = create_initializer("shape1", [3, 2], dtype="int64")
+        shape2 = create_initializer("shape2", [6], dtype="int64")
+        first = helper.make_node("Reshape", inputs=["X", "shape1"], outputs=["middle"])
+        second = helper.make_node("Reshape", inputs=["middle", "shape2"], outputs=["Y"])
+
+        result = _collapse_consecutive_reshapes(
+            [first, second],
+            {"shape1": shape1, "shape2": shape2},
+            {"middle", "Y"},
+        )
+
+        assert result == [first, second]
+
+    def test_does_not_collapse_input_relative_zero_target(self):
+        """Default allowzero=0 copies dimensions from the immediate input."""
+        shape1 = create_initializer("shape1", [3, 2], dtype="int64")
+        shape2 = create_initializer("shape2", [0, 2], dtype="int64")
+        first = helper.make_node("Reshape", inputs=["X", "shape1"], outputs=["middle"])
+        second = helper.make_node("Reshape", inputs=["middle", "shape2"], outputs=["Y"])
+
+        result = _collapse_consecutive_reshapes(
+            [first, second],
+            {"shape1": shape1, "shape2": shape2},
+            {"Y"},
+        )
+
+        assert result == [first, second]
+
+    def test_does_not_interpret_custom_domain_reshape(self):
+        """A custom operator named Reshape has no ONNX reshape contract."""
+        first = helper.make_node(
+            "Reshape",
+            inputs=["X"],
+            outputs=["middle"],
+            domain="example.custom",
+        )
+        second = helper.make_node(
+            "Reshape",
+            inputs=["middle"],
+            outputs=["Y"],
+            domain="example.custom",
+        )
+
+        result = _collapse_consecutive_reshapes([first, second], {}, {"Y"})
+
+        assert result == [first, second]
 
 
 class TestIsRedundantReshapeOrFlatten:
@@ -142,19 +223,43 @@ class TestIsRedundantArithmeticOp:
     """Test _is_redundant_arithmetic_op function."""
 
     @pytest.mark.parametrize(
-        ("op_type", "initializer_value", "init_name", "expected_redundant"),
+        (
+            "op_type",
+            "initializer_value",
+            "init_name",
+            "initializer_first",
+            "expected_redundant",
+        ),
         [
-            ("Add", np.zeros(3, dtype=np.float32), "zero", True),
-            ("Sub", np.zeros(3, dtype=np.float32), "zero", True),
-            ("Mul", np.ones(3, dtype=np.float32), "ones", True),
-            ("Div", np.ones(3, dtype=np.float32), "ones", True),
-            ("Add", np.array([1.0, 2.0, 3.0], dtype=np.float32), "const", False),
+            ("Add", np.zeros(3, dtype=np.float32), "zero", False, True),
+            ("Sub", np.zeros(3, dtype=np.float32), "zero", False, True),
+            ("Mul", np.ones(3, dtype=np.float32), "ones", False, True),
+            ("Div", np.ones(3, dtype=np.float32), "ones", False, True),
+            ("Add", np.zeros(3, dtype=np.float32), "zero", True, True),
+            ("Sub", np.zeros(3, dtype=np.float32), "zero", True, False),
+            ("Mul", np.ones(3, dtype=np.float32), "ones", True, True),
+            ("Div", np.ones(3, dtype=np.float32), "ones", True, False),
+            (
+                "Add",
+                np.array([1.0, 2.0, 3.0], dtype=np.float32),
+                "const",
+                False,
+                False,
+            ),
         ],
     )
-    def test_operations_redundancy(self, op_type, initializer_value, init_name, expected_redundant):
+    def test_operations_redundancy(
+        self,
+        op_type,
+        initializer_value,
+        init_name,
+        initializer_first,
+        expected_redundant,
+    ):
         """Test redundancy detection for various arithmetic operations."""
         initializers = {init_name: create_initializer(init_name, initializer_value)}
-        node = helper.make_node(op_type, inputs=["X", init_name], outputs=["Y"])
+        inputs = [init_name, "X"] if initializer_first else ["X", init_name]
+        node = helper.make_node(op_type, inputs=inputs, outputs=["Y"])
         is_redundant, found_init = _is_redundant_arithmetic_op(node, initializers)
         assert is_redundant == expected_redundant
         if expected_redundant:
@@ -209,19 +314,81 @@ class TestRemoveRedundantOperations:
     def test_removes_redundant_operation(self, op_type, initializer_name, initializer_value):
         """Test removing redundant operations."""
         X = create_tensor_value_info("X", "float32", [1, 3])
-        Y = create_tensor_value_info("Y", "float32", [1, 3])
+        Z = create_tensor_value_info("Z", "float32", [1, 3])
 
         initializers_list = [create_initializer(initializer_name, initializer_value)]
         node = helper.make_node(op_type, inputs=["X", initializer_name], outputs=["Y"])
+        consumer = helper.make_node("Relu", inputs=["Y"], outputs=["Z"])
 
-        model = create_minimal_onnx_model([node], [X], [Y], initializers_list)
+        model = create_minimal_onnx_model([node, consumer], [X], [Z], initializers_list)
         nodes = list(model.graph.node)
         initializers_dict = {init.name: init for init in model.graph.initializer}
-        data_shapes = {"X": [1, 3], "Y": [1, 3]}
+        data_shapes = {"X": [1, 3], "Y": [1, 3], "Z": [1, 3]}
         output_nodes = list(model.graph.output)
 
         result = _remove_redundant_operations(nodes, initializers_dict, data_shapes, output_nodes)  # type: ignore[arg-type]  # dict invariance
-        assert len(result) == 0
+        assert len(result) == 1
+        assert result[0].op_type == "Relu"
+        assert result[0].input[0] == "X"
+        assert initializer_name not in initializers_dict
+
+    def test_keeps_redundant_node_that_defines_public_output(self):
+        """Removing a public producer must not rename the graph output."""
+        zero = create_initializer("zero", np.zeros(3, dtype=np.float32))
+        add = helper.make_node("Add", inputs=["X", "zero"], outputs=["Y"])
+        output = create_tensor_value_info("Y", "float32", [1, 3])
+        initializers = {zero.name: zero}
+
+        result = _remove_redundant_operations(
+            [add],
+            initializers,
+            {"X": [1, 3], "Y": [1, 3]},
+            [output],
+        )
+
+        assert result == [add]
+        assert output.name == "Y"
+        assert "zero" in initializers
+
+    def test_preserves_identity_initializer_used_by_another_node(self):
+        """An initializer remains while any retained node still consumes it."""
+        zero = create_initializer("zero", np.zeros(3, dtype=np.float32))
+        add = helper.make_node("Add", inputs=["X", "zero"], outputs=["temp"])
+        subtract = helper.make_node("Sub", inputs=["zero", "X"], outputs=["Y"])
+        output = create_tensor_value_info("Y", "float32", [1, 3])
+        initializers = {zero.name: zero}
+
+        result = _remove_redundant_operations(
+            [add, subtract],
+            initializers,
+            {"X": [1, 3], "temp": [1, 3], "Y": [1, 3]},
+            [output],
+        )
+
+        assert result == [subtract]
+        assert "zero" in initializers
+
+    def test_keeps_custom_domain_arithmetic(self):
+        """An identically named custom operator has no ONNX identity contract."""
+        zero = create_initializer("zero", np.zeros(3, dtype=np.float32))
+        custom = helper.make_node(
+            "Add",
+            inputs=["X", "zero"],
+            outputs=["temp"],
+            domain="example.custom",
+        )
+        consumer = helper.make_node("Relu", inputs=["temp"], outputs=["Y"])
+        initializers = {zero.name: zero}
+
+        result = _remove_redundant_operations(
+            [custom, consumer],
+            initializers,
+            {"X": [1, 3], "temp": [1, 3], "Y": [1, 3]},
+            [create_tensor_value_info("Y", "float32", [1, 3])],
+        )
+
+        assert result == [custom, consumer]
+        assert "zero" in initializers
 
     def test_keep_non_redundant_operations(self):
         """Test that non-redundant operations are kept."""

@@ -121,39 +121,178 @@ class TestRedundantOperations:
         assert len(add_nodes) == 1
 
     @pytest.mark.parametrize(
-        ("op_type", "operand"),
+        ("op_type", "identity", "initializer_first", "removed"),
         [
-            pytest.param("Add", np.zeros((1, 3), dtype=np.float32), id="add_zero"),
-            pytest.param("Sub", np.zeros((1, 3), dtype=np.float32), id="sub_zero"),
-            pytest.param("Mul", np.ones((1, 3), dtype=np.float32), id="mul_one"),
-            pytest.param("Div", np.ones((1, 3), dtype=np.float32), id="div_one"),
+            ("Add", 0.0, False, True),
+            ("Sub", 0.0, False, True),
+            ("Mul", 1.0, False, True),
+            ("Div", 1.0, False, True),
+            ("Add", 0.0, True, True),
+            ("Sub", 0.0, True, False),
+            ("Mul", 1.0, True, True),
+            ("Div", 1.0, True, False),
         ],
     )
-    def test_numerical_correctness_after_optimization(self, op_type, operand):
-        """Test that identity operations preserve numerical correctness."""
+    def test_redundant_arithmetic_respects_operand_order(
+        self,
+        op_type,
+        identity,
+        initializer_first,
+        removed,
+    ):
+        """Identity removal preserves values for both operand orders."""
         X = create_tensor_value_info("X", "float32", [1, 3])
-        inputs = [X]
+        Y = create_tensor_value_info("Y", "float32", [1, 3])
+        value = np.full((1, 3), identity, dtype=np.float32)
+        initializer = create_initializer("identity", value)
+        arithmetic_inputs = ["identity", "X"] if initializer_first else ["X", "identity"]
+        arithmetic = helper.make_node(op_type, inputs=arithmetic_inputs, outputs=["temp"])
+        consumer = helper.make_node("Identity", inputs=["temp"], outputs=["Y"])
+        model = create_minimal_onnx_model([arithmetic, consumer], [X], [Y], [initializer])
 
-        operand_name = "operand"
-        initializers = [create_initializer(operand_name, operand)]
+        optimized = optimize_onnx(
+            model,
+            remove_redundant_operations=True,
+            has_batch_dim=True,
+        )
 
-        node = helper.make_node(op_type, inputs=["X", operand_name], outputs=["Y"])
-        outputs = [create_tensor_value_info("Y", "float32", [1, 3])]
-        model = create_minimal_onnx_model([node], inputs, outputs, initializers)
-
-        optimized = optimize_onnx(model, has_batch_dim=True)
-
-        # Verify numerical correctness
-        test_input = np.ones((1, 3), dtype=np.float32)
-        original_sess = ort.InferenceSession(
+        input_value = np.array([[2.0, 4.0, -2.0]], dtype=np.float32)
+        original_out = ort.InferenceSession(
             model.SerializeToString(), providers=["CPUExecutionProvider"]
-        )
-        optimized_sess = ort.InferenceSession(
+        ).run(None, {"X": input_value})[0]
+        optimized_out = ort.InferenceSession(
             optimized.SerializeToString(), providers=["CPUExecutionProvider"]
-        )
-        original_out = np.asarray(original_sess.run(None, {"X": test_input})[0])
-        optimized_out = np.asarray(optimized_sess.run(None, {"X": test_input})[0])
+        ).run(None, {"X": input_value})[0]
         np.testing.assert_allclose(original_out, optimized_out, rtol=1e-5, atol=1e-6)
+        assert any(node.op_type == op_type for node in optimized.graph.node) is not removed
+
+    def test_redundant_public_output_preserves_name(self):
+        """A public identity result keeps both its producer and value name."""
+        X = create_tensor_value_info("X", "float32", [1, 3])
+        Y = create_tensor_value_info("Y", "float32", [1, 3])
+        zero = create_initializer("zero", np.zeros((1, 3), dtype=np.float32))
+        add = helper.make_node("Add", inputs=["X", "zero"], outputs=["Y"])
+        model = create_minimal_onnx_model([add], [X], [Y], [zero])
+
+        optimized = optimize_onnx(
+            model,
+            remove_redundant_operations=True,
+            has_batch_dim=True,
+        )
+
+        assert optimized.graph.output[0].name == "Y"
+        assert [node.op_type for node in optimized.graph.node] == ["Add"]
+        output = ort.InferenceSession(
+            optimized.SerializeToString(), providers=["CPUExecutionProvider"]
+        ).run(None, {"X": np.ones((1, 3), dtype=np.float32)})[0]
+        np.testing.assert_array_equal(output, np.ones((1, 3), dtype=np.float32))
+
+    def test_shared_identity_initializer_remains_live(self):
+        """Removing one identity user cannot orphan a retained consumer."""
+        X = create_tensor_value_info("X", "float32", [1, 3])
+        Y = create_tensor_value_info("Y", "float32", [1, 3])
+        zero = create_initializer("zero", np.zeros((1, 3), dtype=np.float32))
+        unused_identity = helper.make_node("Add", inputs=["X", "zero"], outputs=["unused"])
+        subtract = helper.make_node("Sub", inputs=["zero", "X"], outputs=["Y"])
+        model = create_minimal_onnx_model([unused_identity, subtract], [X], [Y], [zero])
+
+        optimized = optimize_onnx(
+            model,
+            remove_redundant_operations=True,
+            has_batch_dim=True,
+        )
+
+        assert [node.op_type for node in optimized.graph.node] == ["Sub"]
+        assert [initializer.name for initializer in optimized.graph.initializer] == ["zero"]
+        input_value = np.array([[2.0, 4.0, -2.0]], dtype=np.float32)
+        output = ort.InferenceSession(
+            optimized.SerializeToString(), providers=["CPUExecutionProvider"]
+        ).run(None, {"X": input_value})[0]
+        np.testing.assert_array_equal(output, -input_value)
+
+    def test_reshape_copy_zero_preserves_intermediate_shape(self):
+        """A copied dimension is relative to the immediate Reshape input."""
+        X = create_tensor_value_info("X", "float32", [2, 3])
+        Y = create_tensor_value_info("Y", "float32", [3, 2])
+        first_shape = create_initializer(
+            "first_shape", np.array([3, 2], dtype=np.int64), dtype="int64"
+        )
+        second_shape = create_initializer(
+            "second_shape", np.array([0, 2], dtype=np.int64), dtype="int64"
+        )
+        identity = helper.make_node("Identity", inputs=["X"], outputs=["source"])
+        first = helper.make_node(
+            "Reshape",
+            inputs=["source", "first_shape"],
+            outputs=["middle"],
+        )
+        second = helper.make_node(
+            "Reshape",
+            inputs=["middle", "second_shape"],
+            outputs=["Y"],
+        )
+        model = create_minimal_onnx_model(
+            [identity, first, second],
+            [X],
+            [Y],
+            [first_shape, second_shape],
+        )
+
+        optimized = optimize_onnx(
+            model,
+            remove_redundant_operations=True,
+            has_batch_dim=False,
+        )
+
+        input_value = np.arange(6, dtype=np.float32).reshape(2, 3)
+        output = ort.InferenceSession(
+            optimized.SerializeToString(), providers=["CPUExecutionProvider"]
+        ).run(None, {"X": input_value})[0]
+        assert output.shape == (3, 2)
+        np.testing.assert_array_equal(output, input_value.reshape(3, 2))
+
+    def test_branched_reshape_chain_keeps_shared_producer(self):
+        """Collapsing one consumer cannot orphan another reshape consumer."""
+        X = create_tensor_value_info("X", "float32", [2, 3])
+        Y = create_tensor_value_info("Y", "float32", [6])
+        Z = create_tensor_value_info("Z", "float32", [3, 2])
+        first_shape = create_initializer(
+            "first_shape", np.array([3, 2], dtype=np.int64), dtype="int64"
+        )
+        second_shape = create_initializer(
+            "second_shape", np.array([6], dtype=np.int64), dtype="int64"
+        )
+        identity = helper.make_node("Identity", inputs=["X"], outputs=["source"])
+        first = helper.make_node(
+            "Reshape",
+            inputs=["source", "first_shape"],
+            outputs=["middle"],
+        )
+        second = helper.make_node(
+            "Reshape",
+            inputs=["middle", "second_shape"],
+            outputs=["Y"],
+        )
+        branch = helper.make_node("Identity", inputs=["middle"], outputs=["Z"])
+        model = create_minimal_onnx_model(
+            [identity, first, second, branch],
+            [X],
+            [Y, Z],
+            [first_shape, second_shape],
+        )
+
+        optimized = optimize_onnx(
+            model,
+            remove_redundant_operations=True,
+            has_batch_dim=False,
+        )
+
+        input_value = np.arange(6, dtype=np.float32).reshape(2, 3)
+        outputs = ort.InferenceSession(
+            optimized.SerializeToString(), providers=["CPUExecutionProvider"]
+        ).run(None, {"X": input_value})
+        np.testing.assert_array_equal(outputs[0], input_value.reshape(6))
+        np.testing.assert_array_equal(outputs[1], input_value.reshape(3, 2))
 
     def test_add_nonzero_kept(self):
         """X + 0.001 should be kept - tests non-zero threshold."""

@@ -11,6 +11,7 @@ import onnx
 import pytest
 from onnx import TensorProto, helper
 
+from slimonnx.optimize_onnx import optimize_onnx
 from slimonnx.optimize_onnx._cst_op import (
     _can_fold_node,
     _execute_aggregation_ops,
@@ -30,6 +31,7 @@ from _helpers import (
     create_initializer,
     create_minimal_onnx_model,
     create_tensor_value_info,
+    run_onnx_model,
 )
 
 
@@ -175,6 +177,27 @@ class TestExecuteBinaryArithmetic:
             assert np.allclose(result, expected)
         else:
             assert np.array_equal(result, expected)
+
+    def test_integer_division_truncates_toward_zero(self):
+        """Negative integer quotients follow ONNX, not floor division."""
+        a = create_initializer(
+            "a",
+            np.array([-5, 5, 5, -5, -(2**63) + 1, 2**63 - 1], dtype=np.int64),
+            dtype="int64",
+        )
+        b = create_initializer("b", np.array([2, 2, -2, -2, 3, -3], dtype=np.int64), dtype="int64")
+        node = helper.make_node("Div", inputs=["a", "b"], outputs=["Y"])
+
+        result = _execute_binary_arithmetic(node, {"a": a, "b": b})
+
+        assert result.dtype == np.int64
+        assert np.array_equal(
+            result,
+            np.array(
+                [-2, 2, -2, 2, -3074457345618258602, -3074457345618258602],
+                dtype=np.int64,
+            ),
+        )
 
     @pytest.mark.parametrize(
         ("op_name", "a_val", "b_val", "expected_val"),
@@ -414,6 +437,18 @@ class TestExecuteAggregationOps:
         assert isinstance(result, np.ndarray)
         assert np.array_equal(result, np.array([2, 3, 4, 5], dtype=np.int64))
 
+    def test_concat_uses_constant_values_not_output_shape(self):
+        """Constant data concatenation must retain values and dtype."""
+        a = create_initializer("a", np.array([1.0, 2.0], dtype=np.float32))
+        b = create_initializer("b", np.array([3.0, 4.0, 5.0], dtype=np.float32))
+        node = helper.make_node("Concat", inputs=["a", "b"], outputs=["Y"], axis=0)
+
+        result = _execute_aggregation_ops(node, {"a": a, "b": b}, {"Y": [5]})
+
+        assert result is not None
+        assert result.dtype == np.float32
+        assert np.array_equal(result, np.array([1.0, 2.0, 3.0, 4.0, 5.0]))
+
     def test_unknown_aggregation_op(self):
         """Test unknown aggregation operation returns None."""
         data = create_initializer("data", np.array([1, 2], dtype=np.float32))
@@ -464,7 +499,7 @@ class TestFuseConstantNodes:
         model = create_minimal_onnx_model([shape_node], [X], [Y])
         nodes = list(model.graph.node)
         initializers = {init.name: init for init in model.graph.initializer}
-        shapes = {"Y": [2, 3]}
+        shapes = {"X": [2, 3], "Y": [2]}
 
         new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
         # Shape node should be removed
@@ -505,3 +540,95 @@ class TestFuseConstantNodes:
         # Relu node should remain
         assert len(new_nodes) == 1
         assert new_nodes[0].op_type == "Relu"
+
+    def test_constant_concat_preserves_values_end_to_end(self):
+        """The optimized model executes the folded constant data values."""
+        x = create_tensor_value_info("X", "float32", [5])
+        y = create_tensor_value_info("Y", "float32", [5])
+        a = create_initializer("a", np.array([1.0, 2.0], dtype=np.float32))
+        b = create_initializer("b", np.array([3.0, 4.0, 5.0], dtype=np.float32))
+        concat = helper.make_node("Concat", inputs=["a", "b"], outputs=["C"], axis=0)
+        add = helper.make_node("Add", inputs=["X", "C"], outputs=["Y"])
+        model = create_minimal_onnx_model([concat, add], [x], [y], [a, b])
+
+        optimized = optimize_onnx(
+            model,
+            constant_folding=True,
+            simplify_gemm=True,
+            has_batch_dim=False,
+        )
+
+        assert [node.op_type for node in optimized.graph.node] == ["Add"]
+        output = run_onnx_model(optimized, {"X": np.zeros(5, dtype=np.float32)})[0]
+        assert output.dtype == np.float32
+        assert np.array_equal(output, np.array([1.0, 2.0, 3.0, 4.0, 5.0]))
+
+    def test_shape_chain_folding_preserves_vit_class_token_shape(self):
+        """Fold Shape values, not the runtime shapes of shape tensors."""
+        x = create_tensor_value_info("X", "float32", [2, 3, 4])
+        y = create_tensor_value_info("Y", "float32", [2, 1, 5])
+        initializers = [
+            create_initializer("batch_index", np.array(0, dtype=np.int64), dtype="int64"),
+            create_initializer("one", np.array([1], dtype=np.int64), dtype="int64"),
+            create_initializer("width", np.array([5], dtype=np.int64), dtype="int64"),
+            create_initializer("cls_token", np.arange(5, dtype=np.float32)),
+        ]
+        fill = onnx.numpy_helper.from_array(np.array([0], dtype=np.float32), name="fill")
+        nodes = [
+            helper.make_node("Shape", inputs=["X"], outputs=["input_shape"]),
+            helper.make_node(
+                "Gather",
+                inputs=["input_shape", "batch_index"],
+                outputs=["batch"],
+                axis=0,
+            ),
+            helper.make_node("Unsqueeze", inputs=["batch"], outputs=["batch_axis"], axes=[0]),
+            helper.make_node(
+                "Concat",
+                inputs=["batch_axis", "one", "width"],
+                outputs=["token_shape"],
+                axis=0,
+            ),
+            helper.make_node(
+                "ConstantOfShape", inputs=["token_shape"], outputs=["tokens"], value=fill
+            ),
+            helper.make_node("Add", inputs=["tokens", "cls_token"], outputs=["Y"]),
+        ]
+        graph = helper.make_graph(nodes, "vit_shape_chain", [x], [y], initializer=initializers)
+        model = helper.make_model(graph, opset_imports=[helper.make_opsetid("", 9)])
+        inputs = {"X": np.zeros((2, 3, 4), dtype=np.float32)}
+        expected = run_onnx_model(model, inputs)[0]
+
+        optimized = optimize_onnx(
+            model,
+            constant_folding=True,
+            simplify_gemm=True,
+            has_batch_dim=False,
+        )
+
+        actual = run_onnx_model(optimized, inputs)[0]
+        assert actual.shape == (2, 1, 5)
+        assert np.array_equal(actual, expected)
+
+    def test_folded_graph_output_initializer_remains_executable(self):
+        """A folded graph output survives both folding and Gemm cleanup."""
+        y = create_tensor_value_info("Y", "int32", [2])
+        a = create_initializer("a", np.array([-5, 5], dtype=np.int32), dtype="int32")
+        b = create_initializer("b", np.array([2, -2], dtype=np.int32), dtype="int32")
+        div = helper.make_node("Div", inputs=["a", "b"], outputs=["Y"])
+        model = create_minimal_onnx_model([div], [], [y], [a, b])
+
+        optimized = optimize_onnx(
+            model,
+            constant_folding=True,
+            simplify_gemm=True,
+            reorder_by_strict_topological_order=True,
+            has_batch_dim=False,
+        )
+
+        assert len(optimized.graph.node) == 0
+        assert [initializer.name for initializer in optimized.graph.initializer] == [
+            optimized.graph.output[0].name
+        ]
+        output = run_onnx_model(optimized, {})[0]
+        assert np.array_equal(output, np.array([-2, -2], dtype=np.int32))

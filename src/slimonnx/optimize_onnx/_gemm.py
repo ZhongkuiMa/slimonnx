@@ -91,6 +91,7 @@ def _normalize_gemm_bias_input(
 def _simplify_gemm(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
+    graph_output_names: set[str] | None = None,
 ) -> list[NodeProto]:
     """Simplify Gemm nodes by normalizing attributes and creating copies of shared initializers.
 
@@ -104,6 +105,9 @@ def _simplify_gemm(
     :param nodes: List of nodes.
 
     :param initializers: Dictionary of initializers (modified in-place).
+
+    :param graph_output_names: Graph outputs backed directly by initializers
+        and therefore live even when no node consumes them.
 
     :return: Simplified list of nodes
     """
@@ -165,9 +169,11 @@ def _simplify_gemm(
         gemm_count += 1
 
     # Cleanup: Remove unused initializers
-    all_input_names = {input_name for node in new_nodes for input_name in node.input}
+    live_initializer_names = {input_name for node in new_nodes for input_name in node.input} | (
+        graph_output_names or set()
+    )
     for name in list(initializers.keys()):
-        if name not in all_input_names:
+        if name not in live_initializer_names:
             del initializers[name]
 
     return new_nodes

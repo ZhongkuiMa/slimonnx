@@ -146,6 +146,15 @@ class TestRenameInitializers:
         assert init_b.name == "Initializer_1"
         assert list(node.input) == ["x", "Initializer_0", "Initializer_1"]
 
+    def test_graph_output_initializer_uses_renamed_output_value(self):
+        """Initializer-backed outputs remain connected after renaming."""
+        output = create_initializer("Y", np.ones(1, dtype=np.float32))
+
+        new_inits = _rename_initializers([], {"Y": output}, {"Y": "output_0"})
+
+        assert list(new_inits) == ["output_0"]
+        assert output.name == "output_0"
+
 
 class TestSimplifyNames:
     """_simplify_names end-to-end: rename inputs, outputs, nodes, initializers."""

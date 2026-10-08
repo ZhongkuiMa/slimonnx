@@ -99,7 +99,12 @@ def _run_shape_based_passes(
 
     if config.constant_folding:
         data_shapes = _infer_shapes(nodes, initializers, input_nodes, output_nodes, has_batch_dim)
-        nodes, initializers = _fuse_constant_nodes(nodes, initializers, data_shapes)
+        nodes, initializers = _fuse_constant_nodes(
+            nodes,
+            initializers,
+            data_shapes,
+            {output.name for output in output_nodes},
+        )
         data_shapes = None  # invalidated by mutation above
 
     if data_shapes is None:
@@ -181,7 +186,11 @@ def _run_gemm_bn_passes(
         data_shapes = None
 
     if simplify_gemm:
-        nodes = _simplify_gemm(nodes, initializers)
+        nodes = _simplify_gemm(
+            nodes,
+            initializers,
+            {output.name for output in output_nodes},
+        )
 
     if config.fuse_gemm_gemm:
         # Iterate to a fixpoint: each pass can expose new Gemm-Gemm chains

@@ -185,6 +185,7 @@ def generate_random_inputs(
             elem_type = input_info.type.tensor_type.elem_type
             dtype = _TENSOR_PROTO_TO_NUMPY_DTYPE.get(elem_type, np.float32)
 
+            input_array: np.ndarray
             if dtype in _FLOAT_NUMPY_DTYPES:
                 input_array = rng.standard_normal(shape).astype(dtype)
             else:

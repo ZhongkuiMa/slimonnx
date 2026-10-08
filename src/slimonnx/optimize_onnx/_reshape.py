@@ -8,45 +8,80 @@ import onnx
 from onnx import NodeProto, TensorProto
 
 
-def _collapse_consecutive_reshapes(nodes: list[NodeProto]) -> list[NodeProto]:
+def _reshape_target_is_source_independent(
+    node: NodeProto,
+    initializers: dict[str, TensorProto],
+) -> bool:
+    """Return whether the target shape has no input-relative dimensions."""
+    shape = initializers.get(node.input[1])
+    if shape is None:
+        return False
+    allowzero = next((int(attr.i) for attr in node.attribute if attr.name == "allowzero"), 0)
+    target = onnx.numpy_helper.to_array(shape)
+    return bool(allowzero == 1 or not np.any(target == 0))
+
+
+def _collapse_consecutive_reshapes(
+    nodes: list[NodeProto],
+    initializers: dict[str, TensorProto],
+    graph_output_names: set[str],
+) -> list[NodeProto]:
     """Collapse adjacent ``Reshape -> Reshape`` pairs to a single Reshape.
 
-    When two Reshape nodes appear back to back with no other consumer in
-    between, the first reshape is redundant: the second reshape already
-    targets the final shape. This pass rewires the second Reshape to read
-    directly from the predecessor of the first.
+    The first reshape is redundant only when the second consumes it
+    exclusively, the intermediate value is not public, and the second target
+    shape is static and independent of its immediate input dimensions. A
+    default-``allowzero`` target containing zero is not independent: zero
+    copies a dimension from the first reshape's output, so bypassing that
+    reshape can change values or make the graph invalid.
 
     :param nodes: Model nodes.
+
+    :param initializers: Initializers used to prove the second target shape.
+
+    :param graph_output_names: Observable graph values that cannot be bypassed.
 
     :return: New node list with redundant intermediate Reshapes removed.
     :raises ValueError: If a Reshape node violates the expected 2-input /
         1-output shape contract.
     """
+    consumer_counts: dict[str, int] = {}
+    for candidate in nodes:
+        for input_name in candidate.input:
+            consumer_counts[input_name] = consumer_counts.get(input_name, 0) + 1
+
     new_nodes: list[NodeProto] = []
-    pre_pre_node = None
-    pre_node = None
-
     for node in nodes:
+        previous = new_nodes[-1] if new_nodes else None
         if (
-            pre_node is not None
-            and pre_pre_node is not None
+            previous is not None
             and node.op_type == "Reshape"
-            and pre_node.op_type == "Reshape"
+            and previous.op_type == "Reshape"
+            and previous.domain in {"", "ai.onnx"}
+            and node.domain in {"", "ai.onnx"}
         ):
-            if len(pre_node.input) != 2 or len(pre_node.output) != 1 or len(node.input) != 2:
+            if (
+                len(previous.input) != 2
+                or len(previous.output) != 1
+                or len(node.input) != 2
+                or len(node.output) != 1
+            ):
                 raise ValueError(
-                    f"Invalid Reshape node structure: {pre_node.name} "
-                    f"inputs={len(pre_node.input)}, outputs={len(pre_node.output)}, "
-                    f"{node.name} inputs={len(node.input)}. "
-                    "Expected 2 inputs and 1 output."
+                    f"Invalid Reshape node structure: {previous.name} "
+                    f"inputs={len(previous.input)}, outputs={len(previous.output)}, "
+                    f"{node.name} inputs={len(node.input)}, outputs={len(node.output)}. "
+                    "Expected 2 inputs and 1 output for both nodes."
                 )
-            for output_name in pre_pre_node.output:
-                if output_name == pre_node.input[0]:
-                    node.input[0] = output_name
-            new_nodes.pop()
-
-        pre_pre_node = pre_node
-        pre_node = node
+            intermediate = previous.output[0]
+            can_collapse = (
+                node.input[0] == intermediate
+                and consumer_counts.get(intermediate) == 1
+                and intermediate not in graph_output_names
+                and _reshape_target_is_source_independent(node, initializers)
+            )
+            if can_collapse:
+                node.input[0] = previous.input[0]
+                new_nodes.pop()
         new_nodes.append(node)
 
     return new_nodes

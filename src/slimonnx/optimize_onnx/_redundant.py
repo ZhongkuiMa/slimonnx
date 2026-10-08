@@ -11,12 +11,16 @@ from slimonnx.optimize_onnx._reshape import _collapse_consecutive_reshapes
 
 
 def _rewire_redundant_node(
-    node: NodeProto, nodes: list[NodeProto], output_nodes: list[ValueInfoProto]
+    node: NodeProto,
+    nodes: list[NodeProto],
+    output_nodes: list[ValueInfoProto],
+    replacement: str | None = None,
 ) -> None:
     """Rewire downstream consumers around a redundant identity-like node.
 
     Replaces ``node.output[0]`` everywhere it is consumed (in other nodes'
-    inputs and in the graph output list) with ``node.input[0]``. The node
+    inputs and in the graph output list) with ``replacement`` (or
+    ``node.input[0]`` by default). The node
     itself remains in the list; callers are responsible for dropping it
     afterwards. Was previously named ``_skip_redundant_node`` -- the
     verb here is genuinely rewiring, not skipping.
@@ -27,9 +31,12 @@ def _rewire_redundant_node(
 
     :param output_nodes: Graph output value-infos that may name
         ``node.output[0]`` and need redirecting.
+
+    :param replacement: Explicit source value for commutative arithmetic
+        whose identity initializer occupies ``node.input[0]``.
     """
     redundant_output = node.output[0]
-    replacement = node.input[0]
+    replacement = node.input[0] if replacement is None else replacement
     for node_j in nodes:
         if redundant_output not in node_j.input:
             continue
@@ -69,22 +76,23 @@ def _is_redundant_arithmetic_op(
 
     :return: Tuple of (is_redundant, initializer_name)
     """
-    if node.input[1] in initializers:
-        initializer_name = node.input[1]
-    elif node.input[0] in initializers:
-        initializer_name = node.input[0]
-    else:
-        return False, None
+    right_name = node.input[1]
+    if right_name in initializers:
+        right = onnx.numpy_helper.to_array(initializers[right_name])
+        if (node.op_type in {"Add", "Sub"} and np.all(right == 0)) or (
+            node.op_type in {"Mul", "Div"} and np.all(right == 1)
+        ):
+            return True, right_name
 
-    initializer = initializers[initializer_name]
-    array = onnx.numpy_helper.to_array(initializer)
+    left_name = node.input[0]
+    if left_name in initializers and node.op_type in {"Add", "Mul"}:
+        left = onnx.numpy_helper.to_array(initializers[left_name])
+        if (node.op_type == "Add" and np.all(left == 0)) or (
+            node.op_type == "Mul" and np.all(left == 1)
+        ):
+            return True, left_name
 
-    is_redundant = bool(
-        (node.op_type in {"Add", "Sub"} and np.all(array == 0))
-        or (node.op_type in {"Mul", "Div"} and np.all(array == 1))
-    )
-
-    return is_redundant, initializer_name if is_redundant else None
+    return False, None
 
 
 def _is_redundant_pad(node: NodeProto, initializers: dict[str, TensorProto]) -> bool:
@@ -116,27 +124,36 @@ def _remove_redundant_operations(
     data_types: dict[str, int] | None = None,
 ) -> list[NodeProto]:
     """Remove identity-like operations proved redundant by shape/value/type."""
-    nodes = _collapse_consecutive_reshapes(nodes)
+    graph_output_names = {output.name for output in output_nodes}
+    nodes = _collapse_consecutive_reshapes(nodes, initializers, graph_output_names)
     data_types = {} if data_types is None else data_types
+    removable_initializers: set[str] = set()
 
     new_nodes = []
     for node in nodes:
+        if node.domain not in {"", "ai.onnx"} or any(
+            output in graph_output_names for output in node.output
+        ):
+            new_nodes.append(node)
+            continue
+
         if node.op_type in {"Reshape", "Flatten"}:
             if _is_redundant_reshape_or_flatten(node, data_shapes):
                 if node.op_type == "Reshape" and node.input[1] in initializers:
-                    del initializers[node.input[1]]
+                    removable_initializers.add(node.input[1])
                 _rewire_redundant_node(node, nodes, output_nodes)
                 continue
 
         elif node.op_type in {"Add", "Sub", "Mul", "Div"}:
             is_redundant, initializer_name = _is_redundant_arithmetic_op(node, initializers)
             if is_redundant and initializer_name is not None:
-                del initializers[initializer_name]
-                _rewire_redundant_node(node, nodes, output_nodes)
+                replacement = node.input[1] if node.input[0] == initializer_name else node.input[0]
+                removable_initializers.add(initializer_name)
+                _rewire_redundant_node(node, nodes, output_nodes, replacement)
                 continue
 
         elif node.op_type == "Pad" and _is_redundant_pad(node, initializers):
-            del initializers[node.input[1]]
+            removable_initializers.add(node.input[1])
             _rewire_redundant_node(node, nodes, output_nodes)
             continue
 
@@ -145,5 +162,11 @@ def _remove_redundant_operations(
             continue
 
         new_nodes.append(node)
+
+    live_values = {
+        input_name for node in new_nodes for input_name in node.input if input_name
+    } | graph_output_names
+    for initializer_name in removable_initializers - live_values:
+        initializers.pop(initializer_name, None)
 
     return new_nodes

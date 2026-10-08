@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "slimonnx"
-version = "2026.10.0"
+version = "2026.10.1"
 description = "ONNX model optimization and simplification utilities"
 readme = "README.md"
 requires-python = ">=3.11"
@@ -25,16 +25,17 @@ dependencies = [
     "onnx==1.16.0",
     "onnxruntime==1.22.0",
     "numpy==1.26.4",
-    "shapeonnx @ git+https://github.com/ZhongkuiMa/shapeonnx.git@v2026.8.0",
+    "shapeonnx @ git+https://github.com/ZhongkuiMa/shapeonnx.git@v2026.10.0",
 ]
 
 [project.optional-dependencies]
 dev = [
-    "pytest>=7.0",
-    "pytest-cov>=4.0",
-    "pytest-timeout>=2.4",
+    "pytest==9.0.2",
+    "pytest-cov==7.1.0",
+    "pytest-timeout==2.4.0",
     "ruff==0.15.0",
-    "mypy>=1.0",
+    "mypy==1.19.1",
+    "pre-commit==4.5.1",
 ]
 
 [tool.setuptools]

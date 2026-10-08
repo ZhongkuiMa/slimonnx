@@ -26,31 +26,6 @@ def _ensure_shape_is_list(shape: int | list[int]) -> list[int]:
     return [shape] if isinstance(shape, int) else shape
 
 
-def _handle_shape_extraction(
-    node: NodeProto, shapes: dict[str, int | list[int]], nodes_dict: dict[str, NodeProto]
-) -> np.ndarray | None:
-    """Extract shape from shapes dict for Shape nodes.
-
-    :param node: Node to execute.
-
-    :param shapes: Dictionary of tensor shapes.
-
-    :param nodes_dict: Dictionary mapping output names to nodes.
-
-    :return: Computed value or None if not a shape operation
-    """
-    if node.input[0] not in nodes_dict:
-        return None
-
-    pre_node_type = nodes_dict[node.input[0]].op_type
-    if pre_node_type != "Shape":
-        return None
-
-    output_shape = shapes[node.output[0]]
-    output_shape = _ensure_shape_is_list(output_shape)
-    return np.array(output_shape, dtype=np.int64)
-
-
 def _execute_gather(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
     """Execute Gather operation on constant inputs.
 
@@ -70,7 +45,7 @@ def _execute_gather(node: NodeProto, initializers: dict[str, TensorProto]) -> np
     indices = onnx.numpy_helper.to_array(initializers[node.input[1]])
     axis = get_onnx_attrs(node, initializers)["axis"]
 
-    return np.take(data, indices, axis=axis)
+    return cast(np.ndarray, np.take(data, indices, axis=axis))
 
 
 def _execute_slice(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray | None:
@@ -128,7 +103,13 @@ def _execute_unsqueeze(node: NodeProto, initializers: dict[str, TensorProto]) ->
         return None
 
     data = onnx.numpy_helper.to_array(initializers[node.input[0]])
-    axes_array = onnx.numpy_helper.to_array(initializers[node.input[1]])
+    if len(node.input) == 1:
+        axes = get_onnx_attrs(node, initializers)["axes"]
+        if axes is None:
+            return None
+        axes_array = np.asarray(axes, dtype=np.int64)
+    else:
+        axes_array = onnx.numpy_helper.to_array(initializers[node.input[1]])
 
     return np.expand_dims(data, axis=tuple(axes_array))
 
@@ -153,12 +134,9 @@ def _execute_gather_slice_unsqueeze(
 
     :return: Computed value
     """
-    # Try shape extraction first
-    result = _handle_shape_extraction(node, shapes, nodes_dict)
-    if result is not None:
-        return result
-
-    # Try each operation type
+    # Shape nodes are folded to initializers before their consumers. Execute
+    # those initializer values directly; the shape map contains tensor geometry,
+    # not the integer values carried by shape tensors.
     result = _execute_gather(node, initializers)
     if result is not None:
         return result
@@ -238,20 +216,14 @@ def _execute_concat(
 
     :param initializers: Dictionary of initializers.
 
-    :param shapes: Dictionary of tensor shapes.
+    :param shapes: Dictionary of tensor shapes retained for dispatcher API
+        compatibility. Concat values are computed from their inputs.
 
     :return: Computed value
     """
-    is_concat_shape = all(input_name in initializers for input_name in node.input)
-
-    if is_concat_shape:
-        output_shape = shapes[node.output[0]]
-        output_shape = _ensure_shape_is_list(output_shape)
-        return np.array(output_shape, dtype=np.int64)
-
     tensor_list = [onnx.numpy_helper.to_array(initializers[name]) for name in node.input]
     axis = get_onnx_attrs(node, initializers)["axis"]
-    return np.concatenate(tensor_list, axis=axis)
+    return cast(np.ndarray, np.concatenate(tensor_list, axis=axis))
 
 
 def _execute_binary_arithmetic(node: NodeProto, initializers: dict[str, TensorProto]) -> np.ndarray:
@@ -275,7 +247,16 @@ def _execute_binary_arithmetic(node: NodeProto, initializers: dict[str, TensorPr
         return cast(np.ndarray, tensor1 * tensor2)
     if op_type == "Div":
         if np.issubdtype(tensor1.dtype, np.integer) and np.issubdtype(tensor2.dtype, np.integer):
-            return cast(np.ndarray, tensor1 // tensor2)
+            # ONNX integer division truncates toward zero.  ``//`` is not an
+            # equivalent implementation for negative operands because NumPy
+            # floors the quotient instead. Keep the calculation integral so
+            # int64 values above the exact float range do not lose precision.
+            quotient = np.floor_divide(tensor1, tensor2)
+            if np.issubdtype(tensor1.dtype, np.signedinteger):
+                remainder = np.remainder(tensor1, tensor2)
+                opposite_signs = np.not_equal(tensor1 < 0, tensor2 < 0)
+                quotient = quotient + np.logical_and(remainder != 0, opposite_signs)
+            return cast(np.ndarray, quotient.astype(tensor1.dtype, copy=False))
         return cast(np.ndarray, tensor1 / tensor2)
     if op_type == "MatMul":
         return cast(np.ndarray, np.matmul(tensor1, tensor2))
@@ -527,6 +508,7 @@ def _fuse_constant_nodes(
     nodes: list[NodeProto],
     initializers: dict[str, TensorProto],
     shapes: dict[str, int | list[int]],
+    graph_output_names: set[str] | None = None,
 ) -> tuple[list[NodeProto], dict[str, TensorProto]]:
     """Trace the shape node and make it as a direct constant.
 
@@ -535,6 +517,13 @@ def _fuse_constant_nodes(
         constant tensor as a frozen initializer.
     (2) We extract the shape to reshape a tensor. We can make such shape as a frozen
         initializer.
+
+    :param nodes: Graph nodes in topological order.
+    :param initializers: Initializer map, updated with folded values.
+    :param shapes: ShapeONNX data/explicit-shape map.
+    :param graph_output_names: Graph outputs that must remain live when a
+        folded value is represented directly by an initializer.
+    :return: Remaining nodes and their live initializer map.
     """
     nodes_dict = {node.output[0]: node for node in nodes}
     nodes_to_delete: list[str] = []
@@ -544,7 +533,10 @@ def _fuse_constant_nodes(
         value: np.ndarray | None = None
 
         if op_type == "Shape":
-            value = np.array(shapes[node.output[0]], dtype=np.int64)
+            source_shape = shapes.get(node.input[0])
+            if source_shape is None:
+                continue
+            value = np.array(_ensure_shape_is_list(source_shape), dtype=np.int64)
             if len(value) == 1 and value[0] == 0:
                 continue
 
@@ -572,9 +564,13 @@ def _fuse_constant_nodes(
         node for node in nodes if not (len(node.output) == 1 and node.output[0] in nodes_to_delete)
     ]
 
-    all_inputs = [input_name for node in new_nodes for input_name in node.input]
+    live_initializer_names = {input_name for node in new_nodes for input_name in node.input} | (
+        graph_output_names or set()
+    )
     initializers = {
-        name: initializer for name, initializer in initializers.items() if name in all_inputs
+        name: initializer
+        for name, initializer in initializers.items()
+        if name in live_initializer_names
     }
 
     return new_nodes, initializers
