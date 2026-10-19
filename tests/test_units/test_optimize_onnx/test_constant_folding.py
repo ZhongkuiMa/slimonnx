@@ -287,8 +287,13 @@ class TestExecuteElementwiseOps:
                 np.array([1, 2, -3], dtype=np.float32),
                 np.array([-1, -2, 3], dtype=np.float32),
             ),
+            (
+                "Sqrt",
+                np.array([0, 1, 4, 9], dtype=np.float32),
+                np.array([0, 1, 2, 3], dtype=np.float32),
+            ),
         ],
-        ids=["clips_to_zero", "negate"],
+        ids=["clips_to_zero", "negate", "square_root"],
     )
     def test_executes_unary_ops(self, op_name, input_val, expected_val):
         """Test unary elementwise operations."""
@@ -523,6 +528,30 @@ class TestFuseConstantNodes:
         new_nodes, _ = _fuse_constant_nodes(nodes, initializers, shapes)  # type: ignore[arg-type]  # dict invariance
         # Add node should be removed since inputs are constants
         assert all(node.op_type != "Add" for node in new_nodes)
+
+    def test_removes_sqrt_node_on_constant_input(self):
+        """Fold a unary Sqrt while preserving its floating dtype and value."""
+        source = create_initializer("source", np.array([0.0, 4.0, 9.0], dtype=np.float32))
+        x = create_tensor_value_info("X", "float32", [3])
+        y = create_tensor_value_info("Y", "float32", [3])
+        sqrt = helper.make_node("Sqrt", inputs=["source"], outputs=["root"])
+        add = helper.make_node("Add", inputs=["X", "root"], outputs=["Y"])
+        model = create_minimal_onnx_model([sqrt, add], [x], [y], [source])
+
+        optimized = optimize_onnx(
+            model,
+            constant_folding=True,
+            simplify_gemm=True,
+            has_batch_dim=False,
+        )
+
+        assert [node.op_type for node in optimized.graph.node] == ["Add"]
+        root = next(init for init in optimized.graph.initializer if init.name == "root")
+        root_value = onnx.numpy_helper.to_array(root)
+        assert root_value.dtype == np.float32
+        assert np.array_equal(root_value, np.array([0.0, 2.0, 3.0], dtype=np.float32))
+        output = run_onnx_model(optimized, {"X": np.ones(3, dtype=np.float32)})[0]
+        assert np.array_equal(output, np.array([1.0, 3.0, 4.0], dtype=np.float32))
 
     def test_no_foldable_nodes(self):
         """Test with no constant operations to fold."""

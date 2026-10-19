@@ -66,6 +66,7 @@ PRESET_NAMES = (
     "safenlp_2024",
     "sat_relu",
     "soundnessbench",
+    "smart_turn_multimodal_2026",
     "tinyimagenet",  # alias of tinyimagenet_2024
     "tinyimagenet_2024",
     "tllverifybench_2023",
@@ -167,6 +168,10 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             fuse_matmul_add=True,
             constant_folding=True,
         ),
+        "smart_turn_multimodal_2026": OptimizationConfig(
+            canonicalize_quantization=True,
+            constant_folding=True,
+        ),
         "tinyimagenet_2024": OptimizationConfig(
             fuse_conv_bn=True,
             constant_folding=True,
@@ -211,6 +216,7 @@ def all_optimizations(has_batch_dim: bool = True) -> OptimizationConfig:
         simplify_conv_to_flatten_gemm=True,
         remove_redundant_operations=True,
         constant_folding=True,
+        canonicalize_quantization=True,
         simplify_node_name=True,
         has_batch_dim=has_batch_dim,
     )

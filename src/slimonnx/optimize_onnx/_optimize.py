@@ -32,6 +32,7 @@ from slimonnx.optimize_onnx._gemm_gemm import _fuse_gemm_gemm
 from slimonnx.optimize_onnx._mm_add import _fuse_matmul_add
 from slimonnx.optimize_onnx._name import _simplify_names
 from slimonnx.optimize_onnx._ordering import _reorder_by_strict_topological_order
+from slimonnx.optimize_onnx._quantize import _canonicalize_quantization
 from slimonnx.optimize_onnx._redundant import _remove_redundant_operations
 from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
 from slimonnx.optimize_onnx._softmax import _canonicalize_legacy_softmax
@@ -235,6 +236,7 @@ def _run_conv_passes(
 def optimize_onnx(
     model: ModelProto,
     constant_folding: bool = False,
+    canonicalize_quantization: bool = False,
     fuse_matmul_add: bool = False,
     fuse_gemm_reshape_bn: bool = False,
     fuse_bn_reshape_gemm: bool = False,
@@ -263,6 +265,8 @@ def optimize_onnx(
     :param model: Input ONNX model.
 
     :param constant_folding: Fold constant operations (renamed from fuse_constant_nodes).
+
+    :param canonicalize_quantization: Lower proven scalar Q-DQ pairs and fold static DQ.
 
     :param fuse_matmul_add: Fuse MatMul + Add to Gemm.
 
@@ -310,6 +314,7 @@ def optimize_onnx(
     # drivers can take a single, immutable config object.
     config = OptimizationConfig(
         constant_folding=constant_folding,
+        canonicalize_quantization=canonicalize_quantization,
         fuse_matmul_add=fuse_matmul_add,
         fuse_gemm_reshape_bn=fuse_gemm_reshape_bn,
         fuse_bn_reshape_gemm=fuse_bn_reshape_gemm,
@@ -365,6 +370,12 @@ def _optimize_with_config(
     nodes = list(model.graph.node)
     nodes = _constant_to_initializer(nodes, initializers)
     nodes = _canonicalize_self_mul(nodes, initializers)
+    if config.canonicalize_quantization:
+        nodes, initializers = _canonicalize_quantization(
+            nodes,
+            initializers,
+            {output.name for output in model.graph.output},
+        )
 
     # Push the post-folding graph back onto ``model`` before shape inference:
     # shapeonnx reads from input ValueInfoProto, but the Constant->initializer

@@ -44,6 +44,7 @@ class OptimizationConfig:
 
     # Preprocessing
     constant_folding: bool = False
+    canonicalize_quantization: bool = False
 
     # Postprocessing
     simplify_node_name: bool = False

@@ -376,9 +376,13 @@ def _execute_elementwise_ops(
     """
     op_type = node.op_type
 
-    if op_type in {"Relu", "Neg"}:
+    if op_type in {"Relu", "Neg", "Sqrt"}:
         tensor = onnx.numpy_helper.to_array(initializers[node.input[0]])
-        return np.maximum(tensor, 0) if op_type == "Relu" else -tensor
+        if op_type == "Relu":
+            return np.maximum(tensor, 0)
+        if op_type == "Neg":
+            return -tensor
+        return cast(np.ndarray, np.sqrt(tensor))
 
     if op_type in {"Add", "Sub", "Mul", "Div", "MatMul", "Pow"}:
         return _execute_binary_arithmetic(node, initializers)

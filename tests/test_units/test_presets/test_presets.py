@@ -91,6 +91,13 @@ class TestGetPreset:
         assert config.constant_folding is True
         assert config.fuse_transpose_matmul_transpose is True
 
+    def test_smart_turn_multimodal_2026_flags(self):
+        """Enable only the conservative quantization frontend plus folding."""
+        config = get_preset("smart_turn_multimodal_2026")
+
+        assert config.canonicalize_quantization is True
+        assert config.constant_folding is True
+
     def test_cifar100_flags(self):
         """Test cifar100 preset enables conv/bn fusion and folding."""
         config = get_preset("cifar100")
@@ -288,6 +295,7 @@ class TestAllOptimizations:
         assert config.simplify_conv_to_flatten_gemm is True
         assert config.remove_redundant_operations is True
         assert config.constant_folding is True
+        assert config.canonicalize_quantization is True
         assert config.simplify_node_name is True
 
     def test_returns_optimization_config(self):
