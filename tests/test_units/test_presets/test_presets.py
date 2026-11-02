@@ -98,6 +98,13 @@ class TestGetPreset:
         assert config.canonicalize_quantization is True
         assert config.constant_folding is True
 
+    def test_relusplitter_2026_flags(self):
+        """Enable only exact complementary-ReLU collapse plus folding."""
+        config = get_preset("relusplitter_2026")
+
+        assert config.collapse_complementary_relu is True
+        assert config.constant_folding is True
+
     def test_cifar100_flags(self):
         """Test cifar100 preset enables conv/bn fusion and folding."""
         config = get_preset("cifar100")

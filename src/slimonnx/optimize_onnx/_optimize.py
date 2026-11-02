@@ -34,6 +34,7 @@ from slimonnx.optimize_onnx._name import _simplify_names
 from slimonnx.optimize_onnx._ordering import _reorder_by_strict_topological_order
 from slimonnx.optimize_onnx._quantize import _canonicalize_quantization
 from slimonnx.optimize_onnx._redundant import _remove_redundant_operations
+from slimonnx.optimize_onnx._relu_relationship import _collapse_complementary_relu
 from slimonnx.optimize_onnx._reshape import _resolve_reshape_negative_one
 from slimonnx.optimize_onnx._softmax import _canonicalize_legacy_softmax
 from slimonnx.optimize_onnx._transpose_matmul import _fuse_transpose_matmul_transpose
@@ -193,6 +194,13 @@ def _run_gemm_bn_passes(
             {output.name for output in output_nodes},
         )
 
+    if config.collapse_complementary_relu:
+        nodes, initializers = _collapse_complementary_relu(
+            nodes,
+            initializers,
+            {output.name for output in output_nodes},
+        )
+
     if config.fuse_gemm_gemm:
         # Iterate to a fixpoint: each pass can expose new Gemm-Gemm chains
         # by folding earlier ones. Bounded by node count to guarantee
@@ -244,6 +252,7 @@ def optimize_onnx(
     fuse_transpose_bn_transpose: bool = False,
     fuse_transpose_matmul_transpose: bool = False,
     fuse_gemm_gemm: bool = False,
+    collapse_complementary_relu: bool = False,
     fuse_conv_bn: bool = False,
     fuse_bn_conv: bool = False,
     fuse_conv_transpose_bn: bool = False,
@@ -281,6 +290,8 @@ def optimize_onnx(
     :param fuse_transpose_matmul_transpose: Fuse rank-2 Transpose-MatMul-Transpose.
 
     :param fuse_gemm_gemm: Fuse consecutive Gemm nodes.
+
+    :param collapse_complementary_relu: Collapse exact complementary-ReLU affine blocks.
 
     :param fuse_conv_bn: Fuse Conv-BatchNorm.
 
@@ -322,6 +333,7 @@ def optimize_onnx(
         fuse_transpose_bn_transpose=fuse_transpose_bn_transpose,
         fuse_transpose_matmul_transpose=fuse_transpose_matmul_transpose,
         fuse_gemm_gemm=fuse_gemm_gemm,
+        collapse_complementary_relu=collapse_complementary_relu,
         fuse_conv_bn=fuse_conv_bn,
         fuse_bn_conv=fuse_bn_conv,
         fuse_conv_transpose_bn=fuse_conv_transpose_bn,

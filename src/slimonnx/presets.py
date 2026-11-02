@@ -62,6 +62,7 @@ PRESET_NAMES = (
     "ml4acopf_2024",
     "nn4sys",
     "relusplitter",
+    "relusplitter_2026",
     "safenlp",  # alias of safenlp_2024
     "safenlp_2024",
     "sat_relu",
@@ -152,10 +153,6 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
             remove_redundant_operations=True,
             constant_folding=True,
         ),
-        "nn4sys": OptimizationConfig(
-            fuse_matmul_add=True,
-            constant_folding=True,
-        ),
         "ml4acopf_2023": OptimizationConfig(
             constant_folding=True,
             fuse_transpose_matmul_transpose=True,
@@ -163,6 +160,14 @@ def get_preset(benchmark_name: str, model_name: str | None = None) -> Optimizati
         "ml4acopf_2024": OptimizationConfig(
             constant_folding=True,
             fuse_transpose_matmul_transpose=True,
+        ),
+        "nn4sys": OptimizationConfig(
+            fuse_matmul_add=True,
+            constant_folding=True,
+        ),
+        "relusplitter_2026": OptimizationConfig(
+            collapse_complementary_relu=True,
+            constant_folding=True,
         ),
         "safenlp_2024": OptimizationConfig(
             fuse_matmul_add=True,
@@ -213,6 +218,7 @@ def all_optimizations(has_batch_dim: bool = True) -> OptimizationConfig:
         fuse_transpose_bn_transpose=True,
         fuse_transpose_matmul_transpose=True,
         fuse_gemm_gemm=True,
+        collapse_complementary_relu=True,
         simplify_conv_to_flatten_gemm=True,
         remove_redundant_operations=True,
         constant_folding=True,

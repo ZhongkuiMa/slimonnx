@@ -71,6 +71,7 @@ normalization, and topological reordering.
 |----------|-------|
 | Conv/BN fusion | `fuse_conv_bn`, `fuse_bn_conv`, `fuse_bn_conv_with_padding`, `fuse_conv_transpose_bn`, `fuse_bn_conv_transpose`, `fuse_depthwise_conv_bn`, `fuse_bn_depthwise_conv` |
 | Gemm fusion | `fuse_matmul_add`, `fuse_gemm_gemm`, `fuse_gemm_reshape_bn`, `fuse_bn_reshape_gemm`, `fuse_bn_gemm`, `fuse_transpose_bn_transpose`, `fuse_transpose_matmul_transpose` |
+| Exact activation canonicalization | `collapse_complementary_relu` |
 | Simplification | `simplify_conv_to_flatten_gemm`, `remove_redundant_operations`, `constant_folding` |
 | Postprocessing | `simplify_node_name`, `remove_dropout` (default: True) |
 

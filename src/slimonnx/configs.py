@@ -34,6 +34,7 @@ class OptimizationConfig:
     fuse_transpose_bn_transpose: bool = False
     fuse_transpose_matmul_transpose: bool = False
     fuse_gemm_gemm: bool = False
+    collapse_complementary_relu: bool = False
 
     # Simplification optimizations
     simplify_conv_to_flatten_gemm: bool = False

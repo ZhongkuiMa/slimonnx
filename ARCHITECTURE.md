@@ -26,6 +26,7 @@ src/slimonnx/
 │   ├── _depthwise_conv.py Depthwise conv fusion
 │   ├── _gemm.py           MatMul+Add -> Gemm fusion
 │   ├── _gemm_gemm.py      Consecutive Gemm fusion
+│   ├── _relu_relationship.py Exact complementary-ReLU canonicalization
 │   ├── _bn_gemm.py        BN-Gemm fusion variants
 │   ├── _bn_transpose.py   Transpose-BN-Transpose fusion
 │   ├── _mm_add.py         MatMul+Add pattern
