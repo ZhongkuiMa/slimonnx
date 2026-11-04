@@ -24,9 +24,9 @@ def setup_benchmarks_symlink() -> int:
     symlink_path = tests_dir / "vnncomp_benchmarks"
 
     # Find the benchmarks directory
-    # Try ../../../vnncomp_benchmarks/benchmarks relative to tests dir
+    # Resolve the historical VNN-LIB 1.0 corpus relative to the tests directory.
     benchmarks_dir = (
-        tests_dir / ".." / ".." / ".." / "vnncomp_benchmarks" / "benchmarks"
+        tests_dir / ".." / ".." / ".." / "vnncomp_benchmarks" / "historical" / "1.0"
     ).resolve()
 
     if not benchmarks_dir.exists():
